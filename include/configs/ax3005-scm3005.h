@@ -28,6 +28,10 @@
 
 #define CONFIG_ENV_OVERWRITE
 
+
+#ifdef CONFIG_BOOTARGS
+#undef CONFIG_BOOTARGS
+#endif
 #define CONFIG_BOOTARGS			"console=ttyPS3,115200 " \
 					"maxcpus=4 nr_cpus=4 earlycon " \
 					"hugepages=16 root=/dev/ram rw " \

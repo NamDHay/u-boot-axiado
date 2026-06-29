@@ -467,4 +467,14 @@ config PCIE_DW_IMX
 	  Say Y here if you want to enable DW PCIe controller support on
 	  iMX SoCs.
 
+config PCIE_AXIADO
+	bool "Axiado PCIe Controller"
+	depends on PCI
+	depends on ARCH_AXIADO
+	help
+	  Say Y if you want PCIe Controller Support on Axiado SoCs.
+	  Both the PCIe Root Port (Host) mode and
+	  PCIe End-Point mode are supported by enabling
+	  this config.
+
 endif

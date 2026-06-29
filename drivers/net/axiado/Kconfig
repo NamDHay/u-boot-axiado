@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Axiado network driver configuration
+#
+
+config NET_VENDOR_AXIADO
+	tristate "Axiado network device support"
+	depends on ARM64 || COMPILE_TEST
+	help
+	  Enable drivers for Ethernet devices integrated in Axiado SoCs.
+	  This includes the HCP driver.
+	  Select this if you are running on an Axiado platform or want to
+	  build-test these drivers on ARM64.
+
+	  If unsure, say N.
+
+if NET_VENDOR_AXIADO
+
+config AXIADO_HCP
+	tristate "Axiado HCP (Header and Crypto Processing Engine)"
+	depends on NET_VENDOR_AXIADO
+	default y
+	help
+	  Driver for the Axiado HCP subsystem including SHIM packet
+	  interface, five Ethernet MACs (4x1G + 1x10G), PHY/SerDes
+	  (SGMII and RXAUI), and the Host FIFO network device.
+
+	  To compile this driver as a module, choose M here. The module
+	  will be called axiado_hcp.
+
+	  If unsure, say Y.
+
+endif # NET_VENDOR_AXIADO

@@ -62,7 +62,56 @@
 			compatible = "fixed-clock";
 			#clock-cells = <0>;
 			clock-frequency = <125000000>;
-			bootph-pre-reloc;
+		};
+
+		uartclk: uartclk {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <10000000>;
+		};
+
+		pclk: pclk {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <100000000>; /* 100MHz pclk */
+		};
+
+		sysclk: sysclk {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <200000000>; /* 200MHz sysclk */
+		};
+
+		spi_clk: spi_clk {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <400000000>;  /* 400MHz */
+		};
+
+		sp_dma_clk: sp_dma_clk {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <3125000>;  /* 3.125 MHz */
+		};
+
+		clk_mali: clk_mali {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <500000000>; /* 500MHz Clock half of CPU clock*/
+			clock-output-names = "clk_mali";
+		};
+
+		clk_pclk: clk_pclk {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <74250000>;
+			clock-output-names = "clk_pclk";
+		};
+
+		rtcclk: rtcclk {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <1>; /* 1Hz */
 		};
 
 		clk_ahb: clk_ahb {
@@ -127,5 +176,184 @@
 			phy-names = "phy_arasan";
 			status = "disabled";
 		};
+
+        /* HCP (Header and Crypto Processing Engine) */
+		hcp: hcp@43100000 {
+			compatible = "axiado,ax3000-hcp";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			/*
+			 * Memory regions for the HCP subsystem:
+			 * - SHIM registers
+			 * - PHY CSR
+			 */
+			reg = <0x0 0x43100000 0x0 0x4000>,    /* SHIM regs (16KB) */
+			      <0x0 0x47000000 0x0 0x50000>;   /* PHY CSR (320KB) */
+			reg-names = "shim", "phy-csr";
+			/*
+			 * Interrupts for HCP:
+			 * IRQ 0-9: MACs 0-4
+			 */
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 5 IRQ_TYPE_LEVEL_HIGH>,     /* XGMII */
+			             <GIC_SPI 6 IRQ_TYPE_LEVEL_HIGH>,     /* GMII0 */
+			             <GIC_SPI 7 IRQ_TYPE_LEVEL_HIGH>,     /* GMII1 */
+			             <GIC_SPI 8 IRQ_TYPE_LEVEL_HIGH>,     /* GMII2 */
+			             <GIC_SPI 9 IRQ_TYPE_LEVEL_HIGH>;     /* GMII3 */
+			interrupt-names = "xgmii", "gmii0", "gmii1", "gmii2", "gmii3";
+
+			/* MAC 0: 10G RXAUI */
+			mac0: mac@0 {
+				compatible = "axiado,ax3000-mac";
+				reg = <0>;
+				phy-mode = "rxaui";
+				status = "disabled";
+			};
+
+			/* MAC 1: 1G SGMII */
+			mac1: mac@1 {
+				compatible = "axiado,ax3000-mac";
+				reg = <1>;
+				phy-mode = "sgmii";
+				status = "disabled";
+			};
+
+			/* MAC 2: 1G SGMII */
+			mac2: mac@2 {
+				compatible = "axiado,ax3000-mac";
+				reg = <2>;
+				phy-mode = "sgmii";
+				status = "disabled";
+			};
+
+			/* MAC 3: 1G SGMII */
+			mac3: mac@3 {
+				compatible = "axiado,ax3000-mac";
+				reg = <3>;
+				phy-mode = "sgmii";
+				status = "disabled";
+			};
+
+			/* MAC 4: 1G SGMII */
+			mac4: mac@4 {
+				compatible = "axiado,ax3000-mac";
+				reg = <4>;
+				phy-mode = "sgmii";
+				status = "disabled";
+			};
+
+			/* MDIO bus for PHY management */
+			mdio: mdio {
+				compatible = "axiado,ax3000-mdio";
+				#address-cells = <1>;
+				#size-cells = <0>;
+			};
+
+			hfifo: hfifo {
+				compatible = "axiado,ax3000-hfifo";
+				mac = <1>;
+				status = "okay";
+			};
+		};
+
+        pcie_x1: pcie@45200000 {
+			compatible = "axiado,ax3005-pcie";
+			status = "disable";
+			device_type = "pci";
+			device_class = "vga";
+			device_role = "vga";                    /* VGA Controller */
+			reg = <0 0x45200000 0 0x1000>,          /* PADS XPA reg */
+			      <0 0x45300000 0 0x4000>,        /* AFI PHY reg */
+			      <0 0x45203000 0 0x1000>,        /* int cfg space */
+			      <0 0x45202000 0 0x1000>,        /* bridge reg */
+			      <0 0x45280000 0 0x8000>,        /* MBX reg */
+			      <0 0x45240000 0 0x1000>,        /* EXT reg */
+			      <0 0x33202400 0 0x100>;		/* IOCTL reg */
+			reg-names = "csr", "phy", "cfg", "bridge", "mbx", "ext", "ioctl";
+			#address-cells = <3>;
+			#size-cells = <2>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>,  /* MSI interrupt */
+				     <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>,       /* Msgbox */
+				     <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>;       /* Mailbox 0 */
+			interrupt-names = "msi", "msgbox", "mailbox";
+			interrupt-map-mask = <0 0 0 7>;
+			interrupt-map = <0 0 0 1 &gic500 0>,
+					<0 0 0 2 &gic500 1>,
+					<0 0 0 3 &gic500 2>,
+					<0 0 0 4 &gic500 3>;
+			num-lanes = <1>;
+			clocks = <&uartclk>;
+			clock-names = "uartclk";
+			bus-range = <0x00 0xff>;
+            /* PCI VGA Device */
+			ranges = <0x83000000 0x0 0x89300000 0x0 0x89300000 0x0 0x100000>,   /* 1MB - BAR0 non-prefetchable */
+				 <0xc3000000 0x0 0x8c000000 0x0 0x8c000000 0x0 0x4000000>; /* 64MB - BAR2 prefetchable */
+
+            /* PCI ETH Device */
+			/* ranges = <0x83000000 0x0 0x89300000 0x0 0x89300000 0x0 0x100000>,   /1* 1MB - BAR0 non-prefetchable *1/ */
+			/* 	 <0xc3000000 0x0 0x90000000 0x0 0x90000000 0x0 0x2800>; /1* 10KB - BAR2 prefetchable *1/ */
+
+			/* Bellow config only for pcie RP */
+			/* pci0: pci@1,0 { */
+			/* 	device_type = "pci"; */
+			/* 	assigned-addresses = <0x83000800 0x7 0xE0000000 0x0 0x400000>; */
+			/* 	reg = <0x00800 0 0 0 0>; */
+			/* 	#address-cells = <3>; */
+			/* 	#size-cells = <2>; */
+			/* 	ranges; */
+			/* }; */
+		};
+
+		pcie_x2: pcie@45000000 {
+			compatible = "axiado,ax3005-pcie";
+			status = "okay";
+			device_type = "pci";
+			device_class = "host";
+			device_role = "host";                    /* Host bridge Controller */
+			reg = <0 0x45000000 0 0x1000>,          /* PADS XPA reg */
+				<0 0x45100000 0 0x4000>,        /* AFI PHY reg */
+				<0 0x45003000 0 0x1000>,        /* int cfg space */
+				<0 0x45002000 0 0x1000>,        /* bridge reg */
+				<0 0x45080000 0 0x8000>,        /* MBX reg */
+				<0 0x45040000 0 0x1000>,        /* EXT reg */
+				<0 0x33202400 0 0x100>;       /* IOCTL reg */
+			reg-names = "csr", "phy", "cfg", "bridge", "mbx", "ext", "ioctl";
+			#address-cells = <3>;
+			#size-cells = <2>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 61 IRQ_TYPE_LEVEL_HIGH>,  /* MSI interrupt */
+				     <GIC_SPI 62 IRQ_TYPE_LEVEL_HIGH>,       /* Msgbox */
+				     <GIC_SPI 68 IRQ_TYPE_LEVEL_HIGH>;       /* Mailbox 0 */
+			interrupt-names = "msi", "msgbox", "mailbox";
+			interrupt-map-mask = <0 0 0 7>;
+			interrupt-map = <0 0 0 1 &gic500 0>,
+					<0 0 0 2 &gic500 1>,
+					<0 0 0 3 &gic500 2>,
+					<0 0 0 4 &gic500 3>;
+			num-lanes = <2>;
+			clocks = <&uartclk>;
+			clock-names = "uartclk";
+			bus-range = <0x00 0xff>;
+
+            ranges = <0xc3000000 0x5 0xE0000000 0x5 0xE0000000 0x0 0x400000>, /* 4M - Port0 Config */
+				<0xc2000000 0x5 0x10000000 0x5 0x10000000 0x0 0x10000000>,    /* Non-prefetchable MEM */
+				<0xc3000000 0x5 0x50000000 0x5 0x50000000 0x0 0x10000000>,    /* Prefetchable MEM */
+				<0xc3000000 0x5 0x90000000 0x5 0x90000000 0x0 0x10000000>;    /* Prefetchable MEM */
+
+			/* Bellow config only for pcie RP */
+            pci0: pci@0,0 {
+                device_type = "pci";
+                /* (bus << 16) | (device << 11) | (function << 8) */
+                /* Bus 1, device 1, function 0 */
+                assigned-addresses = <0x83000000 0x5 0xE0000000 0x0 0x400000>;
+                reg = <0x00000 0 0 0 0>; /* Bus 0, device 1, function 0 */
+                #address-cells = <3>;
+                #size-cells = <2>;
+                ranges;
+            };
+		};
+
 	};
 };

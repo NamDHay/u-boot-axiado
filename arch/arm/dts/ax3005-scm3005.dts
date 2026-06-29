@@ -30,3 +30,67 @@
 &sdhci0 {
 	status = "okay";
 };
+
+&mac0 {
+	phy-handle = <&phy0>;
+	swap-abcd;
+	status = "disable";
+};
+
+&mac1 {
+	phy-handle = <&phy1>;
+	status = "okay";
+};
+
+&mac2 {
+	phy-handle = <&phy2>;
+	status = "okay";
+};
+
+&mac3 {
+	phy-handle = <&phy3>;
+	status = "okay";
+};
+
+&mac4 {
+	phy-handle = <&phy4>;
+	status = "okay";
+};
+
+&mdio {
+	phy0: phy0@0 {
+		reg = <0>;
+		compatible = "ethernet-phy-ieee802.3-c45";
+		#thermal-sensor-cells = <0>;
+		status = "disable";
+	};
+	phy1: phy1@1 {
+		reg = <1>;
+		compatible = "ethernet-phy-ieee802.3-c22";
+		#thermal-sensor-cells = <0>;
+		status = "okay";
+	};
+	phy2: phy2@2 {
+		reg = <2>;
+		compatible = "ethernet-phy-ieee802.3-c22";
+		#thermal-sensor-cells = <0>;
+		status = "okay";
+	};
+	phy3: phy3@3 {
+		reg = <3>;
+		compatible = "ethernet-phy-ieee802.3-c22";
+		#thermal-sensor-cells = <0>;
+		status = "okay";
+	};
+	phy4: phy4@4 {
+		reg = <4>;
+		compatible = "ethernet-phy-ieee802.3-c22";
+		#thermal-sensor-cells = <0>;
+		status = "okay";
+	};
+};
+
+&hfifo {
+    mac = <4>;
+	status = "okay";
+};

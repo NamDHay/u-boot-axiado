@@ -1,0 +1,259 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/*
+ * mac_config.h - MAC configuration register offsets, bit definitions, and function
+ * prototypes for the Axiado SHIM driver.
+ *
+ * Copyright (c) 2022-2026 Axiado Corporation
+ */
+
+#ifndef _MAC_CONFIG_H_
+#define _MAC_CONFIG_H_
+
+#include <linux/bitops.h>
+#include <linux/types.h>
+
+#include "shim_common.h"
+#include "shim_mac.h"
+
+/* Function Prototypes */
+enum AX_SHIM_STATUS mac_basic_init(void);
+enum AX_SHIM_STATUS mac_flow_config(void);
+enum AX_SHIM_STATUS config_phy_mode(u8 mac_id);
+
+bool mac_is_enabled(int mac_idx);
+u8 get_mac_netdev(u8 mac_id);
+
+int venice_char_10g_init(struct device *dev);
+u32 mmd_read(u32 port_no, u32 mmd, u32 addr);
+void mmd_write(u32 port_no, u32 mmd, u32 addr, u32 value);
+
+/* COMMAND_CONFIG Register Bit Shifts */
+#define MAC_CC_TX_ENA_SHIFT 0
+#define MAC_CC_RX_ENA_SHIFT 1
+#define MAC_CC_ETH_SPEED_SHIFT 3
+#define MAC_CC_PROMIS_EN_SHIFT 4
+#define MAC_CC_PAD_EN_SHIFT 5
+#define MAC_CC_CRC_FWD_SHIFT 6
+#define MAC_CC_PAUSE_FWD_SHIFT 7
+#define MAC_CC_PAUSE_IGNORE_SHIFT 8
+#define MAC_CC_TX_ADDR_INS_SHIFT 9
+#define MAC_CC_LOOP_ENA_SHIFT 10
+#define MAC_CC_TX_PAD_EN_SHIFT 11
+#define MAC_CC_SW_RESET_SHIFT 12
+#define MAC_CC_CNTL_FRM_ENA_SHIFT 13
+#define MAC_CC_RX_ERR_DISC_SHIFT 14
+#define MAC_CC_PHY_TXENA_SHIFT 15
+#define MAC_CC_SEND_IDLE_SHIFT 16
+#define MAC_CC_NO_LGTH_CHECK_SHIFT 17
+#define MAC_CC_COL_CNT_EXT_SHIFT 18
+#define MAC_CC_PFC_MODE_SHIFT 19
+#define MAC_CC_PAUSE_PFC_COMP_SHIFT 20
+#define MAC_CC_SFD_ANY_SHIFT 21
+#define MAC_CC_TX_FLUSH_SHIFT 22
+#define MAC_CC_TX_LOWP_ENA_SHIFT 23
+#define MAC_CC_REG_LOWP_RXEMPTY_SHIFT 24
+#define MAC_CC_SHORT_DISCARD_SHIFT 25
+#define MAC_CC_TX_FIFO_RESET_SHIFT 26
+#define MAC_CC_DISABLE_FLT_HDL_SHIFT 27
+
+/* COMMAND_CONFIG Register Bit Masks */
+#define MAC_CC_TX_ENA BIT(MAC_CC_TX_ENA_SHIFT)
+#define MAC_CC_RX_ENA BIT(MAC_CC_RX_ENA_SHIFT)
+#define MAC_CC_ETH_SPEED BIT(MAC_CC_ETH_SPEED_SHIFT)
+#define MAC_CC_PROMIS_EN BIT(MAC_CC_PROMIS_EN_SHIFT)
+#define MAC_CC_PAD_EN BIT(MAC_CC_PAD_EN_SHIFT)
+#define MAC_CC_CRC_FWD BIT(MAC_CC_CRC_FWD_SHIFT)
+#define MAC_CC_PAUSE_FWD BIT(MAC_CC_PAUSE_FWD_SHIFT)
+#define MAC_CC_PAUSE_IGNORE BIT(MAC_CC_PAUSE_IGNORE_SHIFT)
+#define MAC_CC_TX_ADDR_INS BIT(MAC_CC_TX_ADDR_INS_SHIFT)
+#define MAC_CC_LOOP_ENA BIT(MAC_CC_LOOP_ENA_SHIFT)
+#define MAC_CC_TX_PAD_EN BIT(MAC_CC_TX_PAD_EN_SHIFT)
+#define MAC_CC_SW_RESET BIT(MAC_CC_SW_RESET_SHIFT)
+#define MAC_CC_CNTL_FRM_ENA BIT(MAC_CC_CNTL_FRM_ENA_SHIFT)
+#define MAC_CC_RX_ERR_DISC BIT(MAC_CC_RX_ERR_DISC_SHIFT)
+#define MAC_CC_PHY_TXENA BIT(MAC_CC_PHY_TXENA_SHIFT)
+#define MAC_CC_SEND_IDLE BIT(MAC_CC_SEND_IDLE_SHIFT)
+#define MAC_CC_NO_LGTH_CHECK BIT(MAC_CC_NO_LGTH_CHECK_SHIFT)
+#define MAC_CC_COL_CNT_EXT BIT(MAC_CC_COL_CNT_EXT_SHIFT)
+#define MAC_CC_PFC_MODE BIT(MAC_CC_PFC_MODE_SHIFT)
+#define MAC_CC_PAUSE_PFC_COMP BIT(MAC_CC_PAUSE_PFC_COMP_SHIFT)
+#define MAC_CC_SFD_ANY BIT(MAC_CC_SFD_ANY_SHIFT)
+#define MAC_CC_TX_FLUSH BIT(MAC_CC_TX_FLUSH_SHIFT)
+#define MAC_CC_TX_LOWP_ENA BIT(MAC_CC_TX_LOWP_ENA_SHIFT)
+#define MAC_CC_REG_LOWP_RXEMPTY BIT(MAC_CC_REG_LOWP_RXEMPTY_SHIFT)
+#define MAC_CC_SHORT_DISCARD BIT(MAC_CC_SHORT_DISCARD_SHIFT)
+#define MAC_CC_TX_FIFO_RESET BIT(MAC_CC_TX_FIFO_RESET_SHIFT)
+#define MAC_CC_DISABLE_FLT_HDL BIT(MAC_CC_DISABLE_FLT_HDL_SHIFT)
+
+/* MAC Register Offsets */
+#define R_REVISION 0x000
+#define R_SCRATCH 0x004
+#define R_COMMAND_CONFIG 0x008
+#define R_MAC_0 0x00c
+#define R_MAC_1 0x010
+#define R_FRM_LENGTH 0x014
+#define R_PAUSE_QUANT 0x018
+#define R_RX_FIFO_SECTIONS 0x01c
+#define R_TX_FIFO_SECTIONS 0x020
+#define R_RX_FIFO_ALMOST_F_E 0x024
+#define R_TX_FIFO_ALMOST_F_E 0x028
+#define R_HASHTABLE_LOAD 0x02c
+#define R_MDIO_CFG_STATUS 0x030
+#define R_MDIO_COMMAND 0x034
+#define R_MDIO_DATA 0x038
+#define R_MDIO_REGADDR 0x03c
+#define R_STATUS 0x040
+#define R_TX_IPG_LENGTH 0x044
+#define R_CREDIT_TRIGGER 0x048
+#define R_INIT_CREDIT 0x04c
+#define R_CREDIT_REG 0x050
+#define R_CL01_PAUSE_QUANTA 0x054
+#define R_CL23_PAUSE_QUANTA 0x058
+#define R_CL45_PAUSE_QUANTA 0x05c
+#define R_CL67_PAUSE_QUANTA 0x060
+#define R_RX_PAUSE_STATUS 0x074
+#define R_TS_TIMESTAMP 0x07c
+#define R_XIF_MODE 0x080
+#define R_CL89_PAUSE_QUANTA 0x084
+#define R_CL1011_PAUSE_QUANTA 0x088
+#define R_CL1213_PAUSE_QUANTA 0x08c
+#define R_CL1415_PAUSE_QUANTA 0x090
+#define R_CL01_QUANTA_THRESH 0x064
+#define R_CL23_QUANTA_THRESH 0x068
+#define R_CL45_QUANTA_THRESH 0x06c
+#define R_CL67_QUANTA_THRESH 0x070
+#define R_CL89_QUANTA_THRESH 0x094
+#define R_CL1011_QUANTA_THRESH 0x098
+#define R_CL1213_QUANTA_THRESH 0x09c
+#define R_CL1415_QUANTA_THRESH 0x0a0
+
+/* PHY Register Offsets */
+#define R_PHY_MODEL_NUM 0x3
+#define R_LED_FUNCTION_CTRL 0x10
+#define R_LED_POLARITY_CTRL 0x11
+#define R_LED_TIMER_CTRL 0x12
+#define PHY_DEFAULT_PAGE 0x0
+
+/* MDIO Status Bits */
+#define MDIO_BUSY BIT(0)
+#define MDIO_READ_ERROR BIT(1)
+
+/* RAM based statistics module */
+#define R_STATN_CONFIG 0x0e0
+#define R_STATN_CLEARVALUELO 0x0e4
+#define R_STATN_CLEARVALUEHI 0x0e8
+#define MAC_STC_SATURATE BIT(0)
+#define MAC_STC_CLEARONREAD BIT(1)
+#define MAC_STC_CLEARALL BIT(2)
+
+/* MII/GMII/XGMII RS module included */
+#define R_IF_MODE 0x300
+#define R_IF_STATUS 0x304
+
+#define IFM_MODE_XGMII 0x0000
+#define IFM_MODE_GMII 0x0002
+#define IFM_MODE_MII 0x0001
+#define IFM_MODE_GMII_HD 0x0022
+#define IFM_MODE_MII_HD 0x0021
+
+/* SGMII PCS Layer module included */
+#define R_PCS_CONTROL 0x300
+#define R_PCS_STATUS 0x304
+#define R_PCS_PHYID1 0x308
+#define R_PCS_PHYID2 0x30c
+#define R_PCS_DEV_ABILITY 0x310
+#define R_PCS_PARTNER_ABILITY 0x314
+#define R_PCS_AN_EXPANSION 0x318
+#define R_PCS_LINK_TIMER_LO 0x348
+#define R_PCS_LINK_TIMER_HI 0x34c
+#define R_PCS_IF_MODE 0x350
+
+/* Counter Numbers */
+#define CNT_OCTETS 0
+#define CNT_OCTETSOK 1
+#define CNT_ALIGNERR 2
+#define CNT_PAUSERX 3
+#define CNT_FRAMESOK 4
+#define CNT_CRCERR 5
+#define CNT_VLANOK 6
+#define CNT_IFERRORS 7
+#define CNT_IFUCAST 8
+#define CNT_IFMCAST 9
+#define CNT_IFBCAST 10
+#define CNT_STATSDROP 11
+#define CNT_STATSPKTS 12
+#define CNT_STATSUNDER 13
+#define CNT_STATSPKT64 14
+#define CNT_STATSPKT65 15
+#define CNT_STATSPKT128 16
+#define CNT_STATSPKT256 17
+#define CNT_STATSPKT512 18
+#define CNT_STATSPKT1024 19
+#define CNT_STATSPKT1519 20
+#define CNT_STATSOVER 21
+#define CNT_STATSJABBER 22
+#define CNT_STATSFRAGMENTS 23
+#define CNT_CTRLFRAMES 24
+#define CNT_TOOLONG 25
+#define CNT_RANGEERR 26
+#define CNT_ERROCTETS 31
+
+/* SHIM FIFO Registers */
+#define REG_XGE_SHIM_FIFO 0x0040
+#define SHIM_MAC_TX_OVFLOW_BIT 7
+#define SHIM_MAC_RX_OVFLOW_BIT 3
+#define BIT_RX_RST 0
+#define BIT_TX_RST 4
+#define BIT_TX_EMPTY 6
+#define BIT_RX_EMPTY 2
+
+#define HOST_TX_FIFO_EN 1
+/* Host FIFO Control/status registers */
+#define TX_PACKET_FIFO_0 0x100
+#define TX_FIFO_RST 0
+#define TX_FIFO_FULL 1
+#define TX_FIFO_OVF 2
+#define TX_FIFO_RDY 3
+#define TX_FIFO_OVF_IRQEN 8
+#define TX_FIFO_OVF_MON 9
+#define TX_FIFO_LVL 16
+#define TX_PACKET_FIFO_1 0x104
+#define TX_FIFO_SOP 0
+#define TX_FIFO_EOP 1
+#define TX_FIFO_MOD 4
+#define TX_PACKET_FIFO_WDATA 0x108
+#define TX_FIFO_WDATA 0
+#define RX_PACKET_FIFO_0 0x110
+#define RX_FIFO_RST 0
+#define RX_FIFO_FULL 1
+#define RX_FIFO_OVF 2
+#define RX_FIFO_DAV 3
+#define RX_FIFO_OVF_IRQ_EN 8
+#define RX_FIFO_DAV_IRQ_EN 9
+#define RX_FIFO_OVF_MON 10
+#define RX_FIFO_DAV_MON 11
+#define RX_FIFO_LVL 16
+#define RX_FIFO_SEL 4
+
+#define RX_PACKET_FIFO_1 0x114
+#define RX_FIFO_SOP 0
+#define RX_FIFO_EOP 1
+#define RX_FIFO_MOD 4
+#define RX_FIFO_FRMLEN 16
+#define RX_PACKET_FIFO_2 0x118
+#define RX_FIFO_FRMSTAT 0
+#define RX_PACKET_FIFO_RDATA 0x11c
+#define RX_FIFO_RDATA 0
+
+#define HPI_CSR 0x014
+
+/* Port Control Register */
+#define REG_XGE_PORT_CTRL 0x0000
+#define BIT_PHY_SOFT_RESET 4
+
+#define REG_XGE_SHIM_RX_PKTS 0x0060
+
+#define SHIM_RESET_RETRY_MAX 10
+#define SHIM_RESET_RETRY_DELAY 10
+
+#endif /* _MAC_CONFIG_H_ */

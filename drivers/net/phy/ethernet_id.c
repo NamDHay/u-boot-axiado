@@ -60,8 +60,10 @@ struct phy_device *phy_connect_phy_id(struct mii_dev *bus, struct udevice *dev,
 			return NULL;
 
 		ret = device_probe(pdev);
-		if (ret)
+		if (ret) {
+            pr_err("PHY probe failed\n");
 			return NULL;
+        }
 	}
 
 	return phydev;

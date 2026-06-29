@@ -22,7 +22,7 @@ static struct mm_region axiado_ax3005_mem_map[] = {
 	{ /* Peripherals including UART */
 	  .virt = 0x00000000UL,
 	  .phys = 0x00000000UL,
-	  .size = 0x4A000000UL, /* 0 to 0x4A000000: peripherals */
+	  .size = 0x80000000UL, /* 0 to 0x4A000000: peripherals */
 	  .attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) | PTE_BLOCK_NON_SHARE |
 		   PTE_BLOCK_PXN | PTE_BLOCK_UXN },
 	{ .virt = 0x80000000UL,
@@ -30,7 +30,13 @@ static struct mm_region axiado_ax3005_mem_map[] = {
 	  .size = 0x80000000UL,
 	  .attrs = PTE_BLOCK_MEMTYPE(MT_NORMAL) | PTE_BLOCK_INNER_SHARE },
 	{
-		0,
+	  .virt = 0x500000000UL,
+	  .phys = 0x500000000UL,
+	  .size = 0x780000000UL, /* 0x5_0000_0000 to 0x7_8000_0000: peripherals */
+	  .attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) | PTE_BLOCK_NON_SHARE |
+		   PTE_BLOCK_PXN | PTE_BLOCK_UXN },
+    {
+        0,
 	}
 };
 
@@ -113,13 +119,13 @@ static void write_mac_to_hcp_regs(uint8_t *mac, uint32_t ports)
  */
 static int do_setmac(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
 {
+    u8 mac[6];
 	const char* mac_addr;
-	u8 mac[6];
 
 	mac_addr = env_get("ethaddr");
 	if (!mac_addr) {
         printf("ethaddr not set\n");
-        return -ENOENT;
+        return -ENOMEM;
 	}
 
 	/* parse "xx:xx:xx:xx:xx:xx" into bytes */
@@ -151,8 +157,8 @@ U_BOOT_CMD(
  */
 int misc_init_r(void)
 {
-	int ret;
-	ret = run_command("setmac", 0);
+	int ret = 0;
+	/* ret = run_command("setmac", 0); */
 	return ret;
 }
 #endif
