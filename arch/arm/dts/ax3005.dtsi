@@ -47,6 +47,20 @@
 		};
 	};
 
+    reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+		pci_ep_bar01: buffer@89300000 {
+			reg = <0x00 0x89300000 0x00 0x100000>; /* Control-1MB */
+			no-map;
+		};
+		pci_ep_bar23: buffer@8c000000 {
+			reg = <0x00 0x8c000000 0x00 0x4000000>; /* Data-64MB framebuffer */
+			no-map;
+		};
+	};
+
 	timer {
 		compatible = "arm,armv8-timer";
 		interrupt-parent = <&gic500>;
@@ -258,11 +272,13 @@
 		};
 
         pcie_x1: pcie@45200000 {
+			/* compatible = "axiado,ax3005-pcie-ep"; */
 			compatible = "axiado,ax3005-pcie";
-			status = "disable";
+			status = "okay";
+            /* u-boot,dm-pre-reloc; */
 			device_type = "pci";
-			device_class = "vga";
-			device_role = "vga";                    /* VGA Controller */
+			device_class = "host";
+			device_role = "host";                    /* Networking Card Controller */
 			reg = <0 0x45200000 0 0x1000>,          /* PADS XPA reg */
 			      <0 0x45300000 0 0x4000>,        /* AFI PHY reg */
 			      <0 0x45203000 0 0x1000>,        /* int cfg space */
@@ -273,45 +289,56 @@
 			reg-names = "csr", "phy", "cfg", "bridge", "mbx", "ext", "ioctl";
 			#address-cells = <3>;
 			#size-cells = <2>;
-			interrupt-parent = <&gic500>;
-			interrupts = <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>,  /* MSI interrupt */
-				     <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>,       /* Msgbox */
-				     <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>;       /* Mailbox 0 */
-			interrupt-names = "msi", "msgbox", "mailbox";
-			interrupt-map-mask = <0 0 0 7>;
-			interrupt-map = <0 0 0 1 &gic500 0>,
-					<0 0 0 2 &gic500 1>,
-					<0 0 0 3 &gic500 2>,
-					<0 0 0 4 &gic500 3>;
+
 			num-lanes = <1>;
-			clocks = <&uartclk>;
-			clock-names = "uartclk";
+			clocks = <&refclk>;
+			clock-names = "refclk";
 			bus-range = <0x00 0xff>;
+
             /* PCI VGA Device */
-			ranges = <0x83000000 0x0 0x89300000 0x0 0x89300000 0x0 0x100000>,   /* 1MB - BAR0 non-prefetchable */
-				 <0xc3000000 0x0 0x8c000000 0x0 0x8c000000 0x0 0x4000000>; /* 64MB - BAR2 prefetchable */
+            /* ranges = <0x83000000 0x0 0x89300000 0x0 0x89300000 0x0 0x100000>,   /1* 1MB - BAR0 non-prefetchable *1/ */
+				 /* <0xc3000000 0x0 0x8c000000 0x0 0x8c000000 0x0 0x4000000>; /1* 64MB - BAR2 prefetchable *1/ */
+
+            /* PCI Host bridge Device */
+            ranges = <0x83000000 0x7 0xE0000000 0x7 0xE0000000 0x0 0x400000>, /* 4M - Port0 Config */
+				<0x83000000 0x7 0x10000000 0x7 0x10000000 0x0 0x10000000>,    /* Non-prefetchable MEM */
+				<0xc3000000 0x7 0x50000000 0x7 0x50000000 0x0 0x10000000>,    /* Prefetchable MEM */
+				<0xc3000000 0x7 0x90000000 0x7 0x90000000 0x0 0x10000000>;    /* Prefetchable MEM */
 
             /* PCI ETH Device */
 			/* ranges = <0x83000000 0x0 0x89300000 0x0 0x89300000 0x0 0x100000>,   /1* 1MB - BAR0 non-prefetchable *1/ */
 			/* 	 <0xc3000000 0x0 0x90000000 0x0 0x90000000 0x0 0x2800>; /1* 10KB - BAR2 prefetchable *1/ */
 
 			/* Bellow config only for pcie RP */
-			/* pci0: pci@1,0 { */
-			/* 	device_type = "pci"; */
-			/* 	assigned-addresses = <0x83000800 0x7 0xE0000000 0x0 0x400000>; */
-			/* 	reg = <0x00800 0 0 0 0>; */
-			/* 	#address-cells = <3>; */
-			/* 	#size-cells = <2>; */
-			/* 	ranges; */
-			/* }; */
+			pci@1,0 {
+				device_type = "pci";
+                /* Bus 1, device 0, function 0 */
+				assigned-addresses = <0x83010000 0x7 0xE0000000 0x0 0x400000>;
+				reg = <0x10000 0 0 0 0>; /* Bus 1, device 0, function 0 */
+				#address-cells = <3>;
+				#size-cells = <2>;
+				ranges;
+			};
+
+            pci@2,0 {
+                device_type = "pci";
+                /* (bus << 16) | (device << 11) | (function << 8) */
+                /* Bus 2, device 0, function 0 */
+                assigned-addresses = <0x83020000 0x7 0xE0000000 0x0 0x400000>;
+                reg = <0x20000 0 0 0 0>; /* Bus 2, device 0, function 0 */
+                #address-cells = <3>;
+                #size-cells = <2>;
+                ranges;
+            };
 		};
 
 		pcie_x2: pcie@45000000 {
-			compatible = "axiado,ax3005-pcie";
+			compatible = "axiado,ax3005-pcie-ep";
 			status = "okay";
 			device_type = "pci";
-			device_class = "host";
-			device_role = "host";                    /* Host bridge Controller */
+			device_class = "vga";
+			device_role = "vga";                    /* Host bridge Controller */
+            u-boot,dm-pre-reloc;
 			reg = <0 0x45000000 0 0x1000>,          /* PADS XPA reg */
 				<0 0x45100000 0 0x4000>,        /* AFI PHY reg */
 				<0 0x45003000 0 0x1000>,        /* int cfg space */
@@ -322,33 +349,43 @@
 			reg-names = "csr", "phy", "cfg", "bridge", "mbx", "ext", "ioctl";
 			#address-cells = <3>;
 			#size-cells = <2>;
-			interrupt-parent = <&gic500>;
-			interrupts = <GIC_SPI 61 IRQ_TYPE_LEVEL_HIGH>,  /* MSI interrupt */
-				     <GIC_SPI 62 IRQ_TYPE_LEVEL_HIGH>,       /* Msgbox */
-				     <GIC_SPI 68 IRQ_TYPE_LEVEL_HIGH>;       /* Mailbox 0 */
-			interrupt-names = "msi", "msgbox", "mailbox";
-			interrupt-map-mask = <0 0 0 7>;
-			interrupt-map = <0 0 0 1 &gic500 0>,
-					<0 0 0 2 &gic500 1>,
-					<0 0 0 3 &gic500 2>,
-					<0 0 0 4 &gic500 3>;
+
 			num-lanes = <2>;
-			clocks = <&uartclk>;
-			clock-names = "uartclk";
+			clocks = <&refclk>;
+			clock-names = "refclk";
 			bus-range = <0x00 0xff>;
 
-            ranges = <0xc3000000 0x5 0xE0000000 0x5 0xE0000000 0x0 0x400000>, /* 4M - Port0 Config */
-				<0xc2000000 0x5 0x10000000 0x5 0x10000000 0x0 0x10000000>,    /* Non-prefetchable MEM */
+            /* PCI VGA Device */
+            /* ranges = <0x83000000 0x0 0x89300000 0x0 0x89300000 0x0 0x100000>,   /1* 1MB - BAR0 non-prefetchable *1/ */
+				 /* <0xc3000000 0x0 0x8c000000 0x0 0x8c000000 0x0 0x4000000>; /1* 64MB - BAR2 prefetchable *1/ */
+
+            /* PCI Host bridge Device */
+            ranges = <0x83000000 0x5 0xE0000000 0x5 0xE0000000 0x0 0x400000>, /* 4M - Port0 Config */
+				<0x83000000 0x5 0x10000000 0x5 0x10000000 0x0 0x10000000>,    /* Non-prefetchable MEM */
 				<0xc3000000 0x5 0x50000000 0x5 0x50000000 0x0 0x10000000>,    /* Prefetchable MEM */
 				<0xc3000000 0x5 0x90000000 0x5 0x90000000 0x0 0x10000000>;    /* Prefetchable MEM */
 
+            /* PCI ETH Device */
+			/* ranges = <0x83000000 0x0 0x89300000 0x0 0x89300000 0x0 0x100000>,   /1* 1MB - BAR0 non-prefetchable *1/ */
+			/* 	 <0xc3000000 0x0 0x90000000 0x0 0x90000000 0x0 0x2800>; /1* 10KB - BAR2 prefetchable *1/ */
+
 			/* Bellow config only for pcie RP */
-            pci0: pci@0,0 {
+			pci@1,0 {
+				device_type = "pci";
+                /* Bus 1, device 0, function 0 */
+				assigned-addresses = <0x83010000 0x5 0xE0000000 0x0 0x400000>;
+				reg = <0x10000 0 0 0 0>; /* Bus 1, device 0, function 0 */
+				#address-cells = <3>;
+				#size-cells = <2>;
+				ranges;
+			};
+
+            pci@2,0 {
                 device_type = "pci";
                 /* (bus << 16) | (device << 11) | (function << 8) */
-                /* Bus 1, device 1, function 0 */
-                assigned-addresses = <0x83000000 0x5 0xE0000000 0x0 0x400000>;
-                reg = <0x00000 0 0 0 0>; /* Bus 0, device 1, function 0 */
+                /* Bus 2, device 0, function 0 */
+                assigned-addresses = <0x83020000 0x5 0xE0000000 0x0 0x400000>;
+                reg = <0x20000 0 0 0 0>; /* Bus 2, device 0, function 0 */
                 #address-cells = <3>;
                 #size-cells = <2>;
                 ranges;

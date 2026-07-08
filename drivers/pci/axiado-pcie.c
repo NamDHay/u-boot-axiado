@@ -13,6 +13,7 @@
 #include <asm/global_data.h>
 #include <linux/list.h>
 #include <pci.h>
+#include <pci_ep.h>
 #include <linux/bitops.h>
 #include <hexdump.h>
 #include <linux/printk.h>
@@ -42,39 +43,33 @@ enum ax_dev_type {
 
 inline u32 axiado_pcie_ioread(void __iomem *base, u32 offset)
 {
-	void __iomem *mmio_addr = NULL;
+    void __iomem *mmio_addr = NULL;
 
-	mmio_addr = ((char *)(base)) + offset;
-	return readl(mmio_addr);
+    mmio_addr = ((char *)(base)) + offset;
+    return readl(mmio_addr);
 }
 
 inline void axiado_pcie_iowrite(void __iomem *base, u32 offset, u32 val)
 {
-	void __iomem *mmio_addr = NULL;
+    void __iomem *mmio_addr = NULL;
 
-	mmio_addr = ((char *)(base)) + offset;
-	writel(val, mmio_addr);
+    mmio_addr = ((char *)(base)) + offset;
+    writel(val, mmio_addr);
 }
 
 static unsigned int axiado_pcie_conf_offset(pci_dev_t bdf,
         unsigned int where)
 {
     return (PCI_BUS(bdf)  << 20) |
-           (PCI_DEV(bdf)  << 15) |
-           (PCI_FUNC(bdf) << 12) |
-           (where & (SZ_4K - 1) & ~3);
-           /* (where & ~3); */
+        (PCI_DEV(bdf)  << 15) |
+        (PCI_FUNC(bdf) << 12) |
+        (where & (SZ_4K - 1) & ~3);
 }
 
 static int axiado_pcie_map_bus(struct axiado_pcie *pcie, pci_dev_t bdf,
-				   int where, unsigned long long *address)
+        int where, unsigned long long *address)
 {
     unsigned int bus = PCI_BUS(bdf);
-    /* printf("BDF=%d:%d.%d where=%x\n", */
-    /*         PCI_BUS(bdf), */
-    /*         PCI_DEV(bdf), */
-    /*         PCI_FUNC(bdf), */
-    /*         where); */
 
     if (bus == 0) {
         unsigned int slot = PCI_DEV(bdf);
@@ -95,10 +90,6 @@ static int axiado_pcie_map_bus(struct axiado_pcie *pcie, pci_dev_t bdf,
         return -ENODEV;
     } else {
         unsigned int offset;
-
-        /* move to correct offset within the 4 KiB page */
-        /* *address = (unsigned long)pcie->base + (PCIE_WITH_BUS_OFFSET * bus) + */
-        /*     (offset & (SZ_4K - 1)); */
         offset = axiado_pcie_conf_offset(bdf, where);
         *address = (unsigned long long)pcie->base + offset;
         return 0;
@@ -111,11 +102,10 @@ static int axiado_pcie_config_read(const struct udevice *bus, pci_dev_t bdf,
 {
     struct axiado_pcie *pcie = dev_get_priv(bus);
     unsigned long long address;
-    ulong value;
+    unsigned long long value;
     int err;
 
     err = axiado_pcie_map_bus(pcie, bdf, offset, &address);
-    printf("Config read at 0x%llx", address);
     if (err < 0) {
         value = 0xffffffff;
         goto done;
@@ -124,7 +114,7 @@ static int axiado_pcie_config_read(const struct udevice *bus, pci_dev_t bdf,
 
 done:
     *valuep = pci_conv_32_to_size(value, offset, size);
-    printf(" - 0x%lx\n", *valuep);
+    /* printf("Config read at 0x%llx - 0x%lx\n", address, *valuep); */
 
     return 0;
 }
@@ -139,7 +129,6 @@ static int axiado_pcie_config_write(struct udevice *bus, pci_dev_t bdf,
     int err;
 
     err = axiado_pcie_map_bus(pcie, bdf, offset, &address);
-    /* printf("Config write at 0x%llx - 0x%lx\n", address, value); */
     if (err < 0)
         return 0;
 
@@ -147,7 +136,57 @@ static int axiado_pcie_config_write(struct udevice *bus, pci_dev_t bdf,
     value = pci_conv_size_to_32(old, value, offset, size);
 
     writel(value, address);
+    /* printf("Config write at 0x%llx - 0x%lx\n", address, value); */
 
+    return 0;
+}
+
+static int axiado_pcie_write_header(struct udevice *dev, uint fn,
+				     struct pci_ep_header *hdr)
+{
+    struct axiado_pcie *pcie = dev_get_priv(dev);
+
+    if (pcie->is_root_port) {
+        /* Change class to PCIe Bridge */
+        axiado_pcie_iowrite(pcie->bridge,
+                REG_PCIE_PCIE_PCI_IDS_63_32_ADRS_OFFSET,
+                PCIE_BRIDGE_CLASS_CODE);
+    } else if (pcie->is_vga) {
+        /* Change class to VGA (PCIe End-Point) */
+        axiado_pcie_iowrite(pcie->bridge,
+                REG_PCIE_PCIE_PCI_IDS_63_32_ADRS_OFFSET,
+                PCIE_VGA_CLASS_CODE);
+    } else if (pcie->is_eth) {
+        /* Change class to network (PCIe End-Point) */
+        axiado_pcie_iowrite(pcie->bridge,
+                REG_PCIE_PCIE_PCI_IDS_63_32_ADRS_OFFSET,
+                PCIE_ETHERNET_CLASS_CODE);
+    } else if (pcie->is_usb) {
+        /* Change class to usb (PCIe End-Point) */
+        axiado_pcie_iowrite(pcie->bridge,
+                REG_PCIE_PCIE_PCI_IDS_63_32_ADRS_OFFSET,
+                PCIE_USB_CLASS_CODE);
+    } else if (pcie->is_storage) {
+        /* Change class to storage (PCIe End-Point) */
+        axiado_pcie_iowrite(pcie->bridge,
+                REG_PCIE_PCIE_PCI_IDS_63_32_ADRS_OFFSET,
+                PCIE_STORAGE_CLASS_CODE);
+    } else if (pcie->is_trusts) {
+        /* Change class to Trusted Services (PCIe End-Point) */
+        axiado_pcie_iowrite(pcie->bridge,
+                REG_PCIE_PCIE_PCI_IDS_63_32_ADRS_OFFSET,
+                PCIE_TRUSTEDS_CLASS_CODE);
+    } else {
+        pr_err("Not support this EP mode\n");
+        return -EINVAL;
+    }
+    return 0;
+}
+
+static int axiado_pcie_set_bar(struct udevice *dev, uint func_num,
+			   struct pci_bar *bar)
+{
+    struct axiado_pcie *pcie = dev_get_priv(dev);
     return 0;
 }
 
@@ -269,6 +308,93 @@ static int axiado_pcie_get_resources(struct axiado_pcie *pcie)
     return 0;
 }
 
+static u32 axiado_pcie_range_to_bar_type(u32 flags)
+{
+	u32 bar_type = 0;
+
+    if ((flags & 0xf0000000) == 0x80000000) 
+		bar_type |= PCI_BASE_ADDRESS_MEM_TYPE_64;
+    if ((flags & 0xf0000000) == 0xc0000000) 
+		bar_type |= PCI_BASE_ADDRESS_MEM_PREFETCH;
+
+	return bar_type;
+}
+
+static int axiado_pcie_parse_ep_ranges(struct axiado_pcie *pcie)
+{
+    struct udevice *dev = pcie->dev;
+    ofnode np = dev_ofnode(dev);
+    const fdt32_t *ranges;
+    int len, tuple_len;
+    int tuples, i;
+
+    ranges = ofnode_get_property(np, "ranges", &len);
+    if (!ranges) {
+        dev_err(dev, "No ranges property\n");
+        return -EINVAL;
+    }
+
+    tuple_len = (3 + 2 + 2); /* child addr + parent addr + size */
+    tuples = len / (tuple_len * sizeof(fdt32_t));
+
+    for (i = 0; i < tuples; i++) {
+        const fdt32_t *p = ranges + i * tuple_len;
+        u32 flags;
+        u64 cpu_addr;
+        u64 size;
+
+        flags = fdt32_to_cpu(p[0]);
+
+        cpu_addr =
+            ((u64)fdt32_to_cpu(p[3]) << 32) |
+            fdt32_to_cpu(p[4]);
+
+        size =
+            ((u64)fdt32_to_cpu(p[5]) << 32) |
+            fdt32_to_cpu(p[6]);
+
+        /*
+         * Non-prefetchable memory
+         */
+        if ((flags & 0xf0000000) == 0x80000000) {
+            pcie->ep_bar0_addr = cpu_addr;
+            pcie->ep_bar0_size = size;
+            pcie->ep_bar0_flags = flags;
+
+            printf("EP BAR0: cpu 0x%llx size 0x%llx flags 0x%x\n",
+                   pcie->ep_bar0_addr,
+                   pcie->ep_bar0_size,
+                   pcie->ep_bar0_flags);
+        }
+
+        /*
+         * Prefetchable memory
+         */
+        if ((flags & 0xf0000000) == 0xC0000000) {
+            pcie->ep_bar1_addr = cpu_addr;
+            pcie->ep_bar1_size = size;
+            pcie->ep_bar1_flags = flags;
+
+            printf("EP BAR2: cpu 0x%llx size 0x%llx flags 0x%x\n",
+                   pcie->ep_bar1_addr,
+                   pcie->ep_bar1_size,
+                   pcie->ep_bar1_flags);
+        }
+    }
+
+    if (!pcie->ep_bar0_size) {
+        dev_err(dev, "Need non-prefetchable memory for BAR0\n");
+        return -EINVAL;
+    }
+
+    if (!pcie->ep_bar1_size) {
+        dev_err(dev, "Need prefetchable memory for BAR2\n");
+        return -EINVAL;
+    }
+
+    return 0;
+}
+
 static int axiado_pcie_parse_dt(struct axiado_pcie *pcie)
 {
     struct udevice *dev = pcie->dev;
@@ -305,8 +431,7 @@ static int axiado_pcie_parse_dt(struct axiado_pcie *pcie)
      * backing the PCIe BARs.
      * Root port mode: use devm_pci_alloc_host_bridge() as normal.
      */
-    role = ofnode_get_property(dev_ofnode(dev),
-            "device_role", NULL);
+    role = ofnode_get_property(np, "device_role", NULL);
 
     if (!role) {
         pr_err("missing device_role\n");
@@ -331,9 +456,9 @@ static int axiado_pcie_parse_dt(struct axiado_pcie *pcie)
                 goto err_node_put;
             }
 
-            index = PCI_DEV(reg.phys_hi);
-            printf("RP index = %u phys_hi = 0x%x\n",
-                    index, reg.phys_hi);
+            index = PCI_BUS(reg.phys_hi);
+            printf("RP index = %u phys_hi = 0x%x phys_mid = 0x%x phys_lo = 0x%x\n",
+                    index, reg.phys_hi, reg.phys_mid, reg.phys_lo);
 
             if (!ofnode_is_enabled(port))
                 continue;
@@ -367,12 +492,37 @@ static int axiado_pcie_parse_dt(struct axiado_pcie *pcie)
             printf("RP base = 0x%lx\n",
                     (unsigned long)pcie->base);
 
-
             list_add_tail(&rp->list, &pcie->ports);
         }
+    } else if (!strncmp(role, "vga", strlen("vga"))) {
+        printf("Initialising as a Display Card\n");
+        pcie->is_vga= true;
+    } else if (!strncmp(role, "eth", strlen("eth"))) {
+        printf("Initialising as a Network Card\n");
+        pcie->is_eth= true;
+    } else if (!strncmp(role, "usb", strlen("usb"))) {
+        printf("Initialising as a USB Extended Card\n");
+        pcie->is_usb= true;
+    } else if (!strncmp(role, "usb", strlen("usb"))) {
+        printf("Initialising as a USB Extended Card\n");
+        pcie->is_usb= true;
+    } else if (!strncmp(role, "storage", strlen("storage"))) {
+        printf("Initialising as a Storage Card\n");
+        pcie->is_storage= true;
+    } else if (!strncmp(role, "trusts", strlen("trusts"))) {
+        printf("Initialising as a Trusted Service Card\n");
+        pcie->is_trusts= true;
     } else {
         pr_err("Not support Endpoint mode in Device tree\n");
         goto err_node_put;
+    }
+
+    if (pcie->is_vga) {
+        err = axiado_pcie_parse_ep_ranges(pcie);
+        if (err < 0) {
+            pr_err("Failed to parse endpoint ranges: %d\n", err);
+            goto err_node_put;
+        }
     }
 
     return 0;
@@ -423,44 +573,25 @@ static int axiado_pcie_setup_windows(struct axiado_pcie *pcie)
 
     pci_get_regions(pcie->dev, &io, &mem, &pref);
 
-    /* ax_set_atr_entry(pcie, */
-    /*                  0x500000000, */
-    /*                  0x500000000, */
-    /*                  SZ_256M, */
-    /*                  PCIE_ATR_TRSLID_PCIE_MEMORY); */
-
-    /* ax_set_atr_entry(pcie, */
-    /*                  0x550000000, */
-    /*                  0x550000000, */
-    /*                  SZ_256M, */
-    /*                  PCIE_ATR_TRSLID_PCIE_MEMORY); */
-
-    /* pcie->atr_table_num = 4; */
-    /* ax_set_atr_entry(pcie, */
-    /*                  0x5E0000000, */
-    /*                  0x5E0000000, */
-    /*                  SZ_256M, */
-    /*                  0x1); */
-
-    /* if (io) */
-    /*     ax_set_atr_entry(pcie, */
-    /*                      io->phys_start, */
-    /*                      io->bus_start, */
-    /*                      io->size, */
-    /*                      PCIE_ATR_TRSLID_PCIE_MEMORY); */
-    /* if (mem) */
-    /*     ax_set_atr_entry(pcie, */
-    /*                      mem->phys_start, */
-    /*                      mem->bus_start, */
-    /*                      mem->size, */
-    /*                      PCIE_ATR_TRSLID_PCIE_MEMORY); */
+    if (io)
+        ax_set_atr_entry(pcie,
+                io->phys_start,
+                io->bus_start,
+                io->size,
+                PCIE_ATR_TRSLID_PCIE_MEMORY);
+    if (mem)
+        ax_set_atr_entry(pcie,
+                mem->phys_start,
+                mem->bus_start,
+                mem->size,
+                PCIE_ATR_TRSLID_PCIE_MEMORY);
 
     if (pref)
         ax_set_atr_entry(pcie,
-                         pref->phys_start,
-                         pref->bus_start,
-                         pref->size,
-                         PCIE_ATR_TRSLID_PCIE_MEMORY);
+                pref->phys_start,
+                pref->bus_start,
+                pref->size,
+                PCIE_ATR_TRSLID_PCIE_MEMORY);
 
     return 0;
 }
@@ -550,7 +681,7 @@ static void axiado_pcie_ep_setup_p2a_atr(struct axiado_pcie *pcie,
 static int axiado_pcie_init(struct axiado_pcie *pcie)
 {
     u32 temp = 0;
-    u32 speed = 0x1;
+    u32 speed = 0x4;
     struct axiado_pcie_port *port;
     u32 offset = 0x0;
 
@@ -666,8 +797,10 @@ static int axiado_pcie_init(struct axiado_pcie *pcie)
         temp = axiado_pcie_ioread(pcie->ext, REG_PCIE_X1_RESET_CTRL_ADRS_OFFSET);
     else if (pcie->pcie_x2)
         temp = axiado_pcie_ioread(pcie->ext, REG_PCIE_X2_RESET_CTRL_ADRS_OFFSET);
+
     temp = REG_PCIE_RESET_CTRL_PCIE_RSTN_SET(temp, 0x1);
     temp = REG_PCIE_RESET_CTRL_HOLD_PIPE_RST_SET(temp, 0x1);
+
     if (pcie->pcie_x1)
         axiado_pcie_iowrite(pcie->ext, REG_PCIE_X1_RESET_CTRL_ADRS_OFFSET,
                 temp);
@@ -703,6 +836,7 @@ static int axiado_pcie_init(struct axiado_pcie *pcie)
         temp = axiado_pcie_ioread(pcie->bridge, REG_PCIE_X1_GEN_SETTINGS_ADRS_OFFSET);
     else if (pcie->pcie_x2)
         temp = axiado_pcie_ioread(pcie->bridge, REG_PCIE_X2_GEN_SETTINGS_ADRS_OFFSET);
+
     /* 0--EP 1--RP */
     if (pcie->is_root_port) {
         temp = PCIE_K_SET_PCIE_PORT_TYPE_SET(temp, 1);
@@ -712,9 +846,11 @@ static int axiado_pcie_init(struct axiado_pcie *pcie)
         /* Don't set target gen for PCIE_EP, keep EP configured at default gen */
         temp = PCIE_K_SET_PCIE_PORT_TYPE_SET(temp, 0);
     }
+
     if (pcie->pcie_x2) {
         temp = PCIE_K_SET_LINK_WIDTH_X2_SET(temp, 0x1);
     }
+
     if (IS_LANE_REVERSAL_EN) {
         temp = PCIE_K_SET_LANE_REVERSAL_EN_SET(temp, 0x1);
     }
@@ -741,7 +877,26 @@ static int axiado_pcie_init(struct axiado_pcie *pcie)
         axiado_pcie_iowrite(pcie->bridge,
                 REG_PCIE_PCIE_PCI_IDS_63_32_ADRS_OFFSET,
                 PCIE_ETHERNET_CLASS_CODE);
+    } else if (pcie->is_usb) {
+        /* Change class to usb (PCIe End-Point) */
+        axiado_pcie_iowrite(pcie->bridge,
+                REG_PCIE_PCIE_PCI_IDS_63_32_ADRS_OFFSET,
+                PCIE_USB_CLASS_CODE);
+    } else if (pcie->is_storage) {
+        /* Change class to storage (PCIe End-Point) */
+        axiado_pcie_iowrite(pcie->bridge,
+                REG_PCIE_PCIE_PCI_IDS_63_32_ADRS_OFFSET,
+                PCIE_STORAGE_CLASS_CODE);
+    } else if (pcie->is_trusts) {
+        /* Change class to Trusted Services (PCIe End-Point) */
+        axiado_pcie_iowrite(pcie->bridge,
+                REG_PCIE_PCIE_PCI_IDS_63_32_ADRS_OFFSET,
+                PCIE_TRUSTEDS_CLASS_CODE);
+    } else {
+        pr_err("Not support this EP mode\n");
+        return -EINVAL;
     }
+
 
     /* enable EQ PH2,3 */
     temp = axiado_pcie_ioread(pcie->bridge, REG_PCIE_PHYMAC_CFG_ADRS_OFFSET);
@@ -790,6 +945,36 @@ static int axiado_pcie_init(struct axiado_pcie *pcie)
         /* The axiado_pcie structure passed for PLL
          * check is invalid.
          */
+    } else {
+		u32 bar_val;
+
+		/*
+		 * BAR registers in bridge space encode both size mask
+		 * and type.  Size mask = ~(size - 1) & 0xFFFFFFF0,
+		 * type goes in bits [3:0].  BAR1/BAR3 are upper 32
+		 * bits for 64-bit BARs.
+		 *
+		 * Must be configured while IP is in reset.
+		 */
+
+		/* BAR0: size + type from DTS ranges flags */
+		bar_val = (~(pcie->ep_bar0_size - 1) & 0xFFFFFFF0) |
+			  axiado_pcie_range_to_bar_type(pcie->ep_bar0_flags);
+		axiado_pcie_iowrite(pcie->bridge, PCIE_BAR_01_OFFSET, bar_val);
+		/* BAR1: upper 32 bits for 64-bit BAR0 */
+		axiado_pcie_iowrite(pcie->bridge, PCIE_BAR_01_OFFSET + 4, 0xFFFFFFFF);
+
+		/* BAR2: size + type (NOTE: HAL marks 0xEC as RO) */
+		bar_val = (~(pcie->ep_bar1_size - 1) & 0xFFFFFFF0) |
+			  axiado_pcie_range_to_bar_type(pcie->ep_bar1_flags);
+		axiado_pcie_iowrite(pcie->bridge, PCIE_BAR_23_OFFSET, bar_val);
+		/* BAR3: upper 32 bits for 64-bit BAR2 */
+		axiado_pcie_iowrite(pcie->bridge, PCIE_BAR_23_OFFSET + 4,
+				    0xFFFFFFFF);
+
+		/* Disable BAR4/5 — not used, clear default 4KB */
+		axiado_pcie_iowrite(pcie->bridge, PCIE_BAR_45_OFFSET, 0x0);
+		axiado_pcie_iowrite(pcie->bridge, PCIE_BAR_45_OFFSET + 4, 0x0);
     }
 
     /* release PIPE_RST_N for PCIe */
@@ -809,6 +994,24 @@ static int axiado_pcie_init(struct axiado_pcie *pcie)
                     0x5);
     }
     usleep_range(1000, 2000);
+
+    if (pcie->is_vga) {
+		printf("BAR01[%#llx]=%#x/%#x BAR23[%#llx]=%#x/%#x BAR45[%#llx]=%#x/%#x\n",
+			 (u64)pcie->bridge + PCIE_BAR_01_OFFSET,
+			 axiado_pcie_ioread(pcie->bridge, PCIE_BAR_01_OFFSET),
+			 axiado_pcie_ioread(pcie->bridge, PCIE_BAR_01_OFFSET + 4),
+			 (u64)pcie->bridge + PCIE_BAR_23_OFFSET,
+			 axiado_pcie_ioread(pcie->bridge, PCIE_BAR_23_OFFSET),
+			 axiado_pcie_ioread(pcie->bridge, PCIE_BAR_23_OFFSET + 4),
+			 (u64)pcie->bridge + PCIE_BAR_45_OFFSET,
+			 axiado_pcie_ioread(pcie->bridge, PCIE_BAR_45_OFFSET),
+			 axiado_pcie_ioread(pcie->bridge, PCIE_BAR_45_OFFSET + 4));
+	    printf("CFGCTRL[%#llx]=%#x GEN[%#llx]=%#x\n",
+			 (u64)pcie->bridge + 0x84,
+			 axiado_pcie_ioread(pcie->bridge, 0x84),
+			 (u64)pcie->bridge + 0x80,
+			 axiado_pcie_ioread(pcie->bridge, 0x80));
+	}
 
     if (pcie->scm_version == DEV_TYPE_SCM3000) {
         /* set RP mode(in ext regs, a soft strap to the IP) */
@@ -838,12 +1041,14 @@ static int axiado_pcie_init(struct axiado_pcie *pcie)
         axiado_pcie_setup_windows(pcie);
 
         /* Enumeration bus number to access Endpoint on the other side of the link */
-        temp = axiado_pcie_ioread(pcie->base, axiado_pcie_conf_offset(0, PCIE_TYPE1_TIMER_SUB_SEC_PRI_OFF));
-        temp = PCIE_TYPE1_PRI_BUS_SET(temp, 0x0);   // Primary bus num
-        temp = PCIE_TYPE1_SEC_BUS_SET(temp, 0x1);   // Secondary bus num
-        temp = PCIE_TYPE1_SUB_BUS_SET(temp, 0xFF);  // Subordinary bus num
-        axiado_pcie_iowrite(pcie->base, PCIE_TYPE1_TIMER_SUB_SEC_PRI_OFF, temp);
-
+        list_for_each_entry(port, &pcie->ports, list) {
+            temp = axiado_pcie_ioread(pcie->base, axiado_pcie_conf_offset(0, PCIE_TYPE1_TIMER_SUB_SEC_PRI_OFF));
+            temp = PCIE_TYPE1_PRI_BUS_SET(temp, 0x0);   // Primary bus num
+            temp = PCIE_TYPE1_SEC_BUS_SET(temp, port->index);   // Secondary bus num
+            temp = PCIE_TYPE1_SUB_BUS_SET(temp, 0xFF);  // Subordinary bus num
+            axiado_pcie_iowrite(pcie->base, PCIE_TYPE1_TIMER_SUB_SEC_PRI_OFF, temp);
+            mdelay(10);
+        }
     } else {
         /* Bus master + memory space enable in EP config space */
         usleep_range(10, 20);
@@ -907,10 +1112,7 @@ static int axiado_pcie_init(struct axiado_pcie *pcie)
             if (temp == -EINVAL)
                 return temp;
         }
-    } else {
-        printf("Not support EP mode\n");
-        return -EINVAL;
-    }
+    } 
 
     return 0;
 }
@@ -942,7 +1144,7 @@ static int axiado_pcie_probe(struct udevice *dev)
      * is getting initialized in SBL
      */
     if ((pcie->pcie_x1) ||
-            (pcie->pcie_x2 && pcie->is_root_port)) {
+            (pcie->pcie_x2)) {
         err = axiado_pcie_init(pcie);
         if (err < 0) {
             pr_err("failed to initialize PCIe device: %d\n",
@@ -962,12 +1164,26 @@ static const struct dm_pci_ops axiado_pcie_ops = {
     .write_config = axiado_pcie_config_write,
 };
 
+static const struct pci_ep_ops axiado_pcie_ep_ops = {
+    .write_header = axiado_pcie_write_header,
+    .set_bar = axiado_pcie_set_bar,
+};
+
 static const struct udevice_id axiado_pcie_of_match[] = {
     {
         .compatible = "axiado,ax3000-pcie",.data = (ulong)DEV_TYPE_SCM3000
     },
     {
         .compatible = "axiado,ax3005-pcie",.data = (ulong)DEV_TYPE_SCM3005
+    },
+};
+
+static const struct udevice_id axiado_pcie_ep_of_match[] = {
+    {
+        .compatible = "axiado,ax3000-pcie-ep",.data = (ulong)DEV_TYPE_SCM3000
+    },
+    {
+        .compatible = "axiado,ax3005-pcie-ep",.data = (ulong)DEV_TYPE_SCM3005
     },
 };
 
@@ -979,4 +1195,13 @@ U_BOOT_DRIVER(axiado_pcie) = {
     .probe			= axiado_pcie_probe,
     .priv_auto	    = sizeof(struct axiado_pcie),
     .plat_auto	    = sizeof(struct pci_controller),
+};
+
+U_BOOT_DRIVER(axiado_pcie_ep) = {
+    .name			= "axiado_pcie_ep",
+    .id			    = UCLASS_PCI_EP,
+    .of_match		= axiado_pcie_ep_of_match,
+    .ops			= &axiado_pcie_ep_ops,
+    .probe			= axiado_pcie_probe,
+    .priv_auto	    = sizeof(struct axiado_pcie),
 };

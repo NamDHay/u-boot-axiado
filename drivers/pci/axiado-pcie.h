@@ -386,9 +386,6 @@ enum PCIE_PRESET_NUM {
 
 struct axiado_pcie {
 	struct udevice *dev;
-	int irq;
-	int mailbox_irq;
-	int msgbox_irq;
 	int scm_version;
 
 	/* Device Class */
