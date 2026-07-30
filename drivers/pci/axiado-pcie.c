@@ -41,6 +41,11 @@ enum ax_dev_type {
     DEV_TYPE_SCM3005,
 };
 
+static void axiado_pcie_setup_a2p_atr(struct axiado_pcie *pcie, phys_addr_t src_addr,
+        phys_addr_t trsl_addr, size_t window_size, int trsl_param);
+static void axiado_pcie_setup_p2a_atr(struct axiado_pcie *pcie, phys_addr_t src_addr,
+        phys_addr_t trsl_addr, size_t window_size, int trsl_param);
+
 inline u32 axiado_pcie_ioread(void __iomem *base, u32 offset)
 {
     void __iomem *mmio_addr = NULL;
@@ -70,6 +75,9 @@ static int axiado_pcie_map_bus(struct axiado_pcie *pcie, pci_dev_t bdf,
         int where, unsigned long long *address)
 {
     unsigned int bus = PCI_BUS(bdf);
+
+    if (bus > 2)
+        return -ENODEV;
 
     if (bus == 0) {
         unsigned int slot = PCI_DEV(bdf);
@@ -114,7 +122,6 @@ static int axiado_pcie_config_read(const struct udevice *bus, pci_dev_t bdf,
 
 done:
     *valuep = pci_conv_32_to_size(value, offset, size);
-    /* printf("Config read at 0x%llx - 0x%lx\n", address, *valuep); */
 
     return 0;
 }
@@ -136,7 +143,6 @@ static int axiado_pcie_config_write(struct udevice *bus, pci_dev_t bdf,
     value = pci_conv_size_to_32(old, value, offset, size);
 
     writel(value, address);
-    /* printf("Config write at 0x%llx - 0x%lx\n", address, value); */
 
     return 0;
 }
@@ -186,7 +192,6 @@ static int axiado_pcie_write_header(struct udevice *dev, uint fn,
 static int axiado_pcie_set_bar(struct udevice *dev, uint func_num,
 			   struct pci_bar *bar)
 {
-    struct axiado_pcie *pcie = dev_get_priv(dev);
     return 0;
 }
 
@@ -320,7 +325,7 @@ static u32 axiado_pcie_range_to_bar_type(u32 flags)
 	return bar_type;
 }
 
-static int axiado_pcie_parse_ep_ranges(struct axiado_pcie *pcie)
+static int axiado_pcie_parse_ranges(struct axiado_pcie *pcie)
 {
     struct udevice *dev = pcie->dev;
     ofnode np = dev_ofnode(dev);
@@ -362,9 +367,9 @@ static int axiado_pcie_parse_ep_ranges(struct axiado_pcie *pcie)
             pcie->ep_bar0_flags = flags;
 
             printf("EP BAR0: cpu 0x%llx size 0x%llx flags 0x%x\n",
-                   pcie->ep_bar0_addr,
-                   pcie->ep_bar0_size,
-                   pcie->ep_bar0_flags);
+                    pcie->ep_bar0_addr,
+                    pcie->ep_bar0_size,
+                    pcie->ep_bar0_flags);
         }
 
         /*
@@ -376,9 +381,9 @@ static int axiado_pcie_parse_ep_ranges(struct axiado_pcie *pcie)
             pcie->ep_bar1_flags = flags;
 
             printf("EP BAR2: cpu 0x%llx size 0x%llx flags 0x%x\n",
-                   pcie->ep_bar1_addr,
-                   pcie->ep_bar1_size,
-                   pcie->ep_bar1_flags);
+                    pcie->ep_bar1_addr,
+                    pcie->ep_bar1_size,
+                    pcie->ep_bar1_flags);
         }
     }
 
@@ -424,13 +429,6 @@ static int axiado_pcie_parse_dt(struct axiado_pcie *pcie)
         pcie->pcie_x2 = true;
     }
 
-    /*
-     * Endpoint mode: use pci_alloc_host_bridge() to skip
-     * devm_of_pci_bridge_init() which registers ranges as
-     * iomem resources — those collide with reserved-memory
-     * backing the PCIe BARs.
-     * Root port mode: use devm_pci_alloc_host_bridge() as normal.
-     */
     role = ofnode_get_property(np, "device_role", NULL);
 
     if (!role) {
@@ -518,7 +516,7 @@ static int axiado_pcie_parse_dt(struct axiado_pcie *pcie)
     }
 
     if (pcie->is_vga) {
-        err = axiado_pcie_parse_ep_ranges(pcie);
+        err = axiado_pcie_parse_ranges(pcie);
         if (err < 0) {
             pr_err("Failed to parse endpoint ranges: %d\n", err);
             goto err_node_put;
@@ -531,15 +529,15 @@ err_node_put:
     return err;
 }
 
-void ax_set_atr_entry(struct axiado_pcie *pcie, phys_addr_t src_addr,
+static void axiado_pcie_setup_a2p_atr(struct axiado_pcie *pcie, phys_addr_t src_addr,
         phys_addr_t trsl_addr, size_t window_size, int trsl_param)
 {
     u32 offset = PCIE_ATR_AXI4_SLV0;
+    u32 val;
 
-    if (pcie->atr_table_num >= PCIE_ATR_MAX_TABLE_NUM)
-        pcie->atr_table_num = PCIE_ATR_MAX_TABLE_NUM - 1;
-    offset +=  PCIE_ATR_TABLE_OFFSET * pcie->atr_table_num;
-    pcie->atr_table_num++;
+    if (pcie->a2p_table_num >= PCIE_ATR_MAX_TABLE_NUM)
+        pcie->a2p_table_num = PCIE_ATR_MAX_TABLE_NUM - 1;
+    offset +=  PCIE_ATR_TABLE_OFFSET * pcie->a2p_table_num;
 
     /* PCIE_ATR_SRC_ADDR_LOW:
      *   - bit 0: enable entry,
@@ -562,36 +560,56 @@ void ax_set_atr_entry(struct axiado_pcie *pcie, phys_addr_t src_addr,
 
     axiado_pcie_iowrite(pcie->bridge, (offset+PCIE_ATR_TRSL_PARAM), trsl_param);
 
-    printf("ATR entry [table: %d]: 0x%010llx %s 0x%010llx [0x%010llx] (param: 0x%06x)\n",
-            pcie->atr_table_num, src_addr, (trsl_param & PCIE_ATR_TRSL_DIR) ? "<-" : "->",
+    val = axiado_pcie_ioread(pcie->bridge, (offset+PCIE_ATR_TRSL_MASK_OFFSET));
+    if (pcie->a2p_table_num <= 3) {
+        ;
+    } else if (pcie->a2p_table_num == 0x4) {
+        /* Table 4 is used in PCIE RP mode for config transaction */
+        val |= ATR_TRSL_MASK_SET(val, 0xff000000);
+    } else if (pcie->a2p_table_num == 0x5) {
+        /* Table 5 is used for MSG Transaction */
+        val |= ATR_TRSL_MASK_SET(val, 0xff000000);
+    } else {
+        ;
+    }
+    axiado_pcie_iowrite(pcie->bridge, (offset+PCIE_ATR_TRSL_MASK_OFFSET), val);
+
+    printf("A2P entry [table: %d]: 0x%010llx %s 0x%010llx [0x%010llx] (param: 0x%06x)\n",
+            pcie->a2p_table_num, src_addr, (trsl_param & PCIE_ATR_TRSL_DIR) ? "<-" : "->",
             trsl_addr, (u64)window_size, trsl_param);
+    pcie->a2p_table_num++;
 }
 
 static int axiado_pcie_setup_windows(struct axiado_pcie *pcie)
 {
-    struct pci_region *io, *mem, *pref;
+    struct pci_controller *hose = dev_get_uclass_priv(pcie->dev);
+    struct pci_region *memp = NULL;
+    int i;
 
-    pci_get_regions(pcie->dev, &io, &mem, &pref);
+    for (i = 0; i < (hose->region_count - 1); i++) {
+        struct pci_region *region = &hose->regions[i];
 
-    if (io)
-        ax_set_atr_entry(pcie,
-                io->phys_start,
-                io->bus_start,
-                io->size,
-                PCIE_ATR_TRSLID_PCIE_MEMORY);
-    if (mem)
-        ax_set_atr_entry(pcie,
-                mem->phys_start,
-                mem->bus_start,
-                mem->size,
-                PCIE_ATR_TRSLID_PCIE_MEMORY);
-
-    if (pref)
-        ax_set_atr_entry(pcie,
-                pref->phys_start,
-                pref->bus_start,
-                pref->size,
-                PCIE_ATR_TRSLID_PCIE_MEMORY);
+        switch (region->flags) {
+            case PCI_REGION_MEM:
+            case PCI_REGION_MEM | PCI_REGION_PREFETCH:
+                memp = region;
+                axiado_pcie_setup_a2p_atr(
+                        pcie,
+                        0x0,
+                        memp->phys_start,
+                        memp->size,
+                        PCIE_ATR_TRSLID_PCIE_MEMORY);
+                axiado_pcie_setup_p2a_atr(
+                        pcie,
+                        0x0,
+                        memp->phys_start,
+                        memp->size,
+                        PCIE_ATR_TRSLID_PCIE_MEMORY);
+                break;
+            default:
+                break;
+        }
+    }
 
     return 0;
 }
@@ -639,49 +657,98 @@ int config_eq_gen3_4(struct axiado_pcie *pcie) {
     return 0;
 }
 
-static void axiado_pcie_ep_setup_p2a_atr(struct axiado_pcie *pcie,
-        u64 bar0_pci, u64 bar2_pci)
+static void axiado_pcie_setup_p2a_atr(struct axiado_pcie *pcie, phys_addr_t src_addr,
+        phys_addr_t trsl_addr, size_t window_size, int trsl_param)
 {
-    u32 atr_base;
+    u32 offset;
 
-    /*
-     * SBL style: SRC addr=0, just enable + window size.
-     * In EP mode the PLDA IP routes BAR hits to TAB entries
-     * based on BAR number, not SRC address matching.
-     * We only need to set TRSL_ADDR (AXI target) and TRSL_PARAM.
-     */
+    if (pcie->is_root_port) {
+        offset = PCIE_ATR_PCIE_WIN0;
+        u32 val;
 
-    /* TAB0: BAR0 1MB → 0x89300000 */
-    atr_base = PCIE_ATR_PCIE_WIN0;
-    axiado_pcie_iowrite(pcie->bridge, atr_base + PCIE_ATR_SRC_ADDR_LOW,
-            ((ilog2(pcie->ep_bar0_size) - 1) << PCIE_ATR_SRC_WIN_SIZE_SHIFT) | 1);
-    axiado_pcie_iowrite(pcie->bridge, atr_base + PCIE_ATR_SRC_ADDR_HIGH, 0);
-    axiado_pcie_iowrite(pcie->bridge, atr_base + PCIE_ATR_TRSL_ADDR_LOW,
-            (u32)pcie->ep_bar0_addr & PCIE_ATR_TRSL_ADDR_MASK);
-    axiado_pcie_iowrite(pcie->bridge, atr_base + PCIE_ATR_TRSL_ADDR_HIGH, 0);
-    axiado_pcie_iowrite(pcie->bridge, atr_base + PCIE_ATR_TRSL_PARAM,
-            PCIE_ATR_TRSLID_AXI4_MASTER_0);
+        if (pcie->p2a_table_num >= PCIE_ATR_MAX_TABLE_NUM)
+            pcie->p2a_table_num = PCIE_ATR_MAX_TABLE_NUM - 1;
+        offset +=  PCIE_ATR_TABLE_OFFSET * pcie->p2a_table_num;
 
-    /* TAB2: BAR2 64MB → 0x8C000000 */
-    atr_base = PCIE_ATR_PCIE_WIN0 + 2 * PCIE_ATR_TABLE_OFFSET;
-    axiado_pcie_iowrite(pcie->bridge, atr_base + PCIE_ATR_SRC_ADDR_LOW,
-            ((ilog2(pcie->ep_bar1_size) - 1) << PCIE_ATR_SRC_WIN_SIZE_SHIFT) | 1);
-    axiado_pcie_iowrite(pcie->bridge, atr_base + PCIE_ATR_SRC_ADDR_HIGH, 0);
-    axiado_pcie_iowrite(pcie->bridge, atr_base + PCIE_ATR_TRSL_ADDR_LOW,
-            (u32)pcie->ep_bar1_addr & PCIE_ATR_TRSL_ADDR_MASK);
-    axiado_pcie_iowrite(pcie->bridge, atr_base + PCIE_ATR_TRSL_ADDR_HIGH, 0);
-    axiado_pcie_iowrite(pcie->bridge, atr_base + PCIE_ATR_TRSL_PARAM,
-            PCIE_ATR_TRSLID_AXI4_MASTER_0);
+        /* PCIE_ATR_SRC_ADDR_LOW:
+         *   - bit 0: enable entry,
+         *   - bits 1-6: ATR window size: total size in bytes: 2^(ATR_WSIZE + 1)
+         *   - bits 7-11: reserved
+         *   - bits 12-31: start of source address
+         */
+        axiado_pcie_iowrite(pcie->bridge, (offset+PCIE_ATR_SRC_ADDR_LOW),
+                (lower_32_bits(src_addr) & PCIE_ATR_SRC_ADDR_MASK) |
+                (ilog2(window_size) - 1) << PCIE_ATR_SRC_WIN_SIZE_SHIFT |
+                1);
+        axiado_pcie_iowrite(pcie->bridge, (offset+PCIE_ATR_SRC_ADDR_HIGH),
+                (upper_32_bits(src_addr)));
 
-    printf("P2A ATR: TAB0 src=0 trsl=0x%llx (%dMB) TAB2 src=0 trsl=0x%llx (%dMB)\n",
-            pcie->ep_bar0_addr, (int)(pcie->ep_bar0_size >> 20),
-            pcie->ep_bar1_addr, (int)(pcie->ep_bar1_size >> 20));
+        axiado_pcie_iowrite(pcie->bridge, (offset+PCIE_ATR_TRSL_ADDR_LOW),
+                (lower_32_bits(trsl_addr) & PCIE_ATR_TRSL_ADDR_MASK));
+
+        axiado_pcie_iowrite(pcie->bridge, (offset+PCIE_ATR_TRSL_ADDR_HIGH),
+                (upper_32_bits(trsl_addr)));
+
+        axiado_pcie_iowrite(pcie->bridge, (offset+PCIE_ATR_TRSL_PARAM), trsl_param);
+
+        val = axiado_pcie_ioread(pcie->bridge, (offset+PCIE_ATR_TRSL_MASK_OFFSET));
+        if (pcie->p2a_table_num <= 3) {
+            ;
+        } else if (pcie->p2a_table_num == 0x4) {
+            /* Table 4 is used in PCIE RP mode for config transaction */
+            val = ATR_TRSL_MASK_SET(val, 0xff000000);
+        } else if (pcie->p2a_table_num == 0x5) {
+            /* Table 5 is used for MSG Transaction */
+            val = ATR_TRSL_MASK_SET(val, 0xff000000);
+        } else {
+            ;
+        }
+        axiado_pcie_iowrite(pcie->bridge, (offset+PCIE_ATR_TRSL_MASK_OFFSET), val);
+
+        printf("P2A entry [table: %d]: 0x%010llx %s 0x%010llx [0x%010llx] (param: 0x%06x)\n",
+                pcie->p2a_table_num, src_addr, (trsl_param & PCIE_ATR_TRSL_DIR) ? "<-" : "->",
+                trsl_addr, (u64)window_size, trsl_param);
+        pcie->p2a_table_num++;
+    } else {
+        /*
+         * SBL style: SRC addr=0, just enable + window size.
+         * In EP mode the PLDA IP routes BAR hits to TAB entries
+         * based on BAR number, not SRC address matching.
+         * We only need to set TRSL_ADDR (AXI target) and TRSL_PARAM.
+         */
+
+        /* TAB0: BAR0 1MB → 0x89300000 */
+        offset = PCIE_ATR_PCIE_WIN0;
+        axiado_pcie_iowrite(pcie->bridge, offset + PCIE_ATR_SRC_ADDR_LOW,
+                ((ilog2(pcie->ep_bar0_size) - 1) << PCIE_ATR_SRC_WIN_SIZE_SHIFT) | 1);
+        axiado_pcie_iowrite(pcie->bridge, offset + PCIE_ATR_SRC_ADDR_HIGH, 0);
+        axiado_pcie_iowrite(pcie->bridge, offset + PCIE_ATR_TRSL_ADDR_LOW,
+                (u32)pcie->ep_bar0_addr & PCIE_ATR_TRSL_ADDR_MASK);
+        axiado_pcie_iowrite(pcie->bridge, offset + PCIE_ATR_TRSL_ADDR_HIGH, 0);
+        axiado_pcie_iowrite(pcie->bridge, offset + PCIE_ATR_TRSL_PARAM,
+                PCIE_ATR_TRSLID_AXI4_MASTER_0);
+
+        /* TAB2: BAR2 64MB → 0x8C000000 */
+        offset = PCIE_ATR_PCIE_WIN0 + 2 * PCIE_ATR_TABLE_OFFSET;
+        axiado_pcie_iowrite(pcie->bridge, offset + PCIE_ATR_SRC_ADDR_LOW,
+                ((ilog2(pcie->ep_bar1_size) - 1) << PCIE_ATR_SRC_WIN_SIZE_SHIFT) | 1);
+        axiado_pcie_iowrite(pcie->bridge, offset + PCIE_ATR_SRC_ADDR_HIGH, 0);
+        axiado_pcie_iowrite(pcie->bridge, offset + PCIE_ATR_TRSL_ADDR_LOW,
+                (u32)pcie->ep_bar1_addr & PCIE_ATR_TRSL_ADDR_MASK);
+        axiado_pcie_iowrite(pcie->bridge, offset + PCIE_ATR_TRSL_ADDR_HIGH, 0);
+        axiado_pcie_iowrite(pcie->bridge, offset + PCIE_ATR_TRSL_PARAM,
+                PCIE_ATR_TRSLID_AXI4_MASTER_0);
+
+        printf("P2A ATR: TAB0 src=0 trsl=0x%llx (%dMB) TAB2 src=0 trsl=0x%llx (%dMB)\n",
+                pcie->ep_bar0_addr, (int)(pcie->ep_bar0_size >> 20),
+                pcie->ep_bar1_addr, (int)(pcie->ep_bar1_size >> 20));
+    }
 }
 
 static int axiado_pcie_init(struct axiado_pcie *pcie)
 {
     u32 temp = 0;
-    u32 speed = 0x4;
+    u32 speed = 0x3;
     struct axiado_pcie_port *port;
     u32 offset = 0x0;
 
@@ -946,35 +1013,35 @@ static int axiado_pcie_init(struct axiado_pcie *pcie)
          * check is invalid.
          */
     } else {
-		u32 bar_val;
+        u32 bar_val;
 
-		/*
-		 * BAR registers in bridge space encode both size mask
-		 * and type.  Size mask = ~(size - 1) & 0xFFFFFFF0,
-		 * type goes in bits [3:0].  BAR1/BAR3 are upper 32
-		 * bits for 64-bit BARs.
-		 *
-		 * Must be configured while IP is in reset.
-		 */
+        /*
+         * BAR registers in bridge space encode both size mask
+         * and type.  Size mask = ~(size - 1) & 0xFFFFFFF0,
+         * type goes in bits [3:0].  BAR1/BAR3 are upper 32
+         * bits for 64-bit BARs.
+         *
+         * Must be configured while IP is in reset.
+         */
 
-		/* BAR0: size + type from DTS ranges flags */
-		bar_val = (~(pcie->ep_bar0_size - 1) & 0xFFFFFFF0) |
-			  axiado_pcie_range_to_bar_type(pcie->ep_bar0_flags);
-		axiado_pcie_iowrite(pcie->bridge, PCIE_BAR_01_OFFSET, bar_val);
-		/* BAR1: upper 32 bits for 64-bit BAR0 */
-		axiado_pcie_iowrite(pcie->bridge, PCIE_BAR_01_OFFSET + 4, 0xFFFFFFFF);
+        /* BAR0: size + type from DTS ranges flags */
+        bar_val = (~(pcie->ep_bar0_size - 1) & 0xFFFFFFF0) |
+            axiado_pcie_range_to_bar_type(pcie->ep_bar0_flags);
+        axiado_pcie_iowrite(pcie->bridge, PCIE_BAR_01_OFFSET, bar_val);
+        /* BAR1: upper 32 bits for 64-bit BAR0 */
+        axiado_pcie_iowrite(pcie->bridge, PCIE_BAR_01_OFFSET + 4, 0xFFFFFFFF);
 
-		/* BAR2: size + type (NOTE: HAL marks 0xEC as RO) */
-		bar_val = (~(pcie->ep_bar1_size - 1) & 0xFFFFFFF0) |
-			  axiado_pcie_range_to_bar_type(pcie->ep_bar1_flags);
-		axiado_pcie_iowrite(pcie->bridge, PCIE_BAR_23_OFFSET, bar_val);
-		/* BAR3: upper 32 bits for 64-bit BAR2 */
-		axiado_pcie_iowrite(pcie->bridge, PCIE_BAR_23_OFFSET + 4,
-				    0xFFFFFFFF);
+        /* BAR2: size + type (NOTE: HAL marks 0xEC as RO) */
+        bar_val = (~(pcie->ep_bar1_size - 1) & 0xFFFFFFF0) |
+            axiado_pcie_range_to_bar_type(pcie->ep_bar1_flags);
+        axiado_pcie_iowrite(pcie->bridge, PCIE_BAR_23_OFFSET, bar_val);
+        /* BAR3: upper 32 bits for 64-bit BAR2 */
+        axiado_pcie_iowrite(pcie->bridge, PCIE_BAR_23_OFFSET + 4,
+                0xFFFFFFFF);
 
-		/* Disable BAR4/5 — not used, clear default 4KB */
-		axiado_pcie_iowrite(pcie->bridge, PCIE_BAR_45_OFFSET, 0x0);
-		axiado_pcie_iowrite(pcie->bridge, PCIE_BAR_45_OFFSET + 4, 0x0);
+        /* Disable BAR4/5 — not used, clear default 4KB */
+        axiado_pcie_iowrite(pcie->bridge, PCIE_BAR_45_OFFSET, 0x0);
+        axiado_pcie_iowrite(pcie->bridge, PCIE_BAR_45_OFFSET + 4, 0x0);
     }
 
     /* release PIPE_RST_N for PCIe */
@@ -996,22 +1063,22 @@ static int axiado_pcie_init(struct axiado_pcie *pcie)
     usleep_range(1000, 2000);
 
     if (pcie->is_vga) {
-		printf("BAR01[%#llx]=%#x/%#x BAR23[%#llx]=%#x/%#x BAR45[%#llx]=%#x/%#x\n",
-			 (u64)pcie->bridge + PCIE_BAR_01_OFFSET,
-			 axiado_pcie_ioread(pcie->bridge, PCIE_BAR_01_OFFSET),
-			 axiado_pcie_ioread(pcie->bridge, PCIE_BAR_01_OFFSET + 4),
-			 (u64)pcie->bridge + PCIE_BAR_23_OFFSET,
-			 axiado_pcie_ioread(pcie->bridge, PCIE_BAR_23_OFFSET),
-			 axiado_pcie_ioread(pcie->bridge, PCIE_BAR_23_OFFSET + 4),
-			 (u64)pcie->bridge + PCIE_BAR_45_OFFSET,
-			 axiado_pcie_ioread(pcie->bridge, PCIE_BAR_45_OFFSET),
-			 axiado_pcie_ioread(pcie->bridge, PCIE_BAR_45_OFFSET + 4));
-	    printf("CFGCTRL[%#llx]=%#x GEN[%#llx]=%#x\n",
-			 (u64)pcie->bridge + 0x84,
-			 axiado_pcie_ioread(pcie->bridge, 0x84),
-			 (u64)pcie->bridge + 0x80,
-			 axiado_pcie_ioread(pcie->bridge, 0x80));
-	}
+        printf("BAR01[%#llx]=%#x/%#x BAR23[%#llx]=%#x/%#x BAR45[%#llx]=%#x/%#x\n",
+                (u64)pcie->bridge + PCIE_BAR_01_OFFSET,
+                axiado_pcie_ioread(pcie->bridge, PCIE_BAR_01_OFFSET),
+                axiado_pcie_ioread(pcie->bridge, PCIE_BAR_01_OFFSET + 4),
+                (u64)pcie->bridge + PCIE_BAR_23_OFFSET,
+                axiado_pcie_ioread(pcie->bridge, PCIE_BAR_23_OFFSET),
+                axiado_pcie_ioread(pcie->bridge, PCIE_BAR_23_OFFSET + 4),
+                (u64)pcie->bridge + PCIE_BAR_45_OFFSET,
+                axiado_pcie_ioread(pcie->bridge, PCIE_BAR_45_OFFSET),
+                axiado_pcie_ioread(pcie->bridge, PCIE_BAR_45_OFFSET + 4));
+        printf("CFGCTRL[%#llx]=%#x GEN[%#llx]=%#x\n",
+                (u64)pcie->bridge + 0x84,
+                axiado_pcie_ioread(pcie->bridge, 0x84),
+                (u64)pcie->bridge + 0x80,
+                axiado_pcie_ioread(pcie->bridge, 0x80));
+    }
 
     if (pcie->scm_version == DEV_TYPE_SCM3000) {
         /* set RP mode(in ext regs, a soft strap to the IP) */
@@ -1066,7 +1133,7 @@ static int axiado_pcie_init(struct axiado_pcie *pcie)
          * Pre-program translation targets now, source addresses
          * will be set once we read host-assigned BARs.
          */
-        axiado_pcie_ep_setup_p2a_atr(pcie, 0, 0);
+        /* axiado_pcie_setup_p2a_atr(pcie, 0, 0); */
         pcie->ep_bar0_pci = 0;
         pcie->ep_bar2_pci = 0;
         printf("P2A ATR pre-configured (src=0, will update after host enum)\n");
@@ -1176,6 +1243,8 @@ static const struct udevice_id axiado_pcie_of_match[] = {
     {
         .compatible = "axiado,ax3005-pcie",.data = (ulong)DEV_TYPE_SCM3005
     },
+    {
+    },
 };
 
 static const struct udevice_id axiado_pcie_ep_of_match[] = {
@@ -1184,6 +1253,8 @@ static const struct udevice_id axiado_pcie_ep_of_match[] = {
     },
     {
         .compatible = "axiado,ax3005-pcie-ep",.data = (ulong)DEV_TYPE_SCM3005
+    },
+    {
     },
 };
 

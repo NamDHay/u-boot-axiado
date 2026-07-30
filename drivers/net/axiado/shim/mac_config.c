@@ -209,85 +209,6 @@ static void sgmii_fast_sim(int mac_idx)
 	shim_write_phy_word(sgmii_base + 0x195c, 0x7d);
 	shim_write_phy_word(sgmii_base + 0x1800, 0x000d);
 #else
-	// program_phy0_no_bandgap_rcomp_calib_sim
-	shim_write_phy_word(sgmii_base + ((0x05 << 10) + (0x22 << 2)),
-		    0x04083789); //offset:1488
-	shim_write_phy_word(sgmii_base + ((0x05 << 10) + (0x0a << 2)),
-		    0x640f80a0); //offset:1428
-	shim_write_phy_word(sgmii_base + ((0x05 << 10) + (0x0b << 2)),
-		    0x20001f01); //offset:142c
-
-	// program_rc_phy_fas t_detect    )
-	shim_write_phy_word(sgmii_base + ((0x01 << 10) + (0xc3 << 2)),
-		    0x00800000); //offset:070c
-	shim_write_phy_word(sgmii_base + ((0x01 << 10) + (0xc4 << 2)),
-		    0x00a00090); //offset:0710
-
-	// program_phy0_pll_f (ast_lock   )
-	shim_write_phy_word(sgmii_base + ((0x05 << 10) + (0x6f << 2)),
-		    0x00010001); //offset:15bc
-
-	// program_phy_0_no_o ffset_calib )
-	shim_write_phy_word(sgmii_base + ((0x02 << 10) + (0xc9 << 2)),
-		    0x00000061); //offset:0b24
-	shim_write_phy_word(sgmii_base + ((0x02 << 10) + (0xca << 2)),
-		    0xffffff00); //offset:0b28
-	shim_write_phy_word(sgmii_base + ((0x02 << 10) + (0xa2 << 2)),
-		    0x00020020); //offset:0a88
-	shim_write_phy_word(sgmii_base + ((0x02 << 10) + (0xa4 << 2)),
-		    0x43009000); //offset:0a90
-	shim_write_phy_word(sgmii_base + ((0x01 << 10) + (0x0a << 2)),
-		    0x0a0083e8); //offset:0428
-
-	// program_phy_0_fast RxEq
-	shim_write_phy_word(sgmii_base + ((0x05 << 10) + (0x6f << 2)),
-		    0x00010001); //offset:15bc
-
-	shim_write_phy_word(sgmii_base + ((0x02 << 10) + (0xe3 << 2)),
-		    0x00000000); //offset:0b8c
-	shim_write_phy_word(sgmii_base + ((0x02 << 10) + (0xdb << 2)),
-		    0x00000001); //offset:0b6c
-	shim_write_phy_word(sgmii_base + ((0x02 << 10) + (0xdc << 2)),
-		    0x00010001); //offset:0b70
-	shim_write_phy_word(sgmii_base + ((0x02 << 10) + (0xdd << 2)),
-		    0x40000102); //offset:0b74
-	shim_write_phy_word(sgmii_base + ((0x01 << 10) + (0x99 << 2)),
-		    0xb8000380); //offset:0664
-	shim_write_phy_word(sgmii_base + ((0x05 << 10) + (0x50 << 2)),
-		    0xfffefffe); //offset:1540
-	shim_write_phy_word(sgmii_base + ((0x05 << 10) + (0x51 << 2)),
-		    0xfffefffe); //offset:1544
-	shim_write_phy_word(sgmii_base + ((0x05 << 10) + (0x52 << 2)),
-		    0xfffefffe); //offset:1548
-	shim_write_phy_word(sgmii_base + ((0x05 << 10) + (0x53 << 2)),
-		    0xfffefffe); //offset:154c
-	shim_write_phy_word(sgmii_base + ((0x05 << 10) + (0x54 << 2)),
-		    0xfffefffe); //offset:1550
-	shim_write_phy_word(sgmii_base + ((0x05 << 10) + (0x55 << 2)),
-		    0xfffefffe); //offset:1554
-	shim_write_phy_word(sgmii_base + ((0x05 << 10) + (0x56 << 2)),
-		    0xfffefffe); //offset:1558
-	shim_write_phy_word(sgmii_base + ((0x05 << 10) + (0x57 << 2)),
-		    0xfffefffe); //offset:155c
-	shim_write_phy_word(sgmii_base + ((0x05 << 10) + (0x58 << 2)),
-		    0xfffefffe); //offset:1560
-	shim_write_phy_word(sgmii_base + ((0x05 << 10) + (0x59 << 2)),
-		    0xfffefffe); //offset:1564
-	shim_write_phy_word(sgmii_base + ((0x05 << 10) + (0x5a << 2)),
-		    0xfffefffe); //offset:1568
-	shim_write_phy_word(sgmii_base + ((0x05 << 10) + (0x5b << 2)),
-		    0xfffefffe); //offset:156c
-	shim_write_phy_word(sgmii_base + ((0x05 << 10) + (0x5c << 2)),
-		    0xfffefffe); //offset:1570
-	shim_write_phy_word(sgmii_base + ((0x05 << 10) + (0x5d << 2)),
-		    0x0000fffe); //offset:1574
-	shim_write_phy_word(sgmii_base + ((0x02 << 10) + (0xcb << 2)),
-		    0xffffffff); //offset:0b2c
-	shim_write_phy_word(sgmii_base + ((0x02 << 10) + (0xce << 2)),
-		    0xffffffff); //offset:0b38
-	shim_write_phy_word(sgmii_base + ((0x02 << 10) + (0xcf << 2)),
-		    0xffffffff); //offset:0b3c
-
 	shim_write_phy_word(sgmii_base + ((0x04 << 10) + (0x24 << 2)),
 			    0x23810c81);
 	shim_write_phy_word(sgmii_base + ((0x03 << 10) + (0x75 << 2)),
@@ -340,13 +261,6 @@ static enum AX_SHIM_STATUS mac_init_1g(int mac_idx)
 	shim_write_word(mac_base + R_MAC_0, XG_R_MAC_0_VAL);
 	shim_write_word(mac_base + R_MAC_1, XG_R_MAC_1_VAL);
 
-	/* 
-	 * Adding multicast address. 
-	 * This will accept any mac address whose 6-bit hash value equal to  111001
-	 * Example: 01:01:01:00:00:01
-	 */
-	/* shim_write_word(mac_base + R_HASHTABLE_LOAD, 0x000001e7); */
-
 	/* Configure FIFO Sections */
 	shim_write_word(mac_base + R_RX_FIFO_SECTIONS, MAC_1G_R_RX_FIFO_VAL);
 	shim_write_word(mac_base + R_TX_FIFO_SECTIONS, MAC_1G_R_TX_FIFO_VAL);
@@ -356,7 +270,6 @@ static enum AX_SHIM_STATUS mac_init_1g(int mac_idx)
                 MAC_CC_NULL |
 			    MAC_CC_TX_ENA | /* Enable outbound flow of pkts. */
 			    MAC_CC_RX_ENA | /* Enable inbound flow of pkts. */
-			    MAC_CC_SW_RESET |
 			    MAC_CC_CRC_FWD |
 			    MAC_CC_TX_PAD_EN); /* Enable padding to the frame */
 
@@ -371,7 +284,6 @@ static enum AX_SHIM_STATUS mac_init_1g(int mac_idx)
 
 	/* Verify Configuration */
 	cmd_cfg = shim_read_word(mac_base + R_COMMAND_CONFIG);
-
 	printf("1G MAC-%d Configured (Cmd: 0x%08x)\n", mac_idx, cmd_cfg);
 
 	return SHIM_STATUS_SUCCESS;

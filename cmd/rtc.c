@@ -102,6 +102,63 @@ static int do_rtc_write(struct udevice *dev, int argc, char * const argv[])
 	return CMD_RET_SUCCESS;
 }
 
+static int do_rtc_set(struct udevice *dev, int argc, char * const argv[])
+{
+	struct rtc_time tm;
+	int ret;
+
+	if (argc != 7) {
+		printf("Usage:\n");
+		printf("rtc set [n] <year> <month> <day> <hour> <min> <sec>\n");
+		return CMD_RET_USAGE;
+	}
+
+	tm.tm_year = simple_strtoul(argv[1], NULL, 10) - 1900;
+	tm.tm_mon  = simple_strtoul(argv[2], NULL, 10) - 1;
+	tm.tm_mday = simple_strtoul(argv[3], NULL, 10);
+	tm.tm_hour = simple_strtoul(argv[4], NULL, 10);
+	tm.tm_min  = simple_strtoul(argv[5], NULL, 10);
+	tm.tm_sec  = simple_strtoul(argv[6], NULL, 10);
+
+	printf("%04d-%02d-%02d %02d:%02d:%02d\n",
+	       tm.tm_year + 1900,
+	       tm.tm_mon + 1,
+	       tm.tm_mday,
+	       tm.tm_hour,
+	       tm.tm_min,
+	       tm.tm_sec);
+
+	ret = dm_rtc_set(dev, &tm);
+	if (ret) {
+		printf("RTC write failed: %d\n", ret);
+		return CMD_RET_FAILURE;
+	}
+
+	return CMD_RET_SUCCESS;
+}
+
+static int do_rtc_get(struct udevice *dev, int argc, char * const argv[]) 
+{
+	struct rtc_time tm;
+	int ret;
+
+	ret = dm_rtc_get(dev, &tm);
+	if (ret) {
+		printf("RTC read failed: %d\n", ret);
+		return CMD_RET_FAILURE;
+	}
+
+	printf("%04d-%02d-%02d %02d:%02d:%02d\n",
+	       tm.tm_year + 1900,
+	       tm.tm_mon + 1,
+	       tm.tm_mday,
+	       tm.tm_hour,
+	       tm.tm_min,
+	       tm.tm_sec);
+
+	return CMD_RET_SUCCESS;
+}
+
 int do_rtc(struct cmd_tbl *cmdtp, int flag, int argc, char * const argv[])
 {
 	static int curr_rtc;
@@ -152,14 +209,22 @@ int do_rtc(struct cmd_tbl *cmdtp, int flag, int argc, char * const argv[])
 	if (!strcmp(argv[0], "write"))
 		return do_rtc_write(dev, argc - 1, argv + 1);
 
+	if (!strcmp(argv[0], "set"))
+		return do_rtc_set(dev, argc - 1, argv + 1);
+
+	if (!strcmp(argv[0], "get"))
+		return do_rtc_get(dev, argc - 1, argv + 1);
+
 	return CMD_RET_USAGE;
 }
 
 U_BOOT_CMD(
-	rtc,	5,	0,	do_rtc,
+	rtc,	10,	0,	do_rtc,
 	"RTC subsystem",
 	"list                        - show available rtc devices\n"
 	"rtc dev [n]                     - show or set current rtc device\n"
+    "rtc set [n] [yy mm dd hr min sec]  - set time for rtc device\n"
+	"rtc get [n]                     	- show time of rtc device\n"
 	"rtc read <reg> <count>          - read and display 8-bit registers starting at <reg>\n"
 	"rtc read <reg> <count> <addr>   - read 8-bit registers starting at <reg> to memory <addr>\n"
 	"rtc write <reg> <hexstring>     - write 8-bit registers starting at <reg>\n"

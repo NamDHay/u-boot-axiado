@@ -444,6 +444,7 @@ static int i3c_master_rstdaa_locked(struct i3c_master_controller *master,
 	if (addr != I3C_BROADCAST_ADDR && addrstat != I3C_ADDR_SLOT_I3C_DEV)
 		return -EINVAL;
 
+    printf("Reset DAA\n");
 	i3c_ccc_cmd_dest_init(&dest, addr, 0);
 	i3c_ccc_cmd_init(&cmd, false,
 			 I3C_CCC_RSTDAA(addr == I3C_BROADCAST_ADDR),
@@ -452,8 +453,8 @@ static int i3c_master_rstdaa_locked(struct i3c_master_controller *master,
 
 	i3c_ccc_cmd_dest_cleanup(&dest);
 
-	if (ret)
-		ret = cmd.err;
+	/* if (ret) */
+	/* 	ret = cmd.err; */
 
 	return ret;
 }
@@ -480,10 +481,14 @@ int i3c_master_entdaa_locked(struct i3c_master_controller *master)
 	struct i3c_ccc_cmd cmd;
 	int ret;
 
+    printf("Enter DAA\n");
 	i3c_ccc_cmd_dest_init(&dest, I3C_BROADCAST_ADDR, 0);
 	i3c_ccc_cmd_init(&cmd, false, I3C_CCC_ENTDAA, &dest, 1);
 	ret = i3c_master_send_ccc_cmd_locked(master, &cmd);
 	i3c_ccc_cmd_dest_cleanup(&dest);
+
+	/* if (ret) */
+	/* 	ret = cmd.err; */
 
 	return ret;
 }
@@ -497,6 +502,7 @@ static int i3c_master_enec_disec_locked(struct i3c_master_controller *master,
 	struct i3c_ccc_cmd cmd;
 	int ret;
 
+    printf("Enec Disec\n");
 	events = i3c_ccc_cmd_dest_init(&dest, addr, sizeof(*events));
 	if (!events)
 		return -ENOMEM;
@@ -510,8 +516,8 @@ static int i3c_master_enec_disec_locked(struct i3c_master_controller *master,
 	ret = i3c_master_send_ccc_cmd_locked(master, &cmd);
 	i3c_ccc_cmd_dest_cleanup(&dest);
 
-	if (ret)
-		ret = cmd.err;
+	/* if (ret) */
+	/* 	ret = cmd.err; */
 
 	return ret;
 }
@@ -1164,19 +1170,26 @@ int i3c_master_set_info(struct i3c_master_controller *master,
 	struct i3c_dev_desc *i3cdev;
 	int ret;
 
-	if (!i3c_bus_dev_addr_is_avail(&master->bus, info->dyn_addr))
+	if (!i3c_bus_dev_addr_is_avail(&master->bus, info->dyn_addr)) {
+        printf("i3c bus dev addr is not avail\n");
 		return -EINVAL;
+    }
 
 	if (I3C_BCR_DEVICE_ROLE(info->bcr) == I3C_BCR_I3C_MASTER &&
-	    master->secondary)
+	    master->secondary) {
+        printf("secondary master is not avail\n");
 		return -EINVAL;
+    }
 
-	if (master->this)
-		return -EINVAL;
+	/* if (master->this) { */
+	/* 	return -EINVAL; */
+    /* } */
 
 	i3cdev = i3c_master_alloc_i3c_dev(master, info);
-	if (IS_ERR(i3cdev))
+	if (IS_ERR(i3cdev)) {
+        printf("i3c_master_alloc_i3c_dev failed\n");
 		return PTR_ERR(i3cdev);
+    }
 
 	master->this = i3cdev;
 	master->bus.cur_master = master->this;
@@ -1280,11 +1293,13 @@ static int i3c_master_bus_init(struct i3c_master_controller *master)
 		i2cdev = i3c_master_alloc_i2c_dev(master, i2cboardinfo);
 		if (IS_ERR(i2cdev)) {
 			ret = PTR_ERR(i2cdev);
+            pr_err("i3c_master_alloc_i2c_dev failed\n");
 			goto err_detach_devs;
 		}
 
 		ret = i3c_master_attach_i2c_dev(master, i2cdev);
 		if (ret) {
+            pr_err("i3c_master_attach_i2c_dev failed\n");
 			i3c_master_free_i2c_dev(i2cdev);
 			goto err_detach_devs;
 		}
@@ -1314,15 +1329,19 @@ static int i3c_master_bus_init(struct i3c_master_controller *master)
 	 * (assigned by the bootloader for example).
 	 */
 	ret = i3c_master_rstdaa_locked(master, I3C_BROADCAST_ADDR);
-	if (ret && ret != I3C_ERROR_M2)
+	if (ret && ret != I3C_ERROR_M2) {
+        pr_err("i3c_master_rstdaa_locked failed\n");
 		goto err_bus_cleanup;
+    }
 
 	/* Disable all slave events before starting DAA. */
 	ret = i3c_master_disec_locked(master, I3C_BROADCAST_ADDR,
 				      I3C_CCC_EVENT_SIR | I3C_CCC_EVENT_MR |
 				      I3C_CCC_EVENT_HJ);
-	if (ret && ret != I3C_ERROR_M2)
+	if (ret && ret != I3C_ERROR_M2) {
+        pr_err("i3c_master_disec_locked failed\n");
 		goto err_bus_cleanup;
+    }
 
 	/*
 	 * Reserve init_dyn_addr first, and then try to pre-assign dynamic
@@ -1363,8 +1382,10 @@ static int i3c_master_bus_init(struct i3c_master_controller *master)
 	}
 
 	ret = i3c_master_do_daa(master);
-	if (ret)
+	if (ret) {
+        pr_err("i3c_master_do_daa failed\n");
 		goto err_rstdaa;
+    }
 
 	return 0;
 
@@ -1642,8 +1663,8 @@ static int of_populate_i3c_bus(struct i3c_master_controller *master)
 	int ret;
 	u32 val;
 
-	if (ofnode_valid(dev_ofnode(dev)))
-		return 0;
+	/* if (ofnode_valid(dev_ofnode(dev))) */
+	/* 	return 0; */
 
 	ofnode_for_each_subnode(child, dev_ofnode(dev)) {
 		ret = of_i3c_master_add_dev(master, node);
@@ -1910,14 +1931,18 @@ int i3c_master_register(struct i3c_master_controller *master,
 	INIT_LIST_HEAD(&master->boardinfo.i3c);
 
 	ret = i3c_bus_init(i3cbus);
-	if (ret)
+	if (ret) {
+        printf("i3c_bus_init failed\n");
 		return ret;
+    }
 
 	dev_set_name(master->dev, "i3c-%d", i3cbus->id);
 
 	ret = of_populate_i3c_bus(master);
-	if (ret)
+	if (ret) {
+        printf("of_populate_i3c_bus failed\n");
 		return ret;
+    }
 
 	list_for_each_entry(i2cbi, &master->boardinfo.i2c, node) {
 		switch (i2cbi->lvr & I3C_LVR_I2C_INDEX_MASK) {
@@ -1943,12 +1968,16 @@ int i3c_master_register(struct i3c_master_controller *master,
 	}
 
 	ret = i3c_bus_set_mode(i3cbus, mode, i2c_scl_rate);
-	if (ret)
+	if (ret) {
+        printf("i3c_bus_set_mode failed\n");
 		return ret;
+    }
 
 	ret = i3c_master_bus_init(master);
-	if (ret)
+	if (ret) {
+        printf("i3c_master_bus_init failed\n");
 		return ret;
+    }
 
 	/*
 	 * We're done initializing the bus and the controller, we can now

@@ -114,6 +114,7 @@
 
 #define LINK_STATUS_LOW_POWER_ADDR 0x000003dc
 #define PCIE_ATR_TRSLID_PCIE_MEMORY 0x0
+#define PCIE_ATR_TRSLID_PCIE_CFG 0x1
 #define PCIE_ATR_TRSLID_AXI4_MASTER_0 0x4
 #define PCIE_ATR_TRSL_DIR BIT(22)
 #define PCIE_ATR_AXI4_SLV0 0x800
@@ -126,7 +127,9 @@
 #define PCIE_ATR_TRSL_ADDR_LOW 0x8
 #define PCIE_ATR_TRSL_ADDR_HIGH 0xc
 #define PCIE_ATR_TRSL_PARAM 0x10
+#define PCIE_ATR_TRSL_MASK_OFFSET 0x18
 #define PCIE_ATR_TABLE_OFFSET 0x20
+#define ATR_TRSL_MASK_SET(dst, val) (((uint32_t)dst & ~0xFFFFFFFF) | ((uint32_t)val & 0xFFFFFFFF))
 
 #define INT_PCI_MSI_NR (1 * 32)
 #define PCIE_PERST_PULLUP_EN 1 /* PCIe RESET Enabling Settings */
@@ -431,7 +434,8 @@ struct axiado_pcie {
 	unsigned int bar3_addr;
 	unsigned int bar4_addr;
 	unsigned int bar5_addr;
-	int atr_table_num;
+	int a2p_table_num;
+	int p2a_table_num;
 
 	/* Endpoint BAR config parsed from DTS ranges */
 	u64 ep_bar0_addr;

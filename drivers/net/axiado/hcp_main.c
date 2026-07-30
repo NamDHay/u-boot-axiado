@@ -12,6 +12,8 @@
  */
 
 #include <clk.h>
+#include <net.h>
+#include <env.h>
 #include <dm.h>
 #include <log.h>
 #include <config.h>
@@ -70,16 +72,23 @@ static int hcp_wait_internal_phy_linkup(struct hcp_eth_priv *hcp,
 
 	if (count <= 0) {
 		pr_err("Internal PHY - Link Down!\n");
-		pr_err("SGMII_CSR = 0x%x\n", regval);
         return -ENETDOWN;
 	} else {
 		printf("Internal PHY - Link Up!\n");
-		printf("SGMII_CSR = 0x%x\n", regval);
 	}
 
 	return 0;
 }
 
+static void __maybe_unused hcp_print_internal_phy_linkup_status(struct hcp_eth_priv *hcp,
+        struct shim_mem_admin *shim,
+        struct hfifo_priv *hpriv,
+        struct phy_device *phydev)
+{
+    u32 regval;
+    regval = shim_read_word(SGMII_BASE + 0x120 + ((hpriv->mac_idx - 1) * SGMII_CSR_OFFSET));
+    regval = shim_read_word(SGMII_BASE + 0x134 + ((hpriv->mac_idx - 1) * SGMII_CSR_OFFSET));
+}
 static int hcp_start(struct udevice *dev)
 {
     struct hcp_eth_priv *hcp = dev_get_priv(dev);
@@ -108,22 +117,26 @@ static uchar etherrxbuff[PKTSIZE_ALIGN]; /* Receive buffer */
 int hfifo_recv_frame(struct udevice *dev, int flags, uchar **packetp)
 {
     struct hcp_eth_priv *hcp = dev_get_priv(dev);
-    struct hfifo_priv *hfifo = hcp->hfifo_priv;
+    struct hfifo_priv *hpriv = (struct hfifo_priv *)hcp->hfifo_priv;
+    struct shim_mem_admin *shim = (struct shim_mem_admin *)hcp->shim_priv;
+    struct phy_device *phydev = shim->mac_cfg[hpriv->mac_idx].phydev;
     int length;
 
+    hcp_print_internal_phy_linkup_status(hcp, shim, hpriv, phydev);
+
     /* u32 rx_stat[9]; */
-    /* shim_read_mac_rx_stats(rx_stat, hfifo->mac_idx); */
+    /* shim_read_mac_rx_stats(rx_stat, hpriv->mac_idx); */
     /* printf("RX_STAT: good=%u drop=%u under=%u total=%u crc=%u " */
     /*         "if_in=%u over=%u jabber=%u frag=%u\n", */
     /*         rx_stat[0], rx_stat[1], rx_stat[2], rx_stat[3], */
     /*         rx_stat[4], rx_stat[5], rx_stat[6], rx_stat[7], */
     /*         rx_stat[8]); */
 
-    length = hfifo_rx_pkt_len(hfifo->mac_idx);
+    length = hfifo_rx_pkt_len(hpriv->mac_idx);
 
     if (length <= 0) {
         if (length < 0) {
-            hfifo_reset_rx(hfifo->mac_idx);
+            hfifo_reset_rx(hpriv->mac_idx);
             return -EIO;
         }
 
@@ -133,14 +146,13 @@ int hfifo_recv_frame(struct udevice *dev, int flags, uchar **packetp)
     if (length > PKTSIZE_ALIGN)
         length = PKTSIZE_ALIGN;
 
-    hfifo_packet_rx(etherrxbuff, length, hfifo->mac_idx);
-
+    hfifo_packet_rx(etherrxbuff, length, hpriv->mac_idx);
 
     /* print_hex_dump("RX: ", */
     /*         DUMP_PREFIX_OFFSET, */
     /*         16, 1, */
     /*         etherrxbuff, */
-    /*         min(length, 64U), */
+    /*         length, */
     /*         true); */
 
     *packetp = etherrxbuff;
@@ -151,11 +163,17 @@ int hfifo_recv_frame(struct udevice *dev, int flags, uchar **packetp)
 int hfifo_xmit_frame(struct udevice *dev, void *packet, int length)
 {
     int ret = 0;
+    struct hcp_eth_priv *hcp = dev_get_priv(dev);
+    struct hfifo_priv *hpriv = (struct hfifo_priv *)hcp->hfifo_priv;
+    struct shim_mem_admin *shim = (struct shim_mem_admin *)hcp->shim_priv;
+    struct phy_device *phydev = shim->mac_cfg[hpriv->mac_idx].phydev;
 
     if (length > PKTSIZE)
         length = PKTSIZE;
 
-    /* struct ethernet_hdr *eth = packet; */
+    hcp_print_internal_phy_linkup_status(hcp, shim, hpriv, phydev);
+
+    struct ethernet_hdr *eth = packet;
     /* printf("HFIFO TX: len=%d\n", length); */
     /* print_hex_dump("TX: ", */
     /*         DUMP_PREFIX_OFFSET, */
@@ -170,11 +188,8 @@ int hfifo_xmit_frame(struct udevice *dev, void *packet, int length)
     if (ret)
         pr_err("Error when sending frame\n");
 
-
     /* u32 stat[5]; */
-    /* struct hcp_eth_priv *hcp = dev_get_priv(dev); */
-    /* struct hfifo_priv *hfifo = (struct hfifo_priv *)hcp->hfifo_priv; */
-    /* shim_read_mac_tx_stats(stat, hfifo->mac_idx); */
+    /* shim_read_mac_tx_stats(stat, hpriv->mac_idx); */
     /* printf("TX_STAT: total=%u good=%u drop=%u crc=%u out_err=%u\n", */
     /*         stat[0], stat[1], stat[2], stat[3], stat[4]); */
 
@@ -286,6 +301,14 @@ static int hcp_map_resources(struct udevice *dev)
 
     printf("PHY CSR: phys=0x%llx\n", (unsigned long long)hcp->phy_csr_base);
 
+    hcp->ioctl_base = (void __iomem *)dev_read_addr_name(dev, "ioctl");
+    if (IS_ERR(hcp->ioctl_base)) {
+        pr_err("Missing ioctl resource in Device Tree\n");
+        return PTR_ERR(hcp->ioctl_base);
+    }
+
+    printf("IOCTL: phys=0x%llx\n", (unsigned long long)hcp->ioctl_base);
+
     return 0;
 }
 
@@ -344,6 +367,20 @@ static int hcp_eth_of_to_plat(struct udevice *dev)
         memcpy(pdata->enetaddr, mac, ETH_ALEN);
     }
 
+    net_ip = string_to_ip("10.7.10.14");
+    net_netmask = string_to_ip("255.255.255.0");
+    net_gateway = string_to_ip("10.7.10.1");
+
+    env_set("ipaddr", "10.7.10.14");
+    env_set("netmask", "255.255.255.0");
+    env_set("gatewayip", "10.7.10.1");
+
+	if (!IS_ENABLED(CONFIG_BOOTP_SERVERIP)) {
+        net_server_ip = string_to_ip("10.4.1.199");
+		env_set("serverip", "10.4.1.199");
+	}
+
+    env_save();
     return 0;
 }
 

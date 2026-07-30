@@ -9,3 +9,9 @@ config DW_I3C_MASTER
 
 	  This driver can also be built as a module.  If so, the module
 	  will be called dw-i3c-master.
+
+config CDNS_I3C_MASTER
+	tristate "Cadence I3C master driver"
+	depends on I3C
+	help
+	  Enable this driver if you want to support Cadence I3C master block.

@@ -51,6 +51,7 @@ struct hcp_eth_priv {
 	/* Memory regions */
 	void __iomem *shim_base;
 	void __iomem *phy_csr_base;
+	void __iomem *ioctl_base;
     fdt_size_t shim_size;
 
 	/* Subsystem private data pointers */

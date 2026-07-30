@@ -158,9 +158,6 @@ static int shim_setup_resources(struct hcp_eth_priv *hcp,
     }
     shim->virt_base_addr = hcp->shim_base;
     shim->res_byte_cnt = hcp->shim_size;
-    printf("SHIM: phys=0x%llx size=0x%llx\n",
-            (unsigned long long)shim->virt_base_addr,
-            (unsigned long long)shim->res_byte_cnt);
 
     /* Use PHY CSR already mapped by HCP */
     if (!hcp->phy_csr_base) {
@@ -168,9 +165,43 @@ static int shim_setup_resources(struct hcp_eth_priv *hcp,
         return -EINVAL;
     }
     shim->phy_csr_base = hcp->phy_csr_base;
-    printf("PHY CSR: phys=0x%llx\n", (unsigned long long)shim->phy_csr_base);
+
+    /* Use IOCTL already mapped by HCP */
+    if (!hcp->ioctl_base) {
+        printf("IOCTL base address not mapped by HCP\n");
+        return -EINVAL;
+    }
+    shim->ioctl_base = hcp->ioctl_base;
 
     return 0;
+}
+
+#define AX3000_CSR_BASE_ADRS_GPIO_2  0x33100000
+#define AX3000_CSR_BASE_ADRS_GPIO_3  0x33180000
+
+static void shim_config_rmii_mode(struct udevice *dev,
+        struct mac_phy *mac_cfg, u8 mac_idx)
+{
+    struct hcp_eth_priv *hcp = dev_get_priv(dev);
+	u32 mac_base = MAC_BASE_OFFSET + (mac_idx * GMII_PORT_CONTROL_OFFSET);
+    u32 gpio_val = 0x0;
+    writel(0x10, hcp->ioctl_base + 0xcc);
+
+    if (mac_idx == 1) {
+        gpio_val = readl(AX3000_CSR_BASE_ADRS_GPIO_2);
+        gpio_val |= 0x3f800000;
+        writel(gpio_val, AX3000_CSR_BASE_ADRS_GPIO_2); // RMII0
+    } else if (mac_idx == 2) {
+        gpio_val = readl(AX3000_CSR_BASE_ADRS_GPIO_3);
+        gpio_val |= 0x07f00000;
+        writel(gpio_val, AX3000_CSR_BASE_ADRS_GPIO_3); // RMII1
+    }
+
+    if(mac_cfg->use_ncsi) {
+        writel(0x64, hcp->shim_base + mac_base);
+    }else {
+        writel(0x24, hcp->shim_base + mac_base);
+    }
 }
 
 /**
@@ -220,8 +251,10 @@ static int shim_parse_mac_node(struct udevice *dev, ofnode child,
     if (property) {
         if (!strncmp(property, "rxaui", strlen("rxaui")))
             mac_cfg->phy_mode = PHY_INTERFACE_MODE_RXAUI;
-        else if (!strncmp(property, "rmii", strlen("rmii")))
+        else if (!strncmp(property, "rmii", strlen("rmii"))) {
             mac_cfg->phy_mode = PHY_INTERFACE_MODE_RMII;
+            shim_config_rmii_mode(dev, mac_cfg, mac_idx);
+        }
     }
 
     /* New code logic for phy-handle check (sets phy_mask later, but here logs) */

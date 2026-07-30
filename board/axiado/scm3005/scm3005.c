@@ -15,6 +15,7 @@
 #include <env.h>
 #include <command.h>
 #include <net.h>
+#include <irq_func.h>
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -32,8 +33,8 @@ static struct mm_region axiado_ax3005_mem_map[] = {
 	{
 	  .virt = 0x500000000UL,
 	  .phys = 0x500000000UL,
-	  .size = 0x780000000UL, /* 0x5_0000_0000 to 0x7_8000_0000: peripherals */
-	  .attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) | PTE_BLOCK_NON_SHARE |
+	  .size = 0x280000000UL, /* 0x5_0000_0000 to 0x7_8000_0000: peripherals */
+	  .attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRE) | PTE_BLOCK_NON_SHARE |
 		   PTE_BLOCK_PXN | PTE_BLOCK_UXN },
     {
         0,
@@ -244,9 +245,17 @@ int timer_init(void)
 
 int board_init(void)
 {
+    enable_interrupts();
 	return 0;
 }
 
 void reset_cpu(void)
 {
 }
+
+void enable_caches(void)
+{
+	/* icache_enable(); */
+	/* dcache_enable(); */
+}
+

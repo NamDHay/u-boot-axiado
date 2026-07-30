@@ -81,3 +81,9 @@ config ADC_IMX93
 	  It provides:
 	  - 4 analog input channels
 	  - 12-bit resolution
+
+config ADC_AXIADO
+	bool "Enable Axiado ADC driver"
+	depends on ADC
+	help
+	  This enables basic driver for AXIADO SARADC.

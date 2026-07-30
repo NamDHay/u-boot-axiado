@@ -16,7 +16,7 @@
 #include "shim_common.h"
 
 /* SHIM Register Offsets */
-#define GMII_PORT_CONTROL_OFFSET 	        4
+#define GMII_PORT_CONTROL_OFFSET 	        0x4
 #define SYNC_STATUS             0
 #define AUTO_NEG_COMPLETE       1
 
@@ -64,6 +64,7 @@ struct shim_mem_admin {
 
 	void __iomem *virt_base_addr;
 	void __iomem *phy_csr_base;
+	void __iomem *ioctl_base;
     fdt_size_t res_byte_cnt;
 
 	bool init_done;

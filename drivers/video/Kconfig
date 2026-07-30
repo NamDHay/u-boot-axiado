@@ -22,6 +22,8 @@ config VIDEO
 
 if VIDEO
 
+source "drivers/video/axiado/Kconfig"
+
 config VIDEO_FONT_4X6
 	bool "4 x 6 font size"
 	help

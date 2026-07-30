@@ -39,3 +39,4 @@ obj-$(CONFIG_PINCTRL_TH1520)	+= pinctrl-th1520.o
 obj-y				+= broadcom/
 obj-$(CONFIG_$(PHASE_)PINCTRL_ZYNQMP)	+= pinctrl-zynqmp.o
 obj-$(CONFIG_PINCTRL_STARFIVE)	+= starfive/
+obj-$(CONFIG_PINCTRL_AXIADO)	+= pinctrl_axiado.o

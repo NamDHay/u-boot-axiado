@@ -59,6 +59,9 @@ obj-$(CONFIG_CMD_UFETCH) += ufetch.o
 obj-$(CONFIG_CMD_SOUND) += sound.o
 ifdef CONFIG_POST
 obj-$(CONFIG_CMD_DIAG) += diag.o
+else
+obj-$(CONFIG_CMD_AX_DIAG) += ax_diag.o
+obj-$(CONFIG_CMD_AX_DIAG) += diag/
 endif
 obj-$(CONFIG_CMD_ADTIMG) += adtimg.o
 obj-$(CONFIG_CMD_ABOOTIMG) += abootimg.o

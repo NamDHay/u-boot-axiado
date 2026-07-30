@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config VIDEO_AXIADO
+	bool "Axiado video driver"
+	depends on VIDEO
+	help
+		Video driver for the Axiado KVM requirement.
+
+config AXIADO_HDMI
+	bool "Axiado specific extensions HDMI"
+	depends on VIDEO
+	depends on VIDEO_AXIADO
+	help
+	  Choose this option to enable support for the Axiado AX3000
+	  HDMI driver. If you want to use the AX3000 SoC integrated HDMI or related
+	  display controllers under the Direct Rendering Manager (DRM)
+	  framework, say Y or M here.
+
+	  If unsure, say N.
+

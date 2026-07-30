@@ -6,13 +6,15 @@
 
 #define LOG_CATEGORY UCLASS_ADC
 
-#include <errno.h>
-#include <div64.h>
+#include <config.h>
 #include <dm.h>
 #include <dm/lists.h>
 #include <dm/device-internal.h>
 #include <dm/uclass-internal.h>
+#include <errno.h>
+#include <div64.h>
 #include <adc.h>
+#include <asm/io.h>
 #include <linux/delay.h>
 #include <linux/printk.h>
 #include <power/regulator.h>

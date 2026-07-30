@@ -4,13 +4,60 @@
  */
 
 #include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 
 /memreserve/ 0x80002fa0 0x00000008;
 
 / {
 	aliases {
+        serial0 = &uart0;
+		serial1 = &uart1;
+		serial2 = &uart2;
 		serial3 = &uart3;
+		serial4 = &uart4;
+		serial5 = &uart5;
+		serial6 = &uart6;
+		serial7 = &uart7;
+		serial8 = &uart8;
+		i2c0 = &i2c0;
+		i2c1 = &i2c1;
+		i2c2 = &i2c2;
+		i2c3 = &i2c3;
+		i2c4 = &i2c4;
+		i2c5 = &i2c5;
+		i2c6 = &i3c6;
+		i2c7 = &i3c7;
+		i2c8 = &i3c8;
+		i2c9 = &i3c9;
+		i2c10 = &i2c10;
+		i2c11 = &i2c11;
+		i2c12 = &i3c12;
+		i2c13 = &i3c13;
+		i2c14 = &i2c14;
+		i2c15 = &i2c15;
+		i2c16 = &i2c16;
+		i2c17 = &i2c17;
+		i2c18 = &i2c18;
+		i2c19 = &i2c19;
+		i2c20 = &i2c20;
+		i2c21 = &i2c21;
+		i2c22 = &i3c22;
+		i2c23 = &i2c23;
+		i2c24 = &i2c24;
+		i2c25 = &i2c25;
+		i2c26 = &i2c26;
+		i2c27 = &i2c27;
+		i2c28 = &i2c28;
+		i2c29 = &i2c29;
+		i2c30 = &i2c30;
+		i2c31 = &i2c31;
+		spi0  = &spi0;
+		spi1  = &spi1;
+		spi2  = &spi2;
+		spi3  = &spi3;
+		spi5  = &spi5;
+		spi6  = &spi6;
 	};
 
 	cpus {
@@ -161,14 +208,671 @@
 			interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_HIGH>;
 		};
 
-		uart3: serial@33020800 {
+        pinctrl0: pinctrl@33020C00 {
+            compatible = "axiado,ax3000-pinctrl";
+			reg = <0x00 0x33020C00 0x00 0x200>;
+        };
+
+        pinctrl1: pinctrl@33120800 {
+            compatible = "axiado,ax3000-pinctrl";
+			reg = <0x00 0x33120800 0x00 0x200>;
+        };
+
+        pinctrl2: pinctrl@33202400 {
+            compatible = "axiado,ax3000-pinctrl";
+			reg = <0x00 0x33202400 0x00 0x200>;
+        };
+
+        pinctrl3: pinctrl@33302000 {
+            compatible = "axiado,ax3000-pinctrl";
+			reg = <0x00 0x33302000 0x00 0x200>;
+        };
+
+        /* GPIO Controller banks 0 - 7 */
+		gpio0: gpio-controller@0x33000000 {
+			compatible = "axiado,ax3000-gpio";
+			clocks = <&pclk>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 183 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-controller;
+			reg = <0x00 0x33000000 0x00 0x100>;
+			#interrupt-cells = <2>;
+			status = "disabled";
+		};
+
+		gpio1: gpio-controller@0x33080000 {
+			compatible = "axiado,ax3000-gpio";
+			clocks = <&pclk>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 184 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-controller;
+			reg = <0x00 0x33080000 0x00 0x100>;
+			#interrupt-cells = <2>;
+			status = "disabled";
+		};
+
+		gpio2: gpio-controller@0x33100000 {
+			compatible = "axiado,ax3000-gpio";
+			clocks = <&pclk>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 185 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-controller;
+			reg = <0x00 0x33100000 0x00 0x100>;
+			#interrupt-cells = <2>;
+			status = "disabled";
+		};
+
+		gpio3: gpio-controller@0x33180000 {
+			compatible = "axiado,ax3000-gpio";
+			clocks = <&pclk>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 186 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-controller;
+			reg = <0x00 0x33180000 0x00 0x100>;
+			#interrupt-cells = <2>;
+			status = "disabled";
+		};
+
+		gpio4: gpio-controller@0x33200000 {
+			compatible = "axiado,ax3000-gpio";
+			clocks = <&pclk>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 187 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-controller;
+			reg = <0x00 0x33200000 0x00 0x100>;
+			#interrupt-cells = <2>;
+			status = "disabled";
+		};
+
+		gpio5: gpio-controller@0x33280000 {
+			compatible = "axiado,ax3000-gpio";
+			clocks = <&pclk>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 188 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-controller;
+			reg = <0x00 0x33280000 0x00 0x100>;
+			#interrupt-cells = <2>;
+			status = "disabled";
+		};
+
+		gpio6: gpio-controller@0x33300000 {
+			compatible = "axiado,ax3000-gpio";
+			clocks = <&pclk>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 189 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-controller;
+			reg = <0x00 0x33300000 0x00 0x100>;
+			#interrupt-cells = <2>;
+			status = "disabled";
+		};
+
+		gpio7: gpio-controller@0x33380000 {
+			compatible = "axiado,ax3000-gpio";
+			clocks = <&pclk>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 190 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-controller;
+			reg = <0x00 0x33380000 0x00 0x100>;
+			#interrupt-cells = <2>;
+			status = "disabled";
+		};
+
+        uart0: serial0@33020000 {
+			compatible = "cdns,uart-r1p12", "xlnx,xuartps";
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 112 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33020000 0x00 0x100>;
+			clock-names = "uart_clk", "pclk";
+			clocks = <&refclk &pclk>;
+			uart-clk = <10000000>;
+			status = "disabled";
+		};
+
+		uart1: serial1@330A0000 {
+			compatible = "cdns,uart-r1p12", "xlnx,xuartps";
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 113 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x330A0000 0x00 0x100>;
+			clock-names = "uart_clk", "pclk";
+			clocks = <&refclk &pclk>;
+			uart-clk = <10000000>;
+			status = "disabled";
+		};
+
+		uart2: serial2@33120000 {
+			compatible = "cdns,uart-r1p12", "xlnx,xuartps";
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 114 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33120000 0x00 0x100>;
+			clock-names = "uart_clk", "pclk";
+			clocks = <&refclk &pclk>;
+			uart-clk = <10000000>;
+			status = "disabled";
+		};
+
+		uart3: serial3@33020800 {
 			compatible = "cdns,uart-r1p12", "xlnx,xuartps";
 			interrupt-parent = <&gic500>;
 			interrupts = <GIC_SPI 170 IRQ_TYPE_LEVEL_HIGH>;
 			reg = <0x00 0x33020800 0x00 0x100>;
 			clock-names = "uart_clk", "pclk";
-			clocks = <&refclk &refclk>;
+			clocks = <&refclk &pclk>;
+			uart-clk = <10000000>;
 			bootph-pre-reloc;
+			status = "disabled";
+		};
+
+		uart4: serial4@331a0400 {
+			compatible = "cdns,uart-r1p12", "xlnx,xuartps";
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 208 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x331a0400 0x00 0x100>;
+			clock-names = "uart_clk", "pclk";
+			clocks = <&refclk &pclk>;
+			uart-clk = <10000000>;
+			status = "disabled";
+		};
+
+		uart5: serial5@33381D00 {
+			compatible = "cdns,uart-r1p12", "xlnx,xuartps";
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 209 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33381D00 0x00 0x100>;
+			clock-names = "uart_clk", "pclk";
+			clocks = <&refclk &pclk>;
+			uart-clk = <10000000>;
+			status = "disabled";
+		};
+
+		uart6: serial6@33381E00 {
+			compatible = "cdns,uart-r1p12", "xlnx,xuartps";
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 210 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33381E00 0x00 0x100>;
+			clock-names = "uart_clk", "pclk";
+			clocks = <&refclk &pclk>;
+			uart-clk = <10000000>;
+			status = "disabled";
+		};
+
+		uart7: serial7@33381F00 {
+			compatible = "cdns,uart-r1p12", "xlnx,xuartps";
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 211 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33381F00 0x00 0x100>;
+			clock-names = "uart_clk", "pclk";
+			clocks = <&refclk &pclk>;
+			uart-clk = <10000000>;
+			status = "disabled";
+		};
+
+		uart8: serial8@330C0000 {
+			compatible = "cdns,uart-r1p12", "xlnx,xuartps";
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 212 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x330C0000 0x00 0x100>;
+			clock-names = "uart_clk", "pclk";
+			clocks = <&refclk &pclk>;
+			uart-clk = <10000000>;
+			status = "disabled";
+		};
+
+
+		i2c0: i2c@33000400 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 76 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33000400 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c1: i2c@33000800 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 77 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33000800 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c2: i2c@33080400 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 78 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33080400 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c3: i2c@33080800 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 79 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33080800 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c4: i2c@33100400 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 80 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33100400 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c5: i2c@33100800 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 81 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33100800 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i3c6: i2c@33180400 {
+			compatible = "cdns,i3c-master";
+			clocks = <&pclk &sysclk>;
+			clock-names = "pclk", "sysclk";
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 82 IRQ_TYPE_LEVEL_HIGH>;
+			i2c-scl-hz = <100000>;
+			i3c-scl-hz = <400000>;
+			reg = <0x00 0x33180400 0x00 0x400>;
+			#address-cells = <3>;
+			#size-cells = <0>;
+            pinctrl-names = "default";
+            pinctrl-0 = <&pinctrl_i3c6_default>;
+			status = "disabled";
+		};
+
+		i3c7: i2c@33180800 {
+			compatible = "cdns,i3c-master";
+			clocks = <&pclk &sysclk>;
+			clock-names = "pclk", "sysclk";
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 83 IRQ_TYPE_LEVEL_HIGH>;
+			i2c-scl-hz = <100000>;
+			i3c-scl-hz = <400000>;
+			reg = <0x00 0x33180800 0x00 0x400>;
+			#address-cells = <3>;
+			#size-cells = <0>;
+            pinctrl-names = "default";
+            pinctrl-0 = <&pinctrl_i3c7_default>;
+			status = "disabled";
+		};
+
+		i3c8: i2c@33200400 {
+			compatible = "cdns,i3c-master";
+			clocks = <&pclk &sysclk>;
+			clock-names = "pclk", "sysclk";
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 84 IRQ_TYPE_LEVEL_HIGH>;
+			i2c-scl-hz = <100000>;
+			i3c-scl-hz = <400000>;
+			reg = <0x00 0x33200400 0x00 0x400>;
+			#address-cells = <3>;
+			#size-cells = <0>;
+            pinctrl-names = "default";
+            pinctrl-0 = <&pinctrl_i3c8_default>;
+			status = "disabled";
+		};
+
+		i3c9: i2c@33200800 {
+			compatible = "cdns,i3c-master";
+			clocks = <&pclk &sysclk>;
+			clock-names = "pclk", "sysclk";
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 85 IRQ_TYPE_LEVEL_HIGH>;
+			i2c-scl-hz = <100000>;
+			i3c-scl-hz = <400000>;
+			reg = <0x00 0x33200800 0x00 0x400>;
+			#address-cells = <3>;
+			#size-cells = <0>;
+            pinctrl-names = "default";
+            pinctrl-0 = <&pinctrl_i3c9_default>;
+			status = "disabled";
+		};
+
+		i2c10: i2c@33280400 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 86 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33280400 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c11: i2c@33280800 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 87 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33280800 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i3c12: i2c@33300400 {
+			compatible = "cdns,i3c-master";
+			clocks = <&pclk &sysclk>;
+			clock-names = "pclk", "sysclk";
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 88 IRQ_TYPE_LEVEL_HIGH>;
+			i2c-scl-hz = <100000>;
+			i3c-scl-hz = <400000>;
+			reg = <0x00 0x33300400 0x00 0x400>;
+			#address-cells = <3>;
+			#size-cells = <0>;
+            pinctrl-names = "default";
+            pinctrl-0 = <&pinctrl_i3c12_default>;
+			status = "disabled";
+		};
+
+		i3c13: i2c@33300800 {
+			compatible = "cdns,i3c-master";
+			clocks = <&pclk &sysclk>;
+			clock-names = "pclk", "sysclk";
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 89 IRQ_TYPE_LEVEL_HIGH>;
+			i2c-scl-hz = <100000>;
+			i3c-scl-hz = <400000>;
+			reg = <0x00 0x33300800 0x00 0x400>;
+			#address-cells = <3>;
+			#size-cells = <0>;
+            pinctrl-names = "default";
+            pinctrl-0 = <&pinctrl_i3c13_default>;
+			status = "disabled";
+		};
+
+		i2c14: i2c@33380400 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33380400 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c15: i2c@33380800 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 91 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33380800 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c16: i2c@33120400 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 92 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33120400 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c17: i2c@33021400 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 213 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33021400 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c18: i2c@33021800 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 214 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33021800 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c19: i2c@330C0400 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 215 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x330C0400 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c20: i2c@330C0800 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 216 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x330C0800 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c21: i2c@330C0C00 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 217 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x330C0C00 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i3c22: i2c@331A0800 {
+			compatible = "cdns,i3c-master";
+			clocks = <&pclk &sysclk>;
+			clock-names = "pclk", "sysclk";
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 218 IRQ_TYPE_LEVEL_HIGH>;
+			i2c-scl-hz = <100000>;
+			i3c-scl-hz = <400000>;
+			reg = <0x00 0x331A0800 0x00 0x400>;
+			#address-cells = <3>;
+			#size-cells = <0>;
+            pinctrl-names = "default";
+            pinctrl-0 = <&pinctrl_i3c22_default>;
+			status = "disabled";
+		};
+
+		i2c23: i2c@33302800 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 219 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33302800 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c24: i2c@33302C00 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 220 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33302C00 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c25: i2c@33303000 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 221 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33303000 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c26: i2c@33382000 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 222 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33382000 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c27: i2c@33382400 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 223 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33382400 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c28: i2c@33382800 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 224 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33382800 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c29: i2c@33382C00 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 225 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33382C00 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c30: i2c@33383000 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 226 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33383000 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c31: i2c@33383400 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 227 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33383400 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c32: i2c@33383800 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 228 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33383800 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c33: i2c@33282400 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 238 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33282400 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c34: i2c@33282800 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 239 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33282800 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c35: i2c@33282C00 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 240 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33282C00 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c36: i2c@33283000 {
+			compatible = "axiado,ax3000-i2c", "cdns,i2c-r1p14";
+			clocks = <&pclk>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 241 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x33283000 0x00 0x400>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 			status = "disabled";
 		};
 
@@ -191,6 +895,139 @@
 			status = "disabled";
 		};
 
+        sgpio0: sgpio@33201c00 {
+			compatible = "axiado,sgpio";
+			reg = <0x0 0x33201c00 0x00 0x400>;
+			gpio-controller;
+			#gpio-cells = <2>;
+            pinctrl-names = "default";
+            pinctrl-0 = <&pinctrl_sgpio0_default>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>;
+			design-variant = <512>;
+			/* Supports maximum of 128 pins */
+			ngpios = <128>;
+			/* SGPIO Clock Frequency 12 MHz */
+			bus-frequency = <12000000>;
+			apb-frequency = <100000000>;
+			dout-init = <0x00000000 0x00000000 0x00000000 0x00000000>;
+			status = "disabled";
+		};
+
+		sgpio1: sgpio@33281c00 {
+			compatible = "axiado,sgpio";
+			reg = <0x0 0x33281c00 0x00 0x400>;
+			gpio-controller;
+			#gpio-cells = <2>;
+            pinctrl-names = "default";
+            pinctrl-0 = <&pinctrl_sgpio1_default>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 27 IRQ_TYPE_LEVEL_HIGH>;
+			design-variant = <512>;
+			/* Supports maximum of 128 pins */
+			ngpios = <128>;
+			/* SGPIO Clock Frequency 12 MHz */
+			bus-frequency = <12000000>;
+			apb-frequency = <100000000>;
+			dout-init = <0x00000000 0x00000000 0x00000000 0x00000000>;
+			status = "disabled";
+		};
+
+		saradc:saradc@331A0000 {
+			compatible = "axiado,ax3000-saradc";
+			reg = <0x00 0x331a0000 0x00 0x400>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 166 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&pclk &pclk>;
+			clock-names = "refclk", "refclk";
+			#io-channel-cells = <1>;
+			status = "disabled";
+		};
+
+        spi0: spi@33010000 {
+			compatible = "snps,dwc-ssi-1.01a";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x0 0x33010000 0x0 0x10000>;
+            pinctrl-names = "default";
+            pinctrl-0 = <&pinctrl_spi0_default>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 115 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&spi_clk>;
+			num-cs = <2>;
+			reg-io-width = <4>;
+			status = "disabled";
+		};
+
+		spi1: spi@33090000 {
+			compatible = "snps,dwc-ssi-1.01a";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x0 0x33090000 0x0 0x10000>;
+            pinctrl-names = "default";
+            pinctrl-0 = <&pinctrl_spi1_default>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 116 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&spi_clk>;
+			num-cs = <1>;
+			reg-io-width = <4>;
+			status = "disabled";
+		};
+
+		spi2: spi@333c0000 {
+			compatible = "snps,dwc-ssi-1.01a";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x0 0x333c0000 0x0 0x10000>;
+            pinctrl-names = "default";
+            pinctrl-0 = <&pinctrl_spi2_default>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 117 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&spi_clk>;
+			num-cs = <1>;
+			reg-io-width = <4>;
+			status = "disabled";
+		};
+
+		spi3: spi@330e0000 {
+			compatible = "snps,dwc-ssi-1.01a";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x0 0x330e0000 0x0 0x10000>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 118 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&spi_clk>;
+			num-cs = <1>;
+			reg-io-width = <4>;
+			status = "disabled";
+		};
+
+		spi5: spi@33390000 {
+			compatible = "snps,dwc-ssi-1.01a";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x0 0x33390000 0x0 0x10000>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 119 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&spi_clk>;
+			num-cs = <2>;
+			reg-io-width = <4>;
+			status = "disabled";
+		};
+
+		spi6: spi@333a0000 {
+			compatible = "snps,dwc-ssi-1.01a";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x0 0x333a0000 0x0 0x10000>;
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 120 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&spi_clk>;
+			num-cs = <1>;
+			reg-io-width = <4>;
+			status = "disabled";
+		};
+
         /* HCP (Header and Crypto Processing Engine) */
 		hcp: hcp@43100000 {
 			compatible = "axiado,ax3000-hcp";
@@ -203,19 +1040,9 @@
 			 * - PHY CSR
 			 */
 			reg = <0x0 0x43100000 0x0 0x4000>,    /* SHIM regs (16KB) */
-			      <0x0 0x47000000 0x0 0x50000>;   /* PHY CSR (320KB) */
-			reg-names = "shim", "phy-csr";
-			/*
-			 * Interrupts for HCP:
-			 * IRQ 0-9: MACs 0-4
-			 */
-			interrupt-parent = <&gic500>;
-			interrupts = <GIC_SPI 5 IRQ_TYPE_LEVEL_HIGH>,     /* XGMII */
-			             <GIC_SPI 6 IRQ_TYPE_LEVEL_HIGH>,     /* GMII0 */
-			             <GIC_SPI 7 IRQ_TYPE_LEVEL_HIGH>,     /* GMII1 */
-			             <GIC_SPI 8 IRQ_TYPE_LEVEL_HIGH>,     /* GMII2 */
-			             <GIC_SPI 9 IRQ_TYPE_LEVEL_HIGH>;     /* GMII3 */
-			interrupt-names = "xgmii", "gmii0", "gmii1", "gmii2", "gmii3";
+			      <0x0 0x47000000 0x0 0x50000>,   /* PHY CSR (320KB) */
+			      <0x0 0x33120800 0x0 0x200>;   /* IOCTL regs */
+			reg-names = "shim", "phy-csr", "ioctl";
 
 			/* MAC 0: 10G RXAUI */
 			mac0: mac@0 {
@@ -272,125 +1099,709 @@
 		};
 
         pcie_x1: pcie@45200000 {
-			/* compatible = "axiado,ax3005-pcie-ep"; */
-			compatible = "axiado,ax3005-pcie";
-			status = "okay";
-            /* u-boot,dm-pre-reloc; */
-			device_type = "pci";
-			device_class = "host";
-			device_role = "host";                    /* Networking Card Controller */
-			reg = <0 0x45200000 0 0x1000>,          /* PADS XPA reg */
-			      <0 0x45300000 0 0x4000>,        /* AFI PHY reg */
-			      <0 0x45203000 0 0x1000>,        /* int cfg space */
-			      <0 0x45202000 0 0x1000>,        /* bridge reg */
-			      <0 0x45280000 0 0x8000>,        /* MBX reg */
-			      <0 0x45240000 0 0x1000>,        /* EXT reg */
-			      <0 0x33202400 0 0x100>;		/* IOCTL reg */
-			reg-names = "csr", "phy", "cfg", "bridge", "mbx", "ext", "ioctl";
-			#address-cells = <3>;
-			#size-cells = <2>;
-
-			num-lanes = <1>;
-			clocks = <&refclk>;
-			clock-names = "refclk";
-			bus-range = <0x00 0xff>;
-
-            /* PCI VGA Device */
-            /* ranges = <0x83000000 0x0 0x89300000 0x0 0x89300000 0x0 0x100000>,   /1* 1MB - BAR0 non-prefetchable *1/ */
-				 /* <0xc3000000 0x0 0x8c000000 0x0 0x8c000000 0x0 0x4000000>; /1* 64MB - BAR2 prefetchable *1/ */
+            compatible = "axiado,ax3005-pcie";
+            status = "disable";
+            device_type = "pci";
+            device_class = "host";
+            device_role = "host";                    /* Host bridge Controller */
+            reg = <0 0x45200000 0 0x1000>,          /* PADS XPA reg */
+                <0 0x45300000 0 0x4000>,        /* AFI PHY reg */
+                <0 0x45203000 0 0x1000>,        /* int cfg space */
+                <0 0x45202000 0 0x1000>,        /* bridge reg */
+                <0 0x45280000 0 0x8000>,        /* MBX reg */
+                <0 0x45240000 0 0x1000>,        /* EXT reg */
+                <0 0x33202400 0 0x100>;		/* IOCTL reg */
+            reg-names = "csr", "phy", "cfg", "bridge", "mbx", "ext", "ioctl";
+            #address-cells = <3>;
+            #size-cells = <2>;
+            num-lanes = <1>;
+            clocks = <&uartclk>;
+            clock-names = "uartclk";
+            bus-range = <0x00 0x0f>;
 
             /* PCI Host bridge Device */
-            ranges = <0x83000000 0x7 0xE0000000 0x7 0xE0000000 0x0 0x400000>, /* 4M - Port0 Config */
-				<0x83000000 0x7 0x10000000 0x7 0x10000000 0x0 0x10000000>,    /* Non-prefetchable MEM */
-				<0xc3000000 0x7 0x50000000 0x7 0x50000000 0x0 0x10000000>,    /* Prefetchable MEM */
-				<0xc3000000 0x7 0x90000000 0x7 0x90000000 0x0 0x10000000>;    /* Prefetchable MEM */
+            /* ranges = <0x83000000 0x7 0xE0000000 0x7 0xE0000000 0x0 0x400000>, /1* 4M - Port0 Config *1/ */
+            /* <0xc3000000 0x7 0x00000000 0x7 0x00000000 0x0 0x10000000>,    /1* Non-Prefetchable MEM *1/ */
+            /* <0x83000000 0x7 0x40000000 0x7 0x40000000 0x0 0x00100000>,    /1* Prefetchable MEM *1/ */
+            /* <0xc3000000 0x7 0x42000000 0x7 0x42000000 0x0 0x00001000>;    /1* Non-Prefetchable MEM *1/ */
+            ranges = <0x83000000 0x7 0x00000000 0x7 0x00000000 0x0 0x10000000>,    /* Non-Prefetchable MEM */
+                    <0xc3000000 0x7 0x40000000 0x7 0x40000000 0x0 0x10000000>;    /* Prefetchable MEM */
 
-            /* PCI ETH Device */
-			/* ranges = <0x83000000 0x0 0x89300000 0x0 0x89300000 0x0 0x100000>,   /1* 1MB - BAR0 non-prefetchable *1/ */
-			/* 	 <0xc3000000 0x0 0x90000000 0x0 0x90000000 0x0 0x2800>; /1* 10KB - BAR2 prefetchable *1/ */
-
-			/* Bellow config only for pcie RP */
-			pci@1,0 {
-				device_type = "pci";
-                /* Bus 1, device 0, function 0 */
-				assigned-addresses = <0x83010000 0x7 0xE0000000 0x0 0x400000>;
-				reg = <0x10000 0 0 0 0>; /* Bus 1, device 0, function 0 */
-				#address-cells = <3>;
-				#size-cells = <2>;
-				ranges;
-			};
-
-            pci@2,0 {
+            /* Bellow config only for pcie RP */
+            pci@1,0 {
                 device_type = "pci";
-                /* (bus << 16) | (device << 11) | (function << 8) */
-                /* Bus 2, device 0, function 0 */
-                assigned-addresses = <0x83020000 0x7 0xE0000000 0x0 0x400000>;
-                reg = <0x20000 0 0 0 0>; /* Bus 2, device 0, function 0 */
+                /* Bus 1, device 0, function 0 */
+                assigned-addresses = <0x83010000 0x7 0xE0000000 0x0 0x400000>;
+                reg = <0x10000 0 0 0 0>; /* Bus 1, device 0, function 0 */
                 #address-cells = <3>;
                 #size-cells = <2>;
                 ranges;
             };
-		};
+        };
 
-		pcie_x2: pcie@45000000 {
-			compatible = "axiado,ax3005-pcie-ep";
-			status = "okay";
-			device_type = "pci";
-			device_class = "vga";
-			device_role = "vga";                    /* Host bridge Controller */
-            u-boot,dm-pre-reloc;
-			reg = <0 0x45000000 0 0x1000>,          /* PADS XPA reg */
-				<0 0x45100000 0 0x4000>,        /* AFI PHY reg */
-				<0 0x45003000 0 0x1000>,        /* int cfg space */
-				<0 0x45002000 0 0x1000>,        /* bridge reg */
-				<0 0x45080000 0 0x8000>,        /* MBX reg */
-				<0 0x45040000 0 0x1000>,        /* EXT reg */
-				<0 0x33202400 0 0x100>;       /* IOCTL reg */
-			reg-names = "csr", "phy", "cfg", "bridge", "mbx", "ext", "ioctl";
-			#address-cells = <3>;
-			#size-cells = <2>;
-
-			num-lanes = <2>;
-			clocks = <&refclk>;
-			clock-names = "refclk";
-			bus-range = <0x00 0xff>;
-
-            /* PCI VGA Device */
-            /* ranges = <0x83000000 0x0 0x89300000 0x0 0x89300000 0x0 0x100000>,   /1* 1MB - BAR0 non-prefetchable *1/ */
-				 /* <0xc3000000 0x0 0x8c000000 0x0 0x8c000000 0x0 0x4000000>; /1* 64MB - BAR2 prefetchable *1/ */
+        pcie_x2: pcie@45000000 {
+            compatible = "axiado,ax3005-pcie";
+            status = "disable";
+            device_type = "pci";
+            device_class = "host";
+            device_role = "host";                    /* Host bridge Controller */
+            reg = <0 0x45000000 0 0x1000>,          /* PADS XPA reg */
+            <0 0x45100000 0 0x4000>,        /* AFI PHY reg */
+            <0 0x45003000 0 0x1000>,        /* int cfg space */
+            <0 0x45002000 0 0x1000>,        /* bridge reg */
+            <0 0x45080000 0 0x8000>,        /* MBX reg */
+            <0 0x45040000 0 0x1000>,        /* EXT reg */
+            <0 0x33202400 0 0x100>;       /* IOCTL reg */
+            reg-names = "csr", "phy", "cfg", "bridge", "mbx", "ext", "ioctl";
+            #address-cells = <3>;
+            #size-cells = <2>;
+            num-lanes = <2>;
+            clocks = <&uartclk>;
+            clock-names = "uartclk";
+            bus-range = <0x00 0xff>;
 
             /* PCI Host bridge Device */
-            ranges = <0x83000000 0x5 0xE0000000 0x5 0xE0000000 0x0 0x400000>, /* 4M - Port0 Config */
-				<0x83000000 0x5 0x10000000 0x5 0x10000000 0x0 0x10000000>,    /* Non-prefetchable MEM */
-				<0xc3000000 0x5 0x50000000 0x5 0x50000000 0x0 0x10000000>,    /* Prefetchable MEM */
-				<0xc3000000 0x5 0x90000000 0x5 0x90000000 0x0 0x10000000>;    /* Prefetchable MEM */
+            ranges = <0x83000000 0x0 0xE0000000 0x5 0xE0000000 0x0 0x400000>, /* 4M - Port0 Config */
+            <0x83000000 0x0 0x42000000 0x5 0x42000000 0x0 0x00001000>,    /* Non-Prefetchable MEM */
+            <0xc3000000 0x0 0x00000000 0x5 0x00000000 0x0 0x10000000>,    /* Non-Prefetchable MEM */
+            <0xc3000000 0x0 0x40000000 0x5 0x40000000 0x0 0x00100000>;    /* Prefetchable MEM */
 
-            /* PCI ETH Device */
-			/* ranges = <0x83000000 0x0 0x89300000 0x0 0x89300000 0x0 0x100000>,   /1* 1MB - BAR0 non-prefetchable *1/ */
-			/* 	 <0xc3000000 0x0 0x90000000 0x0 0x90000000 0x0 0x2800>; /1* 10KB - BAR2 prefetchable *1/ */
-
-			/* Bellow config only for pcie RP */
-			pci@1,0 {
-				device_type = "pci";
-                /* Bus 1, device 0, function 0 */
-				assigned-addresses = <0x83010000 0x5 0xE0000000 0x0 0x400000>;
-				reg = <0x10000 0 0 0 0>; /* Bus 1, device 0, function 0 */
-				#address-cells = <3>;
-				#size-cells = <2>;
-				ranges;
-			};
-
-            pci@2,0 {
+            /* Bellow config only for pcie RP */
+            pci@1,0 {
                 device_type = "pci";
-                /* (bus << 16) | (device << 11) | (function << 8) */
-                /* Bus 2, device 0, function 0 */
+                /* Bus 1, device 0, function 0 */
                 assigned-addresses = <0x83020000 0x5 0xE0000000 0x0 0x400000>;
-                reg = <0x20000 0 0 0 0>; /* Bus 2, device 0, function 0 */
+                reg = <0x20000 0 0 0 0>; /* Bus 1, device 0, function 0 */
                 #address-cells = <3>;
                 #size-cells = <2>;
                 ranges;
             };
-		};
+        };
 
-	};
+        rtc0: rtc@33282000 {
+            compatible = "cdns,rtc-r109v3";
+            reg = <0x00 0x33282000 0x00 0x100>;
+            clock-names = "pclk", "refclk";
+            clocks = <&pclk &rtcclk>;
+            interrupt-parent = <&gic500>;
+            interrupts = <GIC_SPI 109 IRQ_TYPE_LEVEL_HIGH>;
+            status = "disabled";
+        };
+
+        usb2_0: usb@41000000 {
+            compatible = "axiado,ax3000-gen2-xhci", "generic-xhci";
+            reg = <0x00 0x41000000 0x00 0x100000>;
+            interrupt-parent = <&gic500>;
+            interrupts = <GIC_SPI 19 IRQ_TYPE_LEVEL_HIGH>;
+            status = "disabled";
+        };
+
+        usb2_1: usb@41100000 {
+            compatible = "axiado,ax3000-gen2-xhci", "generic-xhci";
+            reg = <0x00 0x41100000 0x00 0x100000>;
+            interrupt-parent = <&gic500>;
+            interrupts = <GIC_SPI 20 IRQ_TYPE_LEVEL_HIGH>;
+            status ="disabled";
+        };
+
+        usb2_2: usb@41200000  {
+            compatible = "axiado,ax3000-udc";
+            reg = <0x00 0x41200000 0x00 0x100000>;
+            interrupt-parent = <&gic500>;
+            interrupts = <GIC_SPI 21 IRQ_TYPE_LEVEL_HIGH>;
+            status = "disabled";
+        };
+
+        usb2_3: usb@41300000  {
+            compatible = "axiado,ax3000-udc";
+            reg = <0x00 0x41300000 0x00 0x100000>;
+            interrupt-parent = <&gic500>;
+            interrupts = <GIC_SPI 22 IRQ_TYPE_LEVEL_HIGH>;
+            status = "disabled";
+        };
+
+        usb3_0: usb@41400000 {
+            compatible = "axiado,ax3000-gen3-xhci", "generic-xhci";
+            reg = <0x00 0x41400000 0x00 0x100000>;
+            interrupt-parent = <&gic500>;
+            interrupts = <GIC_SPI 17 IRQ_TYPE_LEVEL_HIGH>;
+            status = "disabled";
+        };
+
+        usb3_1: usb@41500000 {
+            compatible = "axiado,ax3000-gen3-xhci", "generic-xhci";
+            reg = <0x00 0x41500000 0x00 0x100000>;
+            interrupt-parent = <&gic500>;
+            interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH>;
+            status = "disabled";
+        };
+
+        disp_ctrl: disp_ctrl@40c00000 {
+            compatible = "axiado,drm-db9000";
+            reg = <0x0 0x40c00000 0x0 0x1000>;
+            /* memory-region = <&pci_ep_ctrl>; */
+            clocks = <&refclk>;
+            clock-names = "refclk";
+            bits-per-pixel = <32>;
+            bus-width = <24>;
+            paddr-disp = <0x8c000000>;
+            status = "disabled";
+            disp_out: port {
+                #address-cells = <1>;
+                #size-cells = <0>;
+                disp_out_hdmi: endpoint@0 {
+                    reg = <0>;
+                    remote-endpoint = <&hdmi_in_disp>;
+                };
+            };
+        };
+
+        hdmi: hdmi@40c11000 {
+            compatible ="axiado,ax3000-hdmi";
+            reg = <0x00 0x40c11000 0x00 0x4000>;
+            /* memory-region = <&pci_ep_ctrl>; */
+            clocks = <&refclk>;
+            clock-names = "refclk";
+            #address-cells = <1>;
+            #size-cells = <0>;
+            status = "disabled";
+            hdmi_in: port@0 {
+                #address-cells = <1>;
+                #size-cells = <0>;
+                hdmi_in_disp: endpoint@0 {
+                    reg = <0>;
+                    remote-endpoint = <&disp_out_hdmi>;
+                };
+            };
+        };
+    };
+
+    video: video {
+        compatible = "axiado,ax3000-video";
+    };
+
+};
+
+&pinctrl0 {
+    /*
+    * GPIO Bank 0
+    * GPIO_0 ~ GPIO_31
+    */
+
+    pinctrl_i2c0_default: i2c0_default {
+        function = "I2C0";
+        axiado,pins = <0 1>;
+    };
+
+    pinctrl_i2c1_default: i2c1_default {
+        function = "I2C1";
+        axiado,pins = <3 4>;
+    };
+
+    pinctrl_pwm0_default: pwm0_default {
+        function = "PWM0";
+        axiado,pins = <6>;
+    };
+
+    pinctrl_tach0_default: tach0_default {
+        function = "TACH0";
+        axiado,pins = <7>;
+    };
+
+    pinctrl_pwm1_default: pwm1_default {
+        function = "PWM1";
+        axiado,pins = <8>;
+    };
+
+    pinctrl_tach1_default: tach1_default {
+        function = "TACH1";
+        axiado,pins = <9>;
+    };
+
+    pinctrl_spi0_default: spi0_default {
+        function = "SPI0";
+        axiado,pins = <10 11 12 13 14 16 17 18>;
+    };
+
+    pinctrl_uart0_default: uart0_default {
+        function = "UART0";
+        axiado,pins = <20 21>;
+    };
+
+    pinctrl_i2c17_default: i2c17_default {
+        function = "I2C17";
+        axiado,pins = <25 26>;
+    };
+
+    pinctrl_i2c18_default: i2c18_default {
+        function = "I2C18";
+        axiado,pins = <28 29>;
+    };
+
+    /*
+    * GPIO Bank 1
+    * GPIO_32 ~ GPIO_63
+    */
+
+    pinctrl_i2c2_default: i2c2_default {
+        function = "I2C2";
+        axiado,pins = <32 33>;
+    };
+
+    pinctrl_i2c3_default: i2c3_default {
+        function = "I2C3";
+        axiado,pins = <35 36>;
+    };
+
+    pinctrl_pwm2_default: pwm2_default {
+        function = "PWM2";
+        axiado,pins = <38>;
+    };
+
+    pinctrl_tach2_default: tach2_default {
+        function = "TACH2";
+        axiado,pins = <39>;
+    };
+
+    pinctrl_pwm3_default: pwm3_default {
+        function = "PWM3";
+        axiado,pins = <40>;
+    };
+
+    pinctrl_tach3_default: tach3_default {
+        function = "TACH3";
+        axiado,pins = <41>;
+    };
+
+    pinctrl_spi1_default: spi1_default {
+        function = "SPI1";
+        axiado,pins = <42 43 44 45 47 48 49 50>;
+    };
+
+    pinctrl_uart1_default: uart1_default {
+        function = "UART1";
+        axiado,pins = <52 53>;
+    };
+
+    pinctrl_uart8_default: uart8_default {
+        function = "UART8";
+        axiado,pins = <54 55>;
+    };
+
+    pinctrl_i2c19_default: i2c19_default {
+        function = "I2C19";
+        axiado,pins = <56 57>;
+    };
+
+    pinctrl_i2c20_default: i2c20_default {
+        function = "I2C20";
+        axiado,pins = <58 59 60>;
+    };
+
+    pinctrl_i3c21_default: i3c21_default {
+        function = "I3C20";
+        axiado,pins = <61 62 63>;
+    };
+};
+
+&pinctrl1 {
+    /*
+    * GPIO Bank 2
+    * GPIO_64 ~ GPIO_95
+    */
+
+    pinctrl_i3c4_default: i3c4_default {
+        function = "I3C4";
+        axiado,pins = <64 65 66>;
+    };
+
+    pinctrl_i3c5_default: i3c5_default {
+        function = "I3C5";
+        axiado,pins = <67 68 69>;
+    };
+
+    pinctrl_pwm4_default: pwm4_default {
+        function = "PWM4";
+        axiado,pins = <70>;
+    };
+
+    pinctrl_tach4_default: tach4_default {
+        function = "TACH4";
+        axiado,pins = <71>;
+    };
+
+    pinctrl_pwm5_default: pwm5_default {
+        function = "PWM5";
+        axiado,pins = <72>;
+    };
+
+    pinctrl_tach5_default: tach5_default {
+        function = "TACH5";
+        axiado,pins = <73>;
+    };
+
+    pinctrl_espi0_default: espi0_default {
+        function = "ESPI0";
+        axiado,pins = <74 75 76 77 78 79 80 83>;
+    };
+
+    pinctrl_uart2_default: uart2_default {
+        function = "UART2";
+        axiado,pins = <84 85>;
+    };
+
+    pinctrl_rmii0_default: rmii0_default {
+        function = "RMII0";
+        axiado,pins = <87 88 89 90 91 92 93>;
+    };
+
+    pinctrl_uart4_default: uart2_default {
+        function = "UART4";
+        axiado,pins = <94 95>;
+    };
+
+    /*
+    * GPIO Bank 3
+    * GPIO_96 ~ GPIO_127
+    */
+
+    pinctrl_i3c6_default: i3c6_default {
+        function = "I3C6";
+        axiado,pins = <96 97 98>;
+    };
+
+    pinctrl_i3c7_default: i3c7_default {
+        function = "I3C7";
+        axiado,pins = <99 100 101>;
+    };
+
+    pinctrl_pwm6_default: pwm6_default {
+        function = "PWM6";
+        axiado,pins = <102>;
+    };
+
+    pinctrl_tach6_default: tach5_default {
+        function = "TACH6";
+        axiado,pins = <103>;
+    };
+
+    pinctrl_pwm7_default: pwm7_default {
+        function = "PWM7";
+        axiado,pins = <104>;
+    };
+
+    pinctrl_tach7_default: tach7_default {
+        function = "TACH7";
+        axiado,pins = <105>;
+    };
+
+    pinctrl_spi3_default: spi3_default {
+        function = "SPI3";
+        axiado,pins = <106 107 108 109 111 112 113>;
+    };
+
+    pinctrl_rmii1_default: rmii1_default {
+        function = "RMII1";
+        axiado,pins = <116 117 118 119 120 121 122>;
+    };
+
+    pinctrl_i3c22_default: i3c22_default {
+        function = "I3C22";
+        axiado,pins = <123 124 125>;
+    };
+};
+
+&pinctrl2 {
+    /*
+    * GPIO Bank 4
+    * GPIO_128 ~ GPIO_159
+    */
+
+    pinctrl_i3c8_default: i3c8_default {
+        function = "I3C8";
+        axiado,pins = <128 129 130>;
+    };
+
+    pinctrl_i3c9_default: i3c9_default {
+        function = "I3C8";
+        axiado,pins = <131 132 133>;
+    };
+
+    pinctrl_pwm8_default: pwm8_default {
+        function = "PWM8";
+        axiado,pins = <134>;
+    };
+
+    pinctrl_tach8_default: tach8_default {
+        function = "TACH8";
+        axiado,pins = <135>;
+    };
+
+    pinctrl_pwm9_default: pwm9_default {
+        function = "PWM9";
+        axiado,pins = <136>;
+    };
+
+    pinctrl_tach9_default: tach9_default {
+        function = "TACH9";
+        axiado,pins = <137>;
+    };
+
+    pinctrl_sgpio0_default: sgpio0_default {
+        function = "SGPIO0";
+        axiado,pins = <138 139 140 141>;
+    };
+
+    pinctrl_spi2_default: spi2_default {
+        function = "SPI2";
+        axiado,pins = <142 143 144 145 147 148 149>;
+    };
+
+    pinctrl_ltpi_default: ltpi_default {
+        function = "LTPI";
+        axiado,pins = <146>;
+    };
+
+    pinctrl_saradc0_default: saradc0_default {
+        function = "SARADC0";
+        axiado,pins = <154>;
+    };
+
+    pinctrl_saradc1_default: saradc1_default {
+        function = "SARADC1";
+        axiado,pins = <155>;
+    };
+
+    pinctrl_saradc2_default: saradc2_default {
+        function = "SARADC2";
+        axiado,pins = <156>;
+    };
+
+    pinctrl_saradc3_default: saradc3_default {
+        function = "SARADC3";
+        axiado,pins = <157>;
+    };
+
+    pinctrl_saradc4_default: saradc4_default {
+        function = "SARADC4";
+        axiado,pins = <158>;
+    };
+
+    pinctrl_saradc5_default: saradc5_default {
+        function = "SARADC5";
+        axiado,pins = <159>;
+    };
+
+    /*
+    * GPIO Bank 5
+    * GPIO_160 ~ GPIO_191
+    */
+
+    pinctrl_i2c10_default: i2c10_default {
+        function = "I2C10";
+        axiado,pins = <160 161>;
+    };
+
+    pinctrl_i3c11_default: i2c11_default {
+        function = "I3C11";
+        axiado,pins = <163 164 165>;
+    };
+
+    pinctrl_pwm10_default: pwm10_default {
+        function = "PWM10";
+        axiado,pins = <166>;
+    };
+
+    pinctrl_tach10_default: tach10_default {
+        function = "TACH10";
+        axiado,pins = <167>;
+    };
+
+    pinctrl_pwm11_default: pwm11_default {
+        function = "PWM11";
+        axiado,pins = <168>;
+    };
+
+    pinctrl_tach11_default: tach11_default {
+        function = "TACH11";
+        axiado,pins = <169>;
+    };
+
+    pinctrl_sgpio1_default: sgpio1_default {
+        function = "SGPIO1";
+        axiado,pins = <170 171 172 173>;
+    };
+
+    pinctrl_espi1_default: espi1_default {
+        function = "ESPI1";
+        axiado,pins = <174 175 176 177 178 179 180 181>;
+    };
+
+    pinctrl_saradc6_default: saradc6_default {
+        function = "SARADC6";
+        axiado,pins = <186>;
+    };
+
+    pinctrl_saradc7_default: saradc7_default {
+        function = "SARADC7";
+        axiado,pins = <187>;
+    };
+
+    pinctrl_saradc8_default: saradc8_default {
+        function = "SARADC8";
+        axiado,pins = <188>;
+    };
+
+    pinctrl_saradc9_default: saradc9_default {
+        function = "SARADC9";
+        axiado,pins = <189>;
+    };
+
+    pinctrl_saradc_out_default: saradc_out_default {
+        function = "SARADC_OUT";
+        axiado,pins = <190>;
+    };
+};
+
+&pinctrl3 {
+    /*
+    * GPIO Bank 6
+    * GPIO_192 ~ GPIO_223
+    */
+
+    pinctrl_i3c12_default: i3c12_default {
+        function = "I3C12";
+        axiado,pins = <192 193 194>;
+    };
+
+    pinctrl_i3c13_default: i3c13_default {
+        function = "I3C13";
+        axiado,pins = <195 196 197>;
+    };
+
+    pinctrl_pwm12_default: pwm12_default {
+        function = "PWM12";
+        axiado,pins = <198>;
+    };
+
+    pinctrl_tach12_default: tach12_default {
+        function = "TACH12";
+        axiado,pins = <199>;
+    };
+
+    pinctrl_pwm13_default: pwm13_default {
+        function = "PWM13";
+        axiado,pins = <200>;
+    };
+
+    pinctrl_tach13_default: tach13_default {
+        function = "TACH13";
+        axiado,pins = <201>;
+    };
+
+    pinctrl_uart5_default: uart5_default {
+        function = "UART5";
+        axiado,pins = <202 203>;
+    };
+
+    pinctrl_uart6_default: uart6_default {
+        function = "UART6";
+        axiado,pins = <204 205>;
+    };
+
+    pinctrl_uart7_default: uart7_default {
+        function = "UART7";
+        axiado,pins = <206 207>;
+    };
+
+    pinctrl_i2c23_default: i2c23_default {
+        function = "I2C23";
+        axiado,pins = <208 209>;
+    };
+
+    pinctrl_spi5_default: spi5_default {
+        function = "SPI5";
+        axiado,pins = <209 210 211 212 213 214 215 216>;
+    };
+
+    pinctrl_i2c24_default: i2c24_default {
+        function = "I2C24";
+        axiado,pins = <2217 218>;
+    };
+
+    pinctrl_i2c25_default: i2c25_default {
+        function = "I2C25";
+        axiado,pins = <220 221>;
+    };
+
+    /*
+    * GPIO Bank 7
+    * GPIO_224 ~ GPIO_255
+    */
+
+    pinctrl_i2c14_default: i2c14_default {
+        function = "I2C14";
+        axiado,pins = <224 225>;
+    };
+
+    pinctrl_i2c15_default: i2c15_default {
+        function = "I2C15";
+        axiado,pins = <227 228>;
+    };
+
+    pinctrl_pwm14_default: pwm14_default {
+        function = "PWM14";
+        axiado,pins = <230>;
+    };
+
+    pinctrl_tach14_default: tach14_default {
+        function = "TACH14";
+        axiado,pins = <231>;
+    };
+
+    pinctrl_pwm15_default: pwm15_default {
+        function = "PWM15";
+        axiado,pins = <232>;
+    };
+
+    pinctrl_tach15_default: tach15_default {
+        function = "TACH15";
+        axiado,pins = <233>;
+    };
+
+    pinctrl_i3c26_default: i3c26_default {
+        function = "I3C26";
+        axiado,pins = <234 235 236>;
+    };
+
+    pinctrl_i3c27_default: i3c27_default {
+        function = "I3C27";
+        axiado,pins = <237 238 239>;
+    };
+
+    pinctrl_i3c28_default: i3c28_default {
+        function = "I3C28";
+        axiado,pins = <240 241 242>;
+    };
+
+    pinctrl_i3c29_default: i3c29_default {
+        function = "I3C29";
+        axiado,pins = <243 244 245>;
+    };
+
+    pinctrl_i3c30_default: i3c30_default {
+        function = "I3C30";
+        axiado,pins = <246 247 248>;
+    };
+
+    pinctrl_i3c31_default: i3c31_default {
+        function = "I3C31";
+        axiado,pins = <249 250 251>;
+    };
+
+    pinctrl_i3c32_default: i3c32_default {
+        function = "I3C32";
+        axiado,pins = <252 253 254>;
+    };
+
 };

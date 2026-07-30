@@ -3094,6 +3094,12 @@ config CMD_DIAG
 	  available tests and running either all the tests, or specific tests
 	  identified by name.
 
+config CMD_AX_DIAG
+	bool "ax_diag - Axiado Board diagnostics"
+	depends on ARCH_AXIADO
+	help
+	  This command provides access to board diagnostic tests.
+
 config CMD_EVENT
 	bool "event - Show information about events"
 	depends on EVENT

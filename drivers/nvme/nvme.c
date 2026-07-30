@@ -126,7 +126,7 @@ static u16 nvme_read_completion_status(struct nvme_queue *nvmeq, u16 index)
 	ulong start = (ulong)&nvmeq->cqes[0];
 	ulong stop = start + NVME_CQ_ALLOCATION;
 
-	invalidate_dcache_range(start, stop);
+	/* invalidate_dcache_range(start, stop); */
 
 	return readw(&(nvmeq->cqes[index].status));
 }
@@ -173,7 +173,6 @@ static int nvme_submit_sync_cmd(struct nvme_queue *nvmeq,
 	nvme_submit_cmd(nvmeq, cmd);
 
 	start_time = timer_get_us();
-
 	for (;;) {
 		status = nvme_read_completion_status(nvmeq, head);
 		if ((status & 0x01) == phase)
@@ -603,7 +602,7 @@ static int nvme_setup_io_queues(struct nvme_dev *dev)
 	nr_io_queues = 1;
 	result = nvme_set_queue_count(dev, nr_io_queues);
 	if (result <= 0) {
-		log_debug("Cannot set queue count (err=%dE)\n", result);
+		pr_err("Cannot set queue count (err=%dE)\n", result);
 		return result;
 	}
 
@@ -692,7 +691,7 @@ int nvme_scan_namespace(void)
 	uclass_foreach_dev(dev, uc) {
 		ret = device_probe(dev);
 		if (ret) {
-			log_err("Failed to probe '%s': err=%dE\n", dev->name,
+			pr_err("Failed to probe '%s': err=%dE\n", dev->name,
 				ret);
 			/* Bail if we ran out of memory, else keep trying */
 			if (ret != -EBUSY)
@@ -835,6 +834,7 @@ int nvme_init(struct udevice *udev)
 
 	ndev->udev = udev;
 	INIT_LIST_HEAD(&ndev->namespaces);
+    printf("nvme read bar csts at: %p\n", &ndev->bar->csts);
 	if (readl(&ndev->bar->csts) == -1) {
 		ret = -EBUSY;
 		printf("Error: %s: Controller not ready!\n", udev->name);
@@ -849,6 +849,7 @@ int nvme_init(struct udevice *udev)
 	}
 	memset(ndev->queues, 0, NVME_Q_NUM * sizeof(struct nvme_queue *));
 
+    printf("nvme read bar cap at: %p\n", &ndev->bar->cap);
 	ndev->cap = nvme_readq(&ndev->bar->cap);
 	ndev->q_depth = min_t(int, NVME_CAP_MQES(ndev->cap) + 1, NVME_Q_DEPTH);
 	ndev->db_stride = 1 << NVME_CAP_STRIDE(ndev->cap);
@@ -856,7 +857,7 @@ int nvme_init(struct udevice *udev)
 
 	ret = nvme_configure_admin_queue(ndev);
 	if (ret) {
-		log_debug("Unable to configure admin queue (err=%dE)\n", ret);
+		pr_err("Unable to configure admin queue (err=%dE)\n", ret);
 		goto free_queue;
 	}
 
@@ -871,7 +872,7 @@ int nvme_init(struct udevice *udev)
 
 	ret = nvme_setup_io_queues(ndev);
 	if (ret) {
-		log_debug("Unable to setup I/O queues(err=%dE)\n", ret);
+		pr_err("Unable to setup I/O queues(err=%dE)\n", ret);
 		goto free_queue;
 	}
 
@@ -913,7 +914,7 @@ int nvme_init(struct udevice *udev)
 
 		ret = bootdev_setup_for_sibling_blk(ns_udev, "nvme_bootdev");
 		if (ret) {
-			log_err("bootdev: returning err=%d\n", ret);
+			pr_err("bootdev: returning err=%d\n", ret);
 			goto free_id;
 		}
 

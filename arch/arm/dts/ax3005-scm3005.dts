@@ -8,7 +8,8 @@
 #include "ax3005.dtsi"
 
 / {
-	model = "Axiado AX3005 SCM3005";
+	/* model = "Axiado AX3005 SCM3005"; */
+	model = "Axiado AX3005 NamDHay Version";
 	compatible = "axiado,ax3005-scm3005", "axiado,ax3005";
 	#address-cells = <2>;
 	#size-cells = <2>;
@@ -23,12 +24,381 @@
 	};
 };
 
+&gpio0 {
+	status = "okay";
+};
+
+&gpio1 {
+	status = "okay";
+};
+
+&gpio2 {
+	status = "okay";
+};
+
+&gpio3 {
+	status = "okay";
+};
+
+&gpio4 {
+	status = "okay";
+};
+
+&gpio5 {
+	status = "okay";
+};
+
+&gpio6 {
+	status = "okay";
+};
+
+&gpio7 {
+	status = "okay";
+};
+
+&sgpio0 {
+	status = "okay";
+};
+
+&sgpio1 {
+	status = "okay";
+};
+
+&spi0 {
+	status = "okay";
+	bios_flash@0 {
+		status = "okay";
+		compatible = "jedec,spi-nor";
+		reg = <0>;
+		spi-max-frequency = <25000000>;
+		spi-rx-bus-width = <4>;
+		spi-tx-bus-width = <4>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			partition@0 {
+				label = "all";
+				reg = <0x00000000 0x04000000>; // 64MB
+			};
+		};
+	};
+	bios_flash@1 {
+		status = "okay";
+		compatible = "jedec,spi-nor";
+		reg = <1>;
+		spi-max-frequency = <25000000>;
+		spi-rx-bus-width = <4>;
+		spi-tx-bus-width = <4>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			partition@0 {
+				label = "all";
+				reg = <0x00000000 0x01000000>; // 64MB
+			};
+		};
+	};
+};
+
+&spi1 {
+    status = "disable";
+};
+
+&spi2 {
+	status = "okay";
+	bios_flash@0 {
+		status = "okay";
+		compatible = "jedec,spi-nor";
+		reg = <0>;
+		spi-max-frequency = <25000000>;
+		spi-rx-bus-width = <4>;
+		spi-tx-bus-width = <4>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			partition@0 {
+				label = "all";
+				reg = <0x00000000 0x04000000>; // 64MB
+			};
+		};
+	};
+	bios_flash@1 {
+		status = "okay";
+		compatible = "jedec,spi-nor";
+		reg = <1>;
+		spi-max-frequency = <25000000>;
+		spi-rx-bus-width = <4>;
+		spi-tx-bus-width = <4>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			partition@0 {
+				label = "all";
+				reg = <0x00000000 0x01000000>; // 64MB
+			};
+		};
+	};
+};
+
+&spi3 {
+    status = "disable";
+};
+
+&spi5 {
+    status = "disable";
+};
+
+&spi6 {
+    status = "disable";
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&uart2 {
+	status = "okay";
+};
+
 &uart3 {
 	status = "okay";
 };
 
+&uart4 {
+	status = "okay";
+};
+
+&uart5 {
+	status = "okay";
+};
+
+&uart6 {
+	status = "okay";
+};
+
+&uart7 {
+	status = "okay";
+};
+
+&uart8 {
+	status = "okay";
+};
+
+&i2c0 {
+	status = "okay";
+};
+
+&i2c1 {
+	status = "okay";
+};
+
+&i2c2 {
+	status = "okay";
+};
+
+&i2c3 {
+	status = "okay";
+};
+
+&i2c4 {
+	status = "okay";
+};
+
+&i2c5 {
+	status = "okay";
+};
+
+&i3c6 {
+	status = "okay";
+};
+
+&i3c7 {
+	status = "okay";
+};
+
+&i3c8 {
+	status = "okay";
+};
+
+&i3c9 {
+	status = "okay";
+};
+
+&i2c10 {
+	status = "okay";
+};
+
+&i2c11 {
+	status = "okay";
+};
+
+&i3c12 {
+	status = "okay";
+};
+
+&i3c13 {
+	status = "okay";
+};
+
+&i2c14 {
+	status = "okay";
+};
+
+&i2c15 {
+	status = "okay";
+};
+
+&i2c16 {
+	status = "okay";
+	#address-cells = <1>;
+	tmp75@4e {
+		compatible = "tmp75";
+		reg = <0x4e>;
+		status = "okay";
+	};
+	tmp75@4f {
+		compatible = "tmp75";
+		reg = <0x4f>;
+		status = "okay";
+	};
+	eeprom@50 {
+		compatible = "atmel,24c16";
+		reg = <0x50>;
+		pagesize = <16>;
+		status = "okay";
+	};
+};
+
+&i2c17 {
+	status = "okay";
+};
+
+&i2c18 {
+	status = "okay";
+};
+
+&i2c19 {
+	status = "okay";
+};
+
+&i2c20 {
+	status = "okay";
+};
+
+&i2c21 {
+	status = "okay";
+};
+
+&i3c22 {
+	status = "okay";
+};
+
+&i2c23 {
+	status = "okay";
+};
+
+&i2c24 {
+	status = "okay";
+};
+
+&i2c25 {
+	status = "okay";
+};
+
+&i2c26 {
+	status = "okay";
+};
+
+&i2c27 {
+	status = "okay";
+};
+
+&i2c28 {
+	status = "okay";
+};
+
+&i2c29 {
+	status = "okay";
+};
+
+&i2c30 {
+	status = "okay";
+};
+
+&i2c31 {
+	status = "okay";
+};
+
+&i2c32 {
+	status = "okay";
+};
+
+&usb2_0 {
+	status = "okay";
+};
+
+&usb2_1 {
+	status = "okay";
+};
+
+&usb2_2 {
+	status = "okay";
+};
+
+&usb2_3 {
+	status = "okay";
+};
+
+&usb3_0 {
+	status = "okay";
+};
+
+&usb3_1 {
+	status = "okay";
+};
+
+&rtc0 {
+    status = "okay";
+};
+
+&saradc {
+    status = "okay";
+};
+
 &sdhci0 {
 	status = "okay";
+};
+
+&pcie_x1 {
+	status = "okay";
+};
+
+&pcie_x2 {
+	status = "disable";
 };
 
 &mac0 {
@@ -91,6 +461,6 @@
 };
 
 &hfifo {
-    mac = <4>;
+    mac = <1>;
 	status = "okay";
 };
