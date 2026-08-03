@@ -7,6 +7,7 @@
 #include <command.h>
 #include <irq_func.h>
 #include <linux/string.h>
+#include <dm.h>
 
 static int do_interrupts(struct cmd_tbl *cmdtp, int flag, int argc,
 			 char *const argv[])
@@ -16,7 +17,7 @@ static int do_interrupts(struct cmd_tbl *cmdtp, int flag, int argc,
 		return CMD_RET_USAGE;
 
 	/* on */
-	if (strncmp(argv[1], "on", 2) == 0)
+	if (strcmp(argv[1], "on") == 0)
 		enable_interrupts();
 	else
 		disable_interrupts();
@@ -30,8 +31,8 @@ U_BOOT_CMD(
 	"[on, off]"
 );
 
-U_BOOT_CMD(
-	irqinfo,    1,    1,     do_irqinfo,
-	"print information about IRQs",
-	""
-);
+/* U_BOOT_CMD( */
+/* 	irqinfo,    1,    1,     do_irqinfo, */
+/* 	"print information about IRQs", */
+/* 	"" */
+/* ); */

@@ -128,11 +128,20 @@
 
 #ifdef CONFIG_GIC_V3_ITS
 int gic_lpi_tables_init(u64 base, u32 max_redist);
+#ifdef CONFIG_ARCH_AXIADO
+int gicv3_cpu_init(unsigned int cpu);
+#endif /* CONFIG_ARCH_AXIADO */
 #else
 int gic_lpi_tables_init(u64 base, u32 max_redist)
 {
 	return 0;
 }
+#ifdef CONFIG_ARCH_AXIADO
+int gicv3_cpu_init(unsigned int cpu)
+{
+    return 0;
+}
+#endif /* CONFIG_ARCH_AXIADO */
 #endif /* CONFIG_GIC_V3_ITS */
 
 #endif /* __GIC_V3_H__ */

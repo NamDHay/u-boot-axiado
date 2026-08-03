@@ -2,8 +2,12 @@
 /*
  * (C) Copyright 2013
  * David Feng <fenghua@phytium.com.cn>
+ *
+ * (C) Copyright 2026
+ * Nguyen Nam Huy <namhuyngn03@gmail.com>
  */
 
+#include <dm.h>
 #include <asm/esr.h>
 #include <asm/global_data.h>
 #include <asm/ptrace.h>
@@ -11,8 +15,20 @@
 #include <linux/compiler.h>
 #include <efi_loader.h>
 #include <semihosting.h>
+#include <asm/io.h>
+#include <asm/gic.h>
+#include <asm/gic-v3.h>
 
 DECLARE_GLOBAL_DATA_PTR;
+
+#define MAX_IRQS    1024
+
+struct irq_action {
+    interrupt_handler_t *handler;
+    void *arg;
+};
+
+static struct irq_action irq_table[MAX_IRQS];
 
 int interrupt_init(void)
 {
@@ -206,16 +222,41 @@ void do_sync(struct pt_regs *pt_regs)
 	panic("Resetting CPU ...\n");
 }
 
+static inline u32 gic_read_iar(void)
+{
+    u64 val;
+
+    asm volatile("mrs %0, ICC_IAR1_EL1" : "=r"(val));
+
+    return (u32)val;
+}
+
+static inline void gic_write_eoir(u32 irq)
+{
+    asm volatile("msr ICC_EOIR1_EL1, %0"
+                 :
+                 : "r"((u64)irq));
+
+    asm volatile("isb");
+}
+
 /*
  * do_irq handles the Irq exception.
  */
 void do_irq(struct pt_regs *pt_regs)
 {
-	efi_restore_gd();
-	printf("\"Irq\" handler, esr 0x%08lx\n", pt_regs->esr);
-	show_regs(pt_regs);
-	show_efi_loaded_images(pt_regs);
-	panic("Resetting CPU ...\n");
+    u32 iar;
+    u32 irq;
+
+    efi_restore_gd();
+
+    iar = gic_read_iar();
+    irq = iar & 0xffffff;
+    if (irq < MAX_IRQS && irq_table[irq].handler)
+        return irq_table[irq].handler(irq_table[irq].arg);
+    else
+        printf("Unhandled IRQ %u\n", irq);
+    gic_write_eoir(iar);
 }
 
 /*
@@ -223,11 +264,11 @@ void do_irq(struct pt_regs *pt_regs)
  */
 void do_fiq(struct pt_regs *pt_regs)
 {
-	efi_restore_gd();
-	printf("\"Fiq\" handler, esr 0x%08lx\n", pt_regs->esr);
-	show_regs(pt_regs);
-	show_efi_loaded_images(pt_regs);
-	panic("Resetting CPU ...\n");
+    efi_restore_gd();
+    printf("\"Fiq\" handler, esr 0x%08lx\n", pt_regs->esr);
+    show_regs(pt_regs);
+    show_efi_loaded_images(pt_regs);
+    panic("Resetting CPU ...\n");
 }
 
 /*
@@ -238,9 +279,88 @@ void do_fiq(struct pt_regs *pt_regs)
  */
 void __weak do_error(struct pt_regs *pt_regs)
 {
-	efi_restore_gd();
-	printf("\"Error\" handler, esr 0x%08lx\n", pt_regs->esr);
-	show_regs(pt_regs);
-	show_efi_loaded_images(pt_regs);
-	panic("Resetting CPU ...\n");
+    efi_restore_gd();
+    printf("\"Error\" handler, esr 0x%08lx\n", pt_regs->esr);
+    show_regs(pt_regs);
+    show_efi_loaded_images(pt_regs);
+    panic("Resetting CPU ...\n");
+}
+
+void irq_install_handler(int vec, interrupt_handler_t *handler, void *arg)
+{
+	struct udevice *dev;
+	fdt_addr_t gicd;
+    u32 reg, shift, val;
+    int ret;
+
+	if ((vec < 0) || (vec >= MAX_IRQS)) {
+		return;
+	}
+
+	ret = uclass_get_device_by_driver(UCLASS_IRQ,
+					  DM_DRIVER_GET(arm_gic_v3), &dev);
+	if (ret) {
+		pr_err("%s: failed to get %s irq device\n", __func__,
+		       DM_DRIVER_GET(arm_gic_v3)->name);
+		return;
+	}
+
+	gicd = dev_read_addr_index(dev, 0);
+	if (gicd == FDT_ADDR_T_NONE) {
+		pr_err("%s: failed to get GICD address\n", __func__);
+		return;
+	}
+
+    reg = vec / 16;
+    shift = (vec % 16) * 2;
+    val = readl(gicd + GICD_ICFGR + reg * 4);
+    val &= ~(0x3 << shift);
+    writel(val, gicd + GICD_ICFGR + reg * 4);
+    
+    setbits_le32((void *)(gicd + GICD_IGROUPRn +
+                 (vec / 32) * 4),
+                 BIT(vec % 32));
+
+    setbits_le32((void *)(gicd + GICD_ISENABLERn +
+                 (vec / 32) * 4),
+                 BIT(vec % 32));
+
+    writeq(0x0,
+       (void *)(gicd + GICD_IROUTERn +
+       (vec - 32) * 8));
+
+    irq_table[vec].handler = handler;
+    irq_table[vec].arg = arg;
+}
+
+void irq_free_handler(int vec)
+{
+    struct udevice *dev;
+    fdt_addr_t gicd;
+    int ret;
+
+    if ((vec < 0) || (vec >= MAX_IRQS)) {
+        return;
+    }
+
+    ret = uclass_get_device_by_driver(UCLASS_IRQ,
+            DM_DRIVER_GET(arm_gic_v3), &dev);
+    if (ret) {
+        pr_err("%s: failed to get %s irq device\n", __func__,
+                DM_DRIVER_GET(arm_gic_v3)->name);
+        return;
+    }
+
+    gicd = dev_read_addr_index(dev, 0);
+    if (gicd == FDT_ADDR_T_NONE) {
+        pr_err("%s: failed to get GICD address\n", __func__);
+        return;
+    }
+
+    clrbits_le32((void *)(gicd + GICD_ISENABLERn +
+                 (vec / 32) * 4),
+                 BIT(vec % 32));
+
+    irq_table[vec].handler = NULL;
+    irq_table[vec].arg = NULL;
 }

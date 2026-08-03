@@ -16,6 +16,7 @@
 #include <command.h>
 #include <net.h>
 #include <irq_func.h>
+#include <asm/gic-v3.h>
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -243,10 +244,36 @@ int timer_init(void)
 	return 0;
 }
 
+#ifdef CONFIG_GIC_V3_ITS
+
+int ls_gic_rd_tables_init(void)
+{
+    int ret;
+    struct udevice *dev;
+    fdt_addr_t gicd_base, gicr_base;
+
+    ret = uclass_first_device_err(UCLASS_IRQ, &dev);
+    if (ret)
+        return ret;
+
+    gicd_base = dev_read_addr_index(dev, 0);
+    gicr_base = dev_read_addr_index(dev, 1);
+
+    ret = gicv3_cpu_init(0);
+    if (ret)
+        debug("%s: failed to init gic\n", __func__);
+
+    return ret;
+}
+#endif
+
+
+
 int board_init(void)
 {
+    ls_gic_rd_tables_init();
     enable_interrupts();
-	return 0;
+    return 0;
 }
 
 void reset_cpu(void)
@@ -255,7 +282,7 @@ void reset_cpu(void)
 
 void enable_caches(void)
 {
-	/* icache_enable(); */
-	/* dcache_enable(); */
+    /* icache_enable(); */
+    /* dcache_enable(); */
 }
 

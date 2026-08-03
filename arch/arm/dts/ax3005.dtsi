@@ -203,8 +203,8 @@
 			#interrupt-cells = <3>;
 			interrupt-controller;
 			#redistributor-regions = <1>;
-			reg = <0x00 0x40400000 0x00 0x10000>,
-			      <0x00 0x40500000 0x00 0xc0000>;
+			reg = <0x00 0x40400000 0x00 0x10000>, /* GICD */
+			      <0x00 0x40500000 0x00 0xc0000>; /* GICR */
 			interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_HIGH>;
 		};
 
@@ -888,7 +888,7 @@
 			clock-names = "clk_xin", "clk_ahb";
 			clocks = <&clk_xin &clk_ahb>;
 			interrupt-parent = <&gic500>;
-			interrupts = <GIC_SPI 123 IRQ_TYPE_LEVEL_HIGH>;
+			interrupts = <GIC_SPI 155 IRQ_TYPE_LEVEL_HIGH>;
 			bus-width = <8>;
 			phys = <&emmc_phy>;
 			phy-names = "phy_arasan";

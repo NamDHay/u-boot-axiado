@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
  * Copyright 2019 Broadcom.
+ *
+ * (C) Copyright 2026
+ * Nguyen Nam Huy <namhuyngn03@gmail.com>
  */
 #include <cpu_func.h>
 #include <dm.h>
@@ -14,6 +17,9 @@
 #include <linux/bitops.h>
 #include <linux/printk.h>
 #include <linux/sizes.h>
+
+#define __stringify_1(x) #x
+#define __stringify(x) __stringify_1(x)
 
 static u32 lpi_id_bits;
 
@@ -66,6 +72,32 @@ static int gic_v3_its_get_gic_addr(struct gic_v3_its_priv *priv)
 	return 0;
 }
 
+#ifdef CONFIG_ARCH_AXIADO
+int gicv3_cpu_init(unsigned int cpu)
+{
+	struct gic_v3_its_priv priv;
+    volatile u32 GICD_WAKER = 0x100014 + cpu * 0x20000;
+
+	if (gic_v3_its_get_gic_addr(&priv))
+		return -EINVAL;
+
+    writel(0xFFFFFFFD, priv.gicd_base + GICR_WAKER);
+
+    while (readl(priv.gicd_base + GICD_WAKER) & BIT(2));
+    
+    asm volatile("msr  " __stringify(ICC_CTLR_EL1) ", %0\n; isb" ::"r"((uint64_t)0x1));
+    asm volatile("msr  " __stringify(ICC_PMR_EL1) ", %0\n; isb" ::"r"((uint64_t)0xFF)); /* priority mask register */
+
+    writel(0x2, priv.gicd_base + GICD_CTLR);
+
+    asm volatile("msr  " __stringify(ICC_IGRPEN1_EL1) ", %0\n; isb" ::"r"((uint64_t)0x1));
+
+    asm volatile("msr DAIFClr, #0x7"); // PSTATE bit msaking, D - debug expression, A - SError, I - IRQ,  F- FAQ takes
+
+    return 0;
+}
+#endif /* CONFIG_ARCH_AXIADO */
+
 /*
  * Program the GIC LPI configuration tables for all
  * the re-distributors and enable the LPI table
@@ -74,95 +106,96 @@ static int gic_v3_its_get_gic_addr(struct gic_v3_its_priv *priv)
  */
 int gic_lpi_tables_init(u64 base, u32 num_redist)
 {
-	struct gic_v3_its_priv priv;
-	u32 gicd_typer;
-	u64 val;
-	u64 tmp;
-	int i;
-	u64 redist_lpi_base;
-	u64 pend_base;
-	ulong pend_tab_total_sz = num_redist * LPI_PENDBASE_SZ;
-	void *pend_tab_va;
+    struct gic_v3_its_priv priv;
+    u32 gicd_typer;
+    u64 val;
+    u64 tmp;
+    int i;
+    u64 redist_lpi_base;
+    u64 pend_base;
+    ulong pend_tab_total_sz = num_redist * LPI_PENDBASE_SZ;
+    void *pend_tab_va;
 
-	if (gic_v3_its_get_gic_addr(&priv))
-		return -EINVAL;
+    if (gic_v3_its_get_gic_addr(&priv))
+        return -EINVAL;
 
-	gicd_typer = readl((uintptr_t)(priv.gicd_base + GICD_TYPER));
-	/* GIC support for Locality specific peripheral interrupts (LPI's) */
-	if (!(gicd_typer & GICD_TYPER_LPIS)) {
-		pr_err("GIC implementation does not support LPI's\n");
-		return -EINVAL;
-	}
+    gicd_typer = readl((uintptr_t)(priv.gicd_base + GICD_TYPER));
+    /* GIC support for Locality specific peripheral interrupts (LPI's) */
+    if (!(gicd_typer & GICD_TYPER_LPIS)) {
+        pr_err("GIC implementation does not support LPI's\n");
+        return -EINVAL;
+    }
 
-	/*
-	 * Check for LPI is disabled for all the redistributors.
-	 * Once the LPI table is enabled, can not program the
-	 * LPI configuration tables again, unless the GIC is reset.
-	 */
-	for (i = 0; i < num_redist; i++) {
-		u32 offset = i * GIC_REDISTRIBUTOR_OFFSET;
+    /*
+     * Check for LPI is disabled for all the redistributors.
+     * Once the LPI table is enabled, can not program the
+     * LPI configuration tables again, unless the GIC is reset.
+     */
+    for (i = 0; i < num_redist; i++) {
+        u32 offset = i * GIC_REDISTRIBUTOR_OFFSET;
 
-		if ((readl((uintptr_t)(priv.gicr_base + offset))) &
-		    GICR_CTLR_ENABLE_LPIS) {
-			pr_err("Re-Distributor %d LPI is already enabled\n",
-			       i);
-			return -EINVAL;
-		}
-	}
+        if ((readl((uintptr_t)(priv.gicr_base + offset))) &
+                GICR_CTLR_ENABLE_LPIS) {
+            pr_err("Re-Distributor %d LPI is already enabled\n",
+                    i);
+            return -EINVAL;
+        }
+    }
 
-	/* lpi_id_bits to get LPI_PENDBASE_SZ and LPi_PROPBASE_SZ */
-	lpi_id_bits = min_t(u32, GICD_TYPER_ID_BITS(gicd_typer),
-			    ITS_MAX_LPI_NRBITS);
+    /* lpi_id_bits to get LPI_PENDBASE_SZ and LPi_PROPBASE_SZ */
+    lpi_id_bits = min_t(u32, GICD_TYPER_ID_BITS(gicd_typer),
+            ITS_MAX_LPI_NRBITS);
 
-	/* Set PropBase */
-	val = (base |
-	       GICR_PROPBASER_INNERSHAREABLE |
-	       GICR_PROPBASER_RAWAWB |
-	       ((LPI_NRBITS - 1) & GICR_PROPBASER_IDBITS_MASK));
+    /* Set PropBase */
+    val = (base |
+            GICR_PROPBASER_INNERSHAREABLE |
+            GICR_PROPBASER_RAWAWB |
+            ((LPI_NRBITS - 1) & GICR_PROPBASER_IDBITS_MASK));
 
-	writeq(val, (uintptr_t)(priv.gicr_base + GICR_PROPBASER));
-	tmp = readl((uintptr_t)(priv.gicr_base + GICR_PROPBASER));
-	if ((tmp ^ val) & GICR_PROPBASER_SHAREABILITY_MASK) {
-		if (!(tmp & GICR_PROPBASER_SHAREABILITY_MASK)) {
-			val &= ~(GICR_PROPBASER_SHAREABILITY_MASK |
-				GICR_PROPBASER_CACHEABILITY_MASK);
-			val |= GICR_PROPBASER_NC;
-			writeq(val,
-			       (uintptr_t)(priv.gicr_base + GICR_PROPBASER));
-		}
-	}
+    writeq(val, (uintptr_t)(priv.gicr_base + GICR_PROPBASER));
+    tmp = readl((uintptr_t)(priv.gicr_base + GICR_PROPBASER));
+    if ((tmp ^ val) & GICR_PROPBASER_SHAREABILITY_MASK) {
+        if (!(tmp & GICR_PROPBASER_SHAREABILITY_MASK)) {
+            val &= ~(GICR_PROPBASER_SHAREABILITY_MASK |
+                    GICR_PROPBASER_CACHEABILITY_MASK);
+            val |= GICR_PROPBASER_NC;
+            writeq(val,
+                    (uintptr_t)(priv.gicr_base + GICR_PROPBASER));
+        }
+    }
 
-	redist_lpi_base = base + LPI_PROPBASE_SZ;
-	pend_tab_va = map_physmem(redist_lpi_base, pend_tab_total_sz,
-				  MAP_NOCACHE);
-	memset(pend_tab_va, 0, pend_tab_total_sz);
-	flush_cache((ulong)pend_tab_va, pend_tab_total_sz);
-	unmap_physmem(pend_tab_va, MAP_NOCACHE);
+    redist_lpi_base = base + LPI_PROPBASE_SZ;
+    pend_tab_va = map_physmem(redist_lpi_base, pend_tab_total_sz,
+            MAP_NOCACHE);
+    memset(pend_tab_va, 0, pend_tab_total_sz);
+    flush_cache((ulong)pend_tab_va, pend_tab_total_sz);
+    unmap_physmem(pend_tab_va, MAP_NOCACHE);
 
-	pend_base = priv.gicr_base + GICR_PENDBASER;
-	for (i = 0; i < num_redist; i++) {
-		u32 offset = i * GIC_REDISTRIBUTOR_OFFSET;
+    pend_base = priv.gicr_base + GICR_PENDBASER;
+    for (i = 0; i < num_redist; i++) {
+        u32 offset = i * GIC_REDISTRIBUTOR_OFFSET;
 
-		val = ((redist_lpi_base + (i * LPI_PENDBASE_SZ)) |
-			GICR_PENDBASER_INNERSHAREABLE |
-			GICR_PENDBASER_RAWAWB |
-			GICR_PENDBASER_PTZ);
+        val = ((redist_lpi_base + (i * LPI_PENDBASE_SZ)) |
+                GICR_PENDBASER_INNERSHAREABLE |
+                GICR_PENDBASER_RAWAWB |
+                GICR_PENDBASER_PTZ);
 
-		writeq(val, (uintptr_t)(pend_base + offset));
-		tmp = readq((uintptr_t)(pend_base + offset));
-		if (!(tmp & GICR_PENDBASER_SHAREABILITY_MASK)) {
-			val &= ~(GICR_PENDBASER_SHAREABILITY_MASK |
-				 GICR_PENDBASER_CACHEABILITY_MASK);
-			val |= GICR_PENDBASER_NC;
-			writeq(val, (uintptr_t)(pend_base + offset));
-		}
+        writeq(val, (uintptr_t)(pend_base + offset));
+        tmp = readq((uintptr_t)(pend_base + offset));
+        if (!(tmp & GICR_PENDBASER_SHAREABILITY_MASK)) {
+            val &= ~(GICR_PENDBASER_SHAREABILITY_MASK |
+                    GICR_PENDBASER_CACHEABILITY_MASK);
+            val |= GICR_PENDBASER_NC;
+            writeq(val, (uintptr_t)(pend_base + offset));
+        }
 
-		/* Enable LPI for the redistributor */
-		writel(GICR_CTLR_ENABLE_LPIS,
-		       (uintptr_t)(priv.gicr_base + offset));
-	}
+        /* Enable LPI for the redistributor */
+        writel(GICR_CTLR_ENABLE_LPIS,
+                (uintptr_t)(priv.gicr_base + offset));
+    }
 
-	return 0;
+    printf("gic_lpi_tables_init success\n");
+    return 0;
 }
 
 #ifdef CONFIG_ACPIGEN
@@ -177,65 +210,65 @@ int gic_lpi_tables_init(u64 base, u32 num_redist)
  */
 static int acpi_gicv3_fill_madt(const struct udevice *dev, struct acpi_ctx *ctx)
 {
-	struct acpi_madt_gicd *gicd;
-	struct acpi_madt_gicr *gicr;
+    struct acpi_madt_gicd *gicd;
+    struct acpi_madt_gicr *gicr;
 
-	struct gic_v3_its_priv priv;
+    struct gic_v3_its_priv priv;
 
-	if (gic_v3_its_get_gic_addr(&priv))
-		return -EINVAL;
+    if (gic_v3_its_get_gic_addr(&priv))
+        return -EINVAL;
 
-	gicd = ctx->current;
-	acpi_write_madt_gicd(gicd, dev_seq(dev), priv.gicd_base, 3);
-	acpi_inc(ctx, gicd->length);
+    gicd = ctx->current;
+    acpi_write_madt_gicd(gicd, dev_seq(dev), priv.gicd_base, 3);
+    acpi_inc(ctx, gicd->length);
 
-	gicr = ctx->current;
-	acpi_write_madt_gicr(gicr, priv.gicr_base, priv.gicr_length);
-	acpi_inc(ctx, gicr->length);
+    gicr = ctx->current;
+    acpi_write_madt_gicr(gicr, priv.gicr_base, priv.gicr_length);
+    acpi_inc(ctx, gicr->length);
 
-	return 0;
+    return 0;
 }
 
 struct acpi_ops gic_v3_acpi_ops = {
-	.fill_madt	= acpi_gicv3_fill_madt,
+    .fill_madt	= acpi_gicv3_fill_madt,
 };
 #endif
 
 static const struct udevice_id gic_v3_ids[] = {
-	{ .compatible = "arm,gic-v3" },
-	{}
+    { .compatible = "arm,gic-v3" },
+    {}
 };
 
 static int arm_gic_v3_of_xlate(struct irq *irq, struct ofnode_phandle_args *args)
 {
-	if (args->args_count < 3) {
-		log_debug("Invalid args_count: %d\n", args->args_count);
-		return -EINVAL;
-	}
+    if (args->args_count < 3) {
+        log_debug("Invalid args_count: %d\n", args->args_count);
+        return -EINVAL;
+    }
 
-	if (args->args[0] == GIC_SPI)
-		irq->id = args->args[1] + 32;
-	else
-		irq->id = args->args[1] + 16;
+    if (args->args[0] == GIC_SPI)
+        irq->id = args->args[1] + 32;
+    else
+        irq->id = args->args[1] + 16;
 
-	irq->flags = args->args[2];
+    irq->flags = args->args[2];
 
-	return 0;
+    return 0;
 }
 
 static const struct irq_ops arm_gic_v3_ops = {
-	.of_xlate		=  arm_gic_v3_of_xlate,
+    .of_xlate		=  arm_gic_v3_of_xlate,
 };
 
 U_BOOT_DRIVER(arm_gic_v3) = {
-	.name		= "gic-v3",
-	.id		= UCLASS_IRQ,
-	.of_match	= gic_v3_ids,
-	.ops		= &arm_gic_v3_ops,
+    .name		= "gic-v3",
+    .id		= UCLASS_IRQ,
+    .of_match	= gic_v3_ids,
+    .ops		= &arm_gic_v3_ops,
 #if CONFIG_IS_ENABLED(OF_REAL)
-	.bind		= dm_scan_fdt_dev,
+    .bind		= dm_scan_fdt_dev,
 #endif
-	ACPI_OPS_PTR(&gic_v3_acpi_ops)
+    ACPI_OPS_PTR(&gic_v3_acpi_ops)
 };
 
 #ifdef CONFIG_ACPIGEN
@@ -250,35 +283,35 @@ U_BOOT_DRIVER(arm_gic_v3) = {
  */
 static int acpi_gic_its_fill_madt(const struct udevice *dev, struct acpi_ctx *ctx)
 {
-	struct acpi_madt_its *its;
-	fdt_addr_t addr;
+    struct acpi_madt_its *its;
+    fdt_addr_t addr;
 
-	addr = dev_read_addr_index(dev, 0);
-	if (addr == FDT_ADDR_T_NONE) {
-		pr_err("%s: failed to get GIC ITS address\n", __func__);
-		return -EINVAL;
-	}
+    addr = dev_read_addr_index(dev, 0);
+    if (addr == FDT_ADDR_T_NONE) {
+        pr_err("%s: failed to get GIC ITS address\n", __func__);
+        return -EINVAL;
+    }
 
-	its = ctx->current;
-	acpi_write_madt_its(its, dev_seq(dev), addr);
-	acpi_inc(ctx, its->length);
+    its = ctx->current;
+    acpi_write_madt_its(its, dev_seq(dev), addr);
+    acpi_inc(ctx, its->length);
 
-	return 0;
+    return 0;
 }
 
 struct acpi_ops gic_v3_its_acpi_ops = {
-	.fill_madt	= acpi_gic_its_fill_madt,
+    .fill_madt	= acpi_gic_its_fill_madt,
 };
 #endif
 
 static const struct udevice_id gic_v3_its_ids[] = {
-	{ .compatible = "arm,gic-v3-its" },
-	{}
+    { .compatible = "arm,gic-v3-its" },
+    {}
 };
 
 U_BOOT_DRIVER(arm_gic_v3_its) = {
-	.name		= "gic-v3-its",
-	.id		= UCLASS_IRQ,
-	.of_match	= gic_v3_its_ids,
-	ACPI_OPS_PTR(&gic_v3_its_acpi_ops)
+    .name		= "gic-v3-its",
+    .id		= UCLASS_IRQ,
+    .of_match	= gic_v3_its_ids,
+    ACPI_OPS_PTR(&gic_v3_its_acpi_ops)
 };

@@ -11,6 +11,7 @@
 	/* model = "Axiado AX3005 SCM3005"; */
 	model = "Axiado AX3005 NamDHay Version";
 	compatible = "axiado,ax3005-scm3005", "axiado,ax3005";
+    interrupt-parent = <&gic500>;
 	#address-cells = <2>;
 	#size-cells = <2>;
 
