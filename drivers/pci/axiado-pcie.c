@@ -595,14 +595,8 @@ static int axiado_pcie_setup_windows(struct axiado_pcie *pcie)
                 memp = region;
                 axiado_pcie_setup_a2p_atr(
                         pcie,
-                        0x0,
-                        memp->phys_start,
-                        memp->size,
-                        PCIE_ATR_TRSLID_PCIE_MEMORY);
-                axiado_pcie_setup_p2a_atr(
-                        pcie,
-                        0x0,
-                        memp->phys_start,
+                        memp->bus_start,
+                        memp->bus_start,
                         memp->size,
                         PCIE_ATR_TRSLID_PCIE_MEMORY);
                 break;

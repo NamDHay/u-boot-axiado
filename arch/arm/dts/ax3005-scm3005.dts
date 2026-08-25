@@ -399,7 +399,7 @@
 };
 
 &pcie_x2 {
-	status = "disable";
+	status = "okay";
 };
 
 &mac0 {

@@ -16,9 +16,10 @@ int do_diag(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
 {
 	unsigned int i;
 
-	if (argc == 1 || strcmp (argv[1], "run") != 0) {
+	if (argc == 1 != 0) {
 		/* List test info */
 		if (argc == 1) {
+			printf ("%s - perform axiado board diagnostics\n", argv[0]);
 			puts ("Available hardware tests:\n");
 			diag_info (NULL);
 			puts ("Use 'diag [<test1> [<test2> ...]]'"
@@ -31,7 +32,7 @@ int do_diag(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
 				printf ("%s - no such test\n", argv[i]);
 			}
 		}
-	} else {
+	} else if (!strcmp(argv[1], "run")) {
 		/* Run tests */
 		if (argc == 2) {
             diag_run (NULL, 0);
@@ -50,11 +51,11 @@ int do_diag(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
 
 U_BOOT_CMD(
         diag,	CONFIG_SYS_MAXARGS,	0,	do_diag,
-        "perform board diagnostics",
+        "perform axiado board diagnostics",
         "    - print list of available tests\n"
-        "ax_diag [test1 [test2]]\n"
+        "diag [test1 [test2]]\n"
         "         - print information about specified tests\n"
-        "ax_diag run - run all available tests\n"
-        "ax_diag run [test1 [test2]]\n"
+        "diag run - run all available tests\n"
+        "diag run [test1 [test2]]\n"
         "         - run specified tests"
         );

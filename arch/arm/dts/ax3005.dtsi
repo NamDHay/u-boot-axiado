@@ -1103,14 +1103,14 @@
             status = "disable";
             device_type = "pci";
             device_class = "host";
-            device_role = "host";                    /* Host bridge Controller */
+            device_role = "host";                   /* Host bridge Controller */
             reg = <0 0x45200000 0 0x1000>,          /* PADS XPA reg */
-                <0 0x45300000 0 0x4000>,        /* AFI PHY reg */
-                <0 0x45203000 0 0x1000>,        /* int cfg space */
-                <0 0x45202000 0 0x1000>,        /* bridge reg */
-                <0 0x45280000 0 0x8000>,        /* MBX reg */
-                <0 0x45240000 0 0x1000>,        /* EXT reg */
-                <0 0x33202400 0 0x100>;		/* IOCTL reg */
+                    <0 0x45300000 0 0x4000>,        /* AFI PHY reg */
+                    <0 0x45203000 0 0x1000>,        /* int cfg space */
+                    <0 0x45202000 0 0x1000>,        /* bridge reg */
+                    <0 0x45280000 0 0x8000>,        /* MBX reg */
+                    <0 0x45240000 0 0x1000>,        /* EXT reg */
+                    <0 0x33202400 0 0x100>;		    /* IOCTL reg */
             reg-names = "csr", "phy", "cfg", "bridge", "mbx", "ext", "ioctl";
             #address-cells = <3>;
             #size-cells = <2>;
@@ -1120,12 +1120,8 @@
             bus-range = <0x00 0x0f>;
 
             /* PCI Host bridge Device */
-            /* ranges = <0x83000000 0x7 0xE0000000 0x7 0xE0000000 0x0 0x400000>, /1* 4M - Port0 Config *1/ */
-            /* <0xc3000000 0x7 0x00000000 0x7 0x00000000 0x0 0x10000000>,    /1* Non-Prefetchable MEM *1/ */
-            /* <0x83000000 0x7 0x40000000 0x7 0x40000000 0x0 0x00100000>,    /1* Prefetchable MEM *1/ */
-            /* <0xc3000000 0x7 0x42000000 0x7 0x42000000 0x0 0x00001000>;    /1* Non-Prefetchable MEM *1/ */
-            ranges = <0x83000000 0x7 0x00000000 0x7 0x00000000 0x0 0x10000000>,    /* Non-Prefetchable MEM */
-                    <0xc3000000 0x7 0x40000000 0x7 0x40000000 0x0 0x10000000>;    /* Prefetchable MEM */
+            ranges = <0x83000000 0x0 0x00000000 0x7 0x00000000 0x0 0x10000000>,    /* Non-Prefetchable MEM */
+                     <0xc3000000 0x0 0x40000000 0x7 0x40000000 0x0 0x10000000>;    /* Prefetchable MEM */
 
             /* Bellow config only for pcie RP */
             pci@1,0 {
@@ -1144,14 +1140,14 @@
             status = "disable";
             device_type = "pci";
             device_class = "host";
-            device_role = "host";                    /* Host bridge Controller */
+            device_role = "host";                   /* Host bridge Controller */
             reg = <0 0x45000000 0 0x1000>,          /* PADS XPA reg */
-            <0 0x45100000 0 0x4000>,        /* AFI PHY reg */
-            <0 0x45003000 0 0x1000>,        /* int cfg space */
-            <0 0x45002000 0 0x1000>,        /* bridge reg */
-            <0 0x45080000 0 0x8000>,        /* MBX reg */
-            <0 0x45040000 0 0x1000>,        /* EXT reg */
-            <0 0x33202400 0 0x100>;       /* IOCTL reg */
+                    <0 0x45100000 0 0x4000>,        /* AFI PHY reg */
+                    <0 0x45003000 0 0x1000>,        /* int cfg space */
+                    <0 0x45002000 0 0x1000>,        /* bridge reg */
+                    <0 0x45080000 0 0x8000>,        /* MBX reg */
+                    <0 0x45040000 0 0x1000>,        /* EXT reg */
+                    <0 0x33202400 0 0x100>;         /* IOCTL reg */
             reg-names = "csr", "phy", "cfg", "bridge", "mbx", "ext", "ioctl";
             #address-cells = <3>;
             #size-cells = <2>;
@@ -1161,10 +1157,8 @@
             bus-range = <0x00 0xff>;
 
             /* PCI Host bridge Device */
-            ranges = <0x83000000 0x0 0xE0000000 0x5 0xE0000000 0x0 0x400000>, /* 4M - Port0 Config */
-            <0x83000000 0x0 0x42000000 0x5 0x42000000 0x0 0x00001000>,    /* Non-Prefetchable MEM */
-            <0xc3000000 0x0 0x00000000 0x5 0x00000000 0x0 0x10000000>,    /* Non-Prefetchable MEM */
-            <0xc3000000 0x0 0x40000000 0x5 0x40000000 0x0 0x00100000>;    /* Prefetchable MEM */
+            ranges = <0x83000000 0x0 0x00000000 0x5 0x00000000 0x0 0x10000000>,    /* Non-Prefetchable MEM */
+                     <0xc3000000 0x0 0x40000000 0x5 0x40000000 0x0 0x10000000>;    /* Prefetchable MEM */
 
             /* Bellow config only for pcie RP */
             pci@1,0 {
@@ -1399,7 +1393,7 @@
     };
 
     pinctrl_i3c21_default: i3c21_default {
-        function = "I3C20";
+        function = "I3C21";
         axiado,pins = <61 62 63>;
     };
 };
@@ -1523,7 +1517,7 @@
     };
 
     pinctrl_i3c9_default: i3c9_default {
-        function = "I3C8";
+        function = "I3C9";
         axiado,pins = <131 132 133>;
     };
 

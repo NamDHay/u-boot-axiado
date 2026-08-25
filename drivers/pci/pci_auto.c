@@ -83,7 +83,7 @@ static void dm_pciauto_setup_device(struct udevice *dev,
 
 			bar_res = io;
 
-			debug("PCI Autoconfig: BAR %d, I/O, size=0x%llx, ",
+			printf("PCI Autoconfig: BAR %d, I/O, size=0x%llx, ",
 			      bar_nr, (unsigned long long)bar_size);
 		} else {
 			if ((bar_response & PCI_BASE_ADDRESS_MEM_TYPE_MASK) ==
@@ -113,7 +113,7 @@ static void dm_pciauto_setup_device(struct udevice *dev,
 			else
 				bar_res = mem;
 
-			debug("PCI Autoconfig: BAR %d, %s%s, size=0x%llx, ",
+			printf("PCI Autoconfig: BAR %d, %s%s, size=0x%llx, ",
 			      bar_nr, bar_res == prefetch ? "Prf" : "Mem",
 			      found_mem64 ? "64" : "",
 			      (unsigned long long)bar_size);
@@ -147,7 +147,7 @@ static void dm_pciauto_setup_device(struct udevice *dev,
 		cmdstat |= (bar_response & PCI_BASE_ADDRESS_SPACE) ?
 			PCI_COMMAND_IO : PCI_COMMAND_MEMORY;
 
-		debug("\n");
+		printf("\n");
 
 		bar_nr++;
 	}
@@ -161,7 +161,7 @@ static void dm_pciauto_setup_device(struct udevice *dev,
 		dm_pci_read_config32(dev, rom_addr, &bar_response);
 		if (bar_response) {
 			bar_size = -(bar_response & ~1);
-			debug("PCI Autoconfig: ROM, size=%#x, ",
+			printf("PCI Autoconfig: ROM, size=%#x, ",
 			      (unsigned int)bar_size);
 			if (pciauto_region_allocate(mem, bar_size, &bar_value,
 						    false) == 0) {

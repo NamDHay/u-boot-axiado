@@ -10,62 +10,11 @@
 #include <linux/string.h>
 #include <linux/libfdt.h>
 
-/* extern int adc_diag_init(void); */
-/* extern int emmc_diag_init(void); */
 extern int gpio_diag_init(void);
-/* extern int hdmi_diag_init(void); */
-/* extern int i2c_diag_init(void); */
-/* extern int i3c_diag_init(void); */
-/* extern int ltpi_diag_init(void); */
-/* extern int uart_diag_init(void); */
-/* extern int mem_diag_init(void); */
-/* extern int pcie_diag_init(void); */
-/* extern int pwm_diag_init(void); */
-/* extern int rmii_diag_init(void); */
-/* extern int rtc_diag_init(void); */
-/* extern int sgmii_diag_init(void); */
-/* extern int sgpio_diag_init(void); */
-/* extern int spi_diag_init(void); */
-/* extern int usb_diag_init(void); */
-/* extern int xgmii_diag_init(void); */
 
-/* extern int adc_diag_test(unsigned long testid); */
-/* extern int emmc_diag_test(unsigned long testid); */
 extern int gpio_diag_test(unsigned long testid);
-/* extern int hdmi_diag_test(unsigned long testid); */
-/* extern int i2c_diag_test(unsigned long testid); */
-/* extern int i3c_diag_test(unsigned long testid); */
-/* extern int ltpi_diag_test(unsigned long testid); */
-/* extern int uart_diag_test(unsigned long testid); */
-/* extern int mem_diag_test(unsigned long testid); */
-/* extern int pcie_diag_test(unsigned long testid); */
-/* extern int pwm_diag_test(unsigned long testid); */
-/* extern int rmii_diag_test(unsigned long testid); */
-/* extern int rtc_diag_test(unsigned long testid); */
-/* extern int sgmii_diag_test(unsigned long testid); */
-/* extern int sgpio_diag_test(unsigned long testid); */
-/* extern int spi_diag_test(unsigned long testid); */
-/* extern int usb_diag_test(unsigned long testid); */
-/* extern int xgmii_diag_test(unsigned long testid); */
 
-/* extern void adc_diag_stat(void); */
-/* extern void emmc_diag_stat(void); */
 extern void gpio_diag_stat(void);
-/* extern void hdmi_diag_stat(void); */
-/* extern void i2c_diag_stat(void); */
-/* extern void i3c_diag_stat(void); */
-/* extern void ltpi_diag_stat(void); */
-/* extern void uart_diag_stat(void); */
-/* extern void mem_diag_stat(void); */
-/* extern void pcie_diag_stat(void); */
-/* extern void pwm_diag_stat(void); */
-/* extern void rmii_diag_stat(void); */
-/* extern void rtc_diag_stat(void); */
-/* extern void sgmii_diag_stat(void); */
-/* extern void sgpio_diag_stat(void); */
-/* extern void spi_diag_stat(void); */
-/* extern void usb_diag_stat(void); */
-/* extern void xgmii_diag_stat(void); */
 
 struct diag_test diag_list[] = {
     {

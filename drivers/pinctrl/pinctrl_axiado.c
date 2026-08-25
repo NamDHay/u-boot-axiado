@@ -129,9 +129,6 @@ static int axiado_pinctrl_set_state(struct udevice *dev,
 	     selector++) {
 		if (!strcmp(function,
 			    axiado_groups[selector].group_name)) {
-            /* value = readl(priv->base + axiado_groups[selector].offset); */
-            /* value |= axiado_groups[selector].ctrl_bit_mask; */
-            /* writel(value, priv->base + axiado_groups[selector].offset); */           
             writel(axiado_groups[selector].ctrl_bit_mask, priv->base + axiado_groups[selector].offset);           
             printf("%s: function=%s, selector=%d\n", dev->name, function, selector);
 			break;

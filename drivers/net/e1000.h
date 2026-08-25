@@ -23,6 +23,8 @@
 #include <asm/io.h>
 #include <pci.h>
 
+#define E1000_DEBUG 1
+
 #ifdef CONFIG_E1000_SPI
 #include <spi.h>
 #endif

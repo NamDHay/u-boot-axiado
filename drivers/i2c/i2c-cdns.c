@@ -229,7 +229,7 @@ static int cdns_i2c_set_bus_speed(struct udevice *dev, unsigned int speed)
 	if (ret)
 		return ret;
 
-	debug("%s: div_a: %d, div_b: %d, input freq: %d, speed: %d/%ld\n",
+	printf("%s: div_a: %d, div_b: %d, input freq: %d, speed: %d/%ld\n",
 	      __func__, div_a, div_b, bus->input_freq, speed, speed_p);
 
 	writel((div_b << CDNS_I2C_CONTROL_DIV_B_SHIFT) |

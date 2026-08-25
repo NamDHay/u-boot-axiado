@@ -20,7 +20,6 @@
 #include <linux/time.h>
 #include <bcd.h>
 #include <linux/bitfield.h>
-// #include <linux/iopoll.h>
 
 /* Registers */
 #define CDNS_RTC_CTLR		0x00

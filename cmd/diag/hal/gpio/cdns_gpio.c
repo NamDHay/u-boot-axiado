@@ -1,3 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * (C) Copyright 2026
+ * Nguyen Nam Huy namhuyngn03@gmail.com
+ */
+
 #include <dm.h>
 #include <asm/io.h>
 #include <stdio.h>
@@ -5,13 +11,7 @@
 #include "ax3000_base_adrs.h"
 #include "ax3000_slo_base_adrs.h"
 
-#include "gpio.h"
-
-#define axiado_gpio_request             cdns_gpio_request
-#define axiado_gpio_free                cdns_gpio_free
-#define axiado_gpio_set_direction       cdns_gpio_set_direction
-#define axiado_gpio_set_value           cdns_gpio_set_value
-#define axiado_gpio_get_value           cdns_gpio_set_value
+#include "ax_gpio.h"
 
 #define  CDNS_GPR_BYPASS_MODE_REG     0x00       // bypass function of block
 #define  CDNS_GPR_DIRECTION_MODE_REG  0x04       // set pin to either I or O
@@ -36,7 +36,7 @@
 #define CONFIG_MAX_GPIO_BANK 8
 #define CONFIG_MAX_GPIO_PIN 256
 
-unsigned int gpio_chip[CONFIG_MAX_GPIO_BANK] = {
+static const ulong gpio_chip[CONFIG_MAX_GPIO_BANK] = {
 	AX3000_CSR_BASE_ADRS_GPIO_0, AX3000_CSR_BASE_ADRS_GPIO_1,
 	AX3000_CSR_BASE_ADRS_GPIO_2, AX3000_CSR_BASE_ADRS_GPIO_3,
 	AX3000_CSR_BASE_ADRS_GPIO_4, AX3000_CSR_BASE_ADRS_GPIO_5,
@@ -45,7 +45,8 @@ unsigned int gpio_chip[CONFIG_MAX_GPIO_BANK] = {
 
 static int cdns_gpio_request(unsigned pin, const char *label) 
 {	
-    unsigned int regs = GET_BANK(pin);
+    unsigned int bank = GET_BANK(pin);
+    void __iomem *regs = (void __iomem *)gpio_chip[bank];
     u32 bypass = readl(regs + CDNS_GPR_BYPASS_MODE_REG);
 
     if (!strcmp(label, "gpio")) {
@@ -61,7 +62,8 @@ static int cdns_gpio_request(unsigned pin, const char *label)
 
 static int cdns_gpio_free(unsigned pin) 
 {
-    unsigned int regs = GET_BANK(pin);
+    unsigned int bank = GET_BANK(pin);
+    void __iomem *regs = (void __iomem *)gpio_chip[bank];
     u32 bypass = readl(regs + CDNS_GPR_BYPASS_MODE_REG);
 
     bypass |= GPIO_BIT(pin);
@@ -73,7 +75,8 @@ static int cdns_gpio_free(unsigned pin)
 
 static int cdns_gpio_set_direction(unsigned pin, unsigned dir) 
 {
-    unsigned int regs = GET_BANK(pin);
+    unsigned int bank = GET_BANK(pin);
+    void __iomem *regs = (void __iomem *)gpio_chip[bank];
     u32 val;
     u32 bypass;
 
@@ -100,7 +103,8 @@ static int cdns_gpio_set_direction(unsigned pin, unsigned dir)
 
 static int cdns_gpio_set_value(unsigned pin, unsigned value) 
 {
-    unsigned int regs = GET_BANK(pin);
+    unsigned int bank = GET_BANK(pin);
+    void __iomem *regs = (void __iomem *)gpio_chip[bank];
     u32 data = readl(regs + CDNS_GPR_OUTPUT_VALUE_REG);
 
 	if (value)
@@ -114,7 +118,15 @@ static int cdns_gpio_set_value(unsigned pin, unsigned value)
 
 static int cdns_gpio_get_value(unsigned pin) 
 {
-    unsigned int regs = GET_BANK(pin);
+    unsigned int bank = GET_BANK(pin);
+    void __iomem *regs = (void __iomem *)gpio_chip[bank];
 	return !!(readl(regs + CDNS_GPR_INPUT_VALUE_REG) & GPIO_BIT(pin));
 }
 
+struct ax_gpio_ops gpio = {
+    .request = cdns_gpio_request,
+    .set_direction = cdns_gpio_set_direction,
+    .set_value = cdns_gpio_set_value,
+    .get_value = cdns_gpio_get_value,
+    .free = cdns_gpio_free,
+};

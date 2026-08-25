@@ -21,7 +21,7 @@
 
 DECLARE_GLOBAL_DATA_PTR;
 
-#define MAX_IRQS    1024
+#define MAX_IRQS    320
 
 struct irq_action {
     interrupt_handler_t *handler;
@@ -29,6 +29,24 @@ struct irq_action {
 };
 
 static struct irq_action irq_table[MAX_IRQS];
+
+static inline u32 gic_read_iar(void)
+{
+    u64 val;
+
+    asm volatile("mrs %0, ICC_IAR1_EL1" : "=r"(val));
+
+    return (u32)val;
+}
+
+static inline void gic_write_eoir(u32 irq)
+{
+    asm volatile("msr ICC_EOIR1_EL1, %0"
+                 :
+                 : "r"((u64)irq));
+
+    asm volatile("isb");
+}
 
 int interrupt_init(void)
 {
@@ -222,24 +240,6 @@ void do_sync(struct pt_regs *pt_regs)
 	panic("Resetting CPU ...\n");
 }
 
-static inline u32 gic_read_iar(void)
-{
-    u64 val;
-
-    asm volatile("mrs %0, ICC_IAR1_EL1" : "=r"(val));
-
-    return (u32)val;
-}
-
-static inline void gic_write_eoir(u32 irq)
-{
-    asm volatile("msr ICC_EOIR1_EL1, %0"
-                 :
-                 : "r"((u64)irq));
-
-    asm volatile("isb");
-}
-
 /*
  * do_irq handles the Irq exception.
  */
@@ -252,11 +252,12 @@ void do_irq(struct pt_regs *pt_regs)
 
     iar = gic_read_iar();
     irq = iar & 0xffffff;
+    gic_write_eoir(iar);
+
     if (irq < MAX_IRQS && irq_table[irq].handler)
         return irq_table[irq].handler(irq_table[irq].arg);
     else
         printf("Unhandled IRQ %u\n", irq);
-    gic_write_eoir(iar);
 }
 
 /*

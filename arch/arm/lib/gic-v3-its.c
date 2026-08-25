@@ -72,7 +72,6 @@ static int gic_v3_its_get_gic_addr(struct gic_v3_its_priv *priv)
 	return 0;
 }
 
-#ifdef CONFIG_ARCH_AXIADO
 int gicv3_cpu_init(unsigned int cpu)
 {
 	struct gic_v3_its_priv priv;
@@ -96,7 +95,6 @@ int gicv3_cpu_init(unsigned int cpu)
 
     return 0;
 }
-#endif /* CONFIG_ARCH_AXIADO */
 
 /*
  * Program the GIC LPI configuration tables for all
