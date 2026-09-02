@@ -2,8 +2,8 @@
 #include <dm.h>
 #include <errno.h>
 #include <linux/printk.h>
-#include "diag.h"
 
+#include "ax_diag.h"
 #include "ax_gpio.h"
 #include "gpio_cli.h"
 

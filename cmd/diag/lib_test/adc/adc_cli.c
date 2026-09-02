@@ -2,7 +2,6 @@
 #include <dm.h>
 #include <errno.h>
 #include <linux/printk.h>
-#include "diag.h"
 
 #include "ax_adc.h"
 #include "adc_cli.h"

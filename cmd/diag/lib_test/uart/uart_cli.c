@@ -3,7 +3,6 @@
 #include <errno.h>
 #include <linux/printk.h>
 #include <time.h>
-#include "diag.h"
 #include "asm/io.h"
 
 #include "ax_uart.h"

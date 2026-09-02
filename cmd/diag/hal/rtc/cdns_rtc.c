@@ -8,8 +8,7 @@
 #include <asm/io.h>
 #include <stdio.h>
 
-#include "ax3000_base_adrs.h"
-#include "ax3000_slo_base_adrs.h"
+#include "ax_diag.h"
 #include <bcd.h>
 
 #include "ax_rtc.h"

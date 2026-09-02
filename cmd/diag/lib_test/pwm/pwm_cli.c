@@ -8,7 +8,6 @@
 #include <dm.h>
 #include <errno.h>
 #include <linux/printk.h>
-#include "diag.h"
 
 #include "ax_pwm.h"
 

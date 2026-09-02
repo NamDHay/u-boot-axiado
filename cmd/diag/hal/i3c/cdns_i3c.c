@@ -9,8 +9,7 @@
 #include <stdio.h>
 #include <linux/delay.h>
 
-#include "ax3000_base_adrs.h"
-#include "ax3000_slo_base_adrs.h"
+#include "ax_diag.h"
 
 #include "ax_i3c.h"
 #include "ax_pinmux.h"

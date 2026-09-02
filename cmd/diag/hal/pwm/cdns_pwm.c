@@ -9,9 +9,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-#include "ax3000_base_adrs.h"
-#include "ax3000_slo_base_adrs.h"
-
+#include "ax_diag.h"
 #include "ax_pwm.h"
 #include "ax_pinmux.h"
 

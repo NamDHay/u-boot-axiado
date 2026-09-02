@@ -11,9 +11,7 @@
 #include <time.h>
 #include <linux/delay.h>
 
-#include "ax3000_base_adrs.h"
-#include "ax3000_slo_base_adrs.h"
-
+#include "ax_diag.h"
 #include "ax_hdmi.h"
 #include "inno_hdmi.h"
 

@@ -5,7 +5,6 @@
 #include <asm/io.h>
 #include <string.h>
 
-#include "diag.h"
 #include "ax_rtc.h"
 #include "rtc_cli.h"
 

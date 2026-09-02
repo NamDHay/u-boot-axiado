@@ -48,11 +48,9 @@
 #define PCIE_PHY_PRESET_MASK 0xFFFF80FF
 #define PCIE_PHY_CONF_CTRL_LTSSM 0xFFFFFFFB
 #define PCIE_PHY_FREQ_MASK 0xFF800001
-#define PCIE_CFG_MEM_SPACE_EN 0x2
 #define PCIE_PHY_POR_RESET 0x3
-#define PCIE_CFG_BUS_MASTER_EN 0x6
+#define PCIE_ATR_PCIE_WIN0 0x600
 #define PCIE_ATR_AXI4_SLV0 0x800
-#define PCIE_ATR_TRSLID_PCIE_MEMORY 0x0
 #define PCIE_BAR_MASK                  0xFFFFFA
 #define PCIE_BAR_64_MASK		0xFFFFFE
 #define IMASK_LOCAL 0x180
@@ -66,6 +64,30 @@
 #define INT_PCIE_POST_ERROR BIT(20)
 #define INT_PCIE_FETCH_ERROR BIT(21)
 #define INT_PCIE_DISCARD_ERROR BIT(22)
+
+#define INT_ERRORS                                                          \
+	(INT_AXI_POST_ERROR | INT_AXI_FETCH_ERROR | INT_AXI_DISCARD_ERROR | \
+	 INT_PCIE_POST_ERROR | INT_PCIE_FETCH_ERROR | INT_PCIE_DISCARD_ERROR)
+
+#define INTA_OFFSET 24
+#define INTA BIT(24)
+#define INTB BIT(25)
+#define INTC BIT(26)
+#define INTD BIT(27)
+#define INT_MSI BIT(28)
+#define INT_INTX_MASK (INTA | INTB | INTC | INTD)
+#define INT_MASK (INT_INTX_MASK | INT_MSI | INT_ERRORS)
+
+/* PCIe bridge internal Address translation */
+#define PCIE_BAR_01_OFFSET		0xE4
+#define PCIE_BAR_23_OFFSET		0xEC
+#define PCIE_BAR_45_OFFSET		0xF4
+
+#define MAX_DMA_LIST (16)
+#define PCIE_INTF 0x00000000
+#define AXI4_M0   0x00000004
+#define AX_PCIE_DMA_VDM_TRSF_PARAM              (4)
+#define EP_LINK_POLL_MS 1000
 
 #define BIT_SET_VAL(end_bit, start_bit, dst, set_val)                                                            \
     (~(((u32)(0x1 << start_bit) - 1) ^ ((u32)(0x1 << (end_bit + 1)) - 1)) & (u32)dst) | \
@@ -611,9 +633,10 @@ enum PCIE_PRESET_NUM {
                (((g4_rx_pre << 4) | g4_tx_pre) << 16) | (((g4_rx_pre << 4) | g4_tx_pre) << 24))
 #define PCIE_GEN4_RX_TX_PRESET PCIE_GEN4_RX_TX_PRESET_GET(PCIE_GEN4_RX_PRESET, PCIE_GEN4_TX_PRESET)
 
-struct axiado_pcie_bar {
+struct axiado_pcie_atr {
 	void __iomem *base;
 	unsigned int size;
+	unsigned int flags;
 };
 
 struct axiado_pcie {
@@ -632,7 +655,10 @@ struct axiado_pcie {
 	void __iomem *ext; /* EXT memory region */
 
 	void __iomem *ecam; /* ECAM base address */
-    struct axiado_pcie_bar bar[2];
+
+    struct axiado_pcie_atr atr[2];
+
+    struct axiado_pcie_atr bar[2];
 };
 
 enum PCIE_XPRESS_LTSSM {

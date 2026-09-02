@@ -8,9 +8,7 @@
 #include <asm/io.h>
 #include <stdio.h>
 
-#include "ax3000_base_adrs.h"
-#include "ax3000_slo_base_adrs.h"
-
+#include "ax_diag.h"
 #include "ax_adc.h"
 
 /* Register offsets from SARADC base */
@@ -127,7 +125,7 @@ static int inno_saradc_channel_data(int channel, unsigned int *data)
     return 0;
 }
 
-struct ax_adc_ops adc = {
+extern struct ax_adc_ops adc = {
     .start_channel = inno_saradc_start_channel,
     .start_channels = inno_saradc_start_channels,
     .channel_data = inno_saradc_channel_data,

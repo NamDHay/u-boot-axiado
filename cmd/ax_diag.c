@@ -8,7 +8,7 @@
  * Diagnostics support
  */
 #include <command.h>
-#include "diag/diag.h"
+#include "diag/ax_diag.h"
 #include <linux/string.h>
 #include <log.h>
 

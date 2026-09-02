@@ -3100,6 +3100,10 @@ config CMD_AX_DIAG
 	help
 	  This command provides access to board diagnostic tests.
 
+if CMD_AX_DIAG
+source "cmd/diag/Kconfig"
+endif
+
 config CMD_EVENT
 	bool "event - Show information about events"
 	depends on EVENT

@@ -7,7 +7,10 @@
 #ifndef __DIAG_H
 #define __DIAG_H
 
-#include "diag_ip_vendor.h"
+#ifdef CONFIG_TARGET_SCM3005
+#include "hal/base/Ultra/ax3000_base_adrs.h"
+#include "hal/base/Ultra/ax3000_slo_base_adrs.h"
+#endif
 
 #define DIAG_MAX_TEST 32
 

@@ -1,0 +1,115 @@
+config CMD_AX_ADC
+	bool "ax_adc - Axiado ADC diagnostics"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
+	help
+	  This command provides access to ADC board diagnostic tests.
+
+config INNO_ADC
+	bool "Innosilicon SARADC support"
+	help
+	  This config support for Innosilicon SARADC.
+
+config CMD_AX_GPIO
+	bool "ax_gpio - Axiado GPIO diagnostics"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
+	help
+	  This command provides access to GPIO board diagnostic tests.
+
+config CDNS_GPIO
+	bool "Cadence GPIO support"
+	help
+	  This config support for Cadence GPIO.
+
+config CMD_AX_I2C
+	bool "ax_i2c - Axiado I2C diagnostics"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
+	help
+	  This command provides access to I2C board diagnostic tests.
+
+config CDNS_I2C
+	bool "Cadence I2C support"
+	help
+	  This config support for Cadence I2C.
+
+config CMD_AX_I3C
+	bool "ax_i3c - Axiado I3C diagnostics"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
+	help
+	  This command provides access to I3C board diagnostic tests.
+
+config CDNS_I3C
+	bool "Cadence I3C support"
+	help
+	  This config support for Cadence I3C.
+
+config CMD_AX_MEM
+	bool "ax_mem - Axiado MEM diagnostics"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
+	help
+	  This command provides access to MEM board diagnostic tests.
+
+config CMD_AX_PCIE
+	bool "ax_pcie - Axiado PCIE diagnostics"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
+	help
+	  This command provides access to PCIE board diagnostic tests.
+
+config INNO_PCIE
+	bool "Innosilicon PCIe support"
+	help
+	  This config support for Innosilicon PCIe.
+
+config CMD_AX_NVME
+	bool "ax_nvme - Axiado NVME diagnostics"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
+	help
+	  This command provides access to NVME board diagnostic tests.
+
+config CMD_AX_PWM
+	bool "ax_pwm - Axiado PWM diagnostics"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
+	help
+	  This command provides access to PWM board diagnostic tests.
+
+config CDNS_PWM
+	bool "Cadence PWM support"
+	help
+	  This config support for Cadence PWM.
+
+config CMD_AX_RTC
+	bool "ax_rtc - Axiado RTC diagnostics"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
+	help
+	  This command provides access to RTC board diagnostic tests.
+
+config CDNS_RTC
+	bool "Cadence RTC support"
+	help
+	  This config support for Cadence RTC.
+
+config CMD_AX_UART
+	bool "ax_uart - Axiado UART diagnostics"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
+	help
+	  This command provides access to UART board diagnostic tests.
+
+config CDNS_UART
+	bool "Cadence UART support"
+	help
+	  This config support for Cadence UART.
+
+config AXIADO_PINMUX
+	bool "Axiado pinmuxing support"
+	help
+	  This config support for Axiado pinmuxing.
+

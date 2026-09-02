@@ -8,9 +8,7 @@
 #include <asm/io.h>
 #include <stdio.h>
 
-#include "ax3000_base_adrs.h"
-#include "ax3000_slo_base_adrs.h"
-
+#include "ax_diag.h"
 #include "ax_gpio.h"
 
 #define  CDNS_GPR_BYPASS_MODE_REG     0x00       // bypass function of block

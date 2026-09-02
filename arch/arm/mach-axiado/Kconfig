@@ -14,8 +14,6 @@ config AXIADO_AX3005
 	select DM_SERIAL
 	select GICV3
 	select ZYNQ_SERIAL
-	select MMC_SDHCI_AXIADO
-	select PHY_AXIADO_EMMC
 
 source "arch/arm/mach-axiado/scm3005/Kconfig"
 
