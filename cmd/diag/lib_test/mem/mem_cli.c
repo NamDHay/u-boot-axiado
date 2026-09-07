@@ -876,7 +876,7 @@ static int do_ax_memtest(struct cmd_tbl *cmdtp,
 
 U_BOOT_CMD(
 	ax_memtest, 4, 1, do_ax_memtest,
-	"DDR memory stress test",
+    "Axiado bare-metal DDR memory stress test",
 	"<start> <size> <iterations>\n"
 	"    - Run DDR memory stress test\n"
 	"    - Fixed patterns\n"

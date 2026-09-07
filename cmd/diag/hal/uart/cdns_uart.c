@@ -7,6 +7,7 @@
 #include <dm.h>
 #include <asm/io.h>
 #include <stdio.h>
+#include <irq_func.h>
 
 #include "ax_diag.h"
 #include "ax_uart.h"
@@ -64,26 +65,46 @@
 #define UART_CHANNEL_MODE_2	  BIT(9) /**< Local loopback mode */
 #define UART_CHANNEL_MODE_3	  (BIT(9) | BIT(8)) /**< Remote loopback mode */
 
-#define CONFIG_MAX_UART 8
+#define CONFIG_MAX_UART 9
 #define CONFIG_UART_CLK 125000000
 
-static const ulong uart_base[CONFIG_MAX_UART] = {
-	AX3000_CSR_BASE_ADRS_UART_0, AX3000_CSR_BASE_ADRS_UART_1,
-	AX3000_CSR_BASE_ADRS_UART_2, AX3000_CSR_BASE_ADRS_UART,
-	AX3000_CSR_BASE_ADRS_UART_4, AX3000_CSR_BASE_ADRS_UART_5,
-	AX3000_CSR_BASE_ADRS_UART_6, AX3000_CSR_BASE_ADRS_UART_7
+struct cdns_uart {
+    void __iomem *base;
+    int irq;
 };
+
+static struct cdns_uart uart_dev[CONFIG_MAX_UART] = {
+    { .base = (void __iomem *)AX3000_CSR_BASE_ADRS_UART_0, .irq = 144 },
+    { .base = (void __iomem *)AX3000_CSR_BASE_ADRS_UART_1, .irq = 145 },
+    { .base = (void __iomem *)AX3000_CSR_BASE_ADRS_UART_2, .irq = 146 },
+    { .base = (void __iomem *)AX3000_CSR_BASE_ADRS_UART,   .irq = 202 },
+    { .base = (void __iomem *)AX3000_CSR_BASE_ADRS_UART_4, .irq = 240 },
+    { .base = (void __iomem *)AX3000_CSR_BASE_ADRS_UART_5, .irq = 241 },
+    { .base = (void __iomem *)AX3000_CSR_BASE_ADRS_UART_6, .irq = 242 },
+    { .base = (void __iomem *)AX3000_CSR_BASE_ADRS_UART_7, .irq = 243 },
+    { .base = (void __iomem *)AX3000_CSR_BASE_ADRS_UART_8, .irq = 244 },
+};
+
+void cdns_uart_interrupt_handler(void *arg)
+{
+    struct cdns_uart *dev = arg;
+
+    if (!dev)
+        return;
+
+    readl(dev->base + CDNS_UART_CISR_REG);
+}
 
 static int cdns_uart_init(unsigned instance) 
 {
     if (instance >= CONFIG_MAX_UART)
         return -EINVAL;
 
-    void __iomem *regs = (void __iomem *)uart_base[instance];
+    struct cdns_uart *dev = &uart_dev[instance];
     u32 val;
     char name[8];
 
-    val = readl(regs + CDNS_UART_CNTR_REG);
+    val = readl(dev->base + CDNS_UART_CNTR_REG);
     if (val & UART_CTRL_TX_ENABLE)
         return 0;
 
@@ -93,30 +114,35 @@ static int cdns_uart_init(unsigned instance)
     /* Reset FIFOs */
     writel(UART_CTRL_RX_RST |
             UART_CTRL_TX_RST,
-            regs + CDNS_UART_CNTR_REG);
+            dev->base + CDNS_UART_CNTR_REG);
+
+    irq_install_handler(dev->irq, cdns_uart_interrupt_handler, dev);
+    writel(0xFFFFFFFF, dev->base + CDNS_UART_IER_REG);
+    writel(0x3F, dev->base + CDNS_UART_RTR_REG);
+    writel(0x2, dev->base + CDNS_UART_TXFIFOTRL_REG);
 
     /* Enable RX/TX */
     writel(UART_CTRL_TX_ENABLE |
             UART_CTRL_RX_ENABLE,
-            regs + CDNS_UART_CNTR_REG);
+            dev->base + CDNS_UART_CNTR_REG);
 
-    writel(UART_MR_NO_PARITY, regs + CDNS_UART_MODE_REG);
+    writel(UART_MR_NO_PARITY, dev->base + CDNS_UART_MODE_REG);
 
     return 0;
 }
 
 static void cdns_uart_exit(unsigned instance) 
 {
-    void __iomem *regs = (void __iomem *)uart_base[instance];
+    struct cdns_uart *dev = &uart_dev[instance];
 
     writel(UART_CTRL_TX_DISABLE | UART_CTRL_RX_DISABLE, 
-            regs + CDNS_UART_CNTR_REG);
+            dev->base + CDNS_UART_CNTR_REG);
 }
 
 static int cdns_uart_setbaud(unsigned instance, int baud) 
 {
     /* Calculation results. */
-    void __iomem *regs = (void __iomem *)uart_base[instance];
+    struct cdns_uart *dev = &uart_dev[instance];
     unsigned long clock = CONFIG_UART_CLK;
     unsigned int calc_bauderror, bdiv, bgen;
     unsigned long calc_baud = 0;
@@ -150,8 +176,8 @@ static int cdns_uart_setbaud(unsigned instance, int baud)
             break;
     }
 
-    writel(bdiv, regs + CDNS_UART_BRDR_REG);
-    writel(bgen, regs + CDNS_UART_BRGR_REG);
+    writel(bdiv, dev->base + CDNS_UART_BRDR_REG);
+    writel(bgen, dev->base + CDNS_UART_BRGR_REG);
 
     printf("BDIV: %d; BGEN: %d\n", bdiv, bgen);
 
@@ -160,22 +186,22 @@ static int cdns_uart_setbaud(unsigned instance, int baud)
 
 static int cdns_uart_getc(unsigned instance) 
 {
-    void __iomem *regs = (void __iomem *)uart_base[instance];
+    struct cdns_uart *dev = &uart_dev[instance];
 
-    if (readl(regs + CDNS_UART_CSR_REG) & UART_SR_INTR_REMPTY)
+    if (readl(dev->base + CDNS_UART_CSR_REG) & UART_SR_INTR_REMPTY)
         return -EAGAIN;
 
-    return readl(regs + CDNS_UART_RXTXFIFO_REG) & 0xFF;
+    return readl(dev->base + CDNS_UART_RXTXFIFO_REG) & 0xFF;
 }
 
 static int cdns_uart_putc(unsigned instance, const char c) 
 {
-    void __iomem *regs = (void __iomem *)uart_base[instance];
+    struct cdns_uart *dev = &uart_dev[instance];
 
-    if (readl(regs + CDNS_UART_CSR_REG) & UART_SR_INTR_TFUL)
+    if (readl(dev->base + CDNS_UART_CSR_REG) & UART_SR_INTR_TFUL)
         return -EAGAIN;
 
-    writel((u8)c, regs + CDNS_UART_RXTXFIFO_REG);
+    writel((u8)c, dev->base + CDNS_UART_RXTXFIFO_REG);
 
     return 0;
 }

@@ -32,5 +32,7 @@ static inline int ax_mdio_reset(void) {
     return mdio.reset(); 
 }
 
+static inline int ax_mdio_set_lb(int addr);
+
 #endif /* __MDIO_H */
 

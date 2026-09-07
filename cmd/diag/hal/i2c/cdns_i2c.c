@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
  * (C) Copyright 2026
- * Nguyen Nam Huy namhuyngn03@gmail.com
+ * Nguyen Nam Huy hnnguyen@axiado.com
  */
 
 #include <dm.h>
@@ -215,8 +215,8 @@ static int cdns_i2c_set_bus_speed(uint bus, unsigned int speed)
     if (ret)
         return ret;
 
-    printf("%s: I2C_%d:%p \ndiv_a: %d, div_b: %d, input freq: %d, speed: %d/%ld\n",
-            __func__, bus, base, div_a, div_b, CONFIG_I2C_CLK, speed, speed_p);
+    /* printf("%s: I2C_%d:%p \ndiv_a: %d, div_b: %d, input freq: %d, speed: %d/%ld\n", */
+    /*         __func__, bus, base, div_a, div_b, CONFIG_I2C_CLK, speed, speed_p); */
 
     writel((div_b << CDNS_I2C_CONTROL_DIV_B_SHIFT) |
             (div_a << CDNS_I2C_CONTROL_DIV_A_SHIFT) , base + CDNS_I2C_CR_OFFSET);

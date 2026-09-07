@@ -12,6 +12,7 @@
 #include <asm/spin_table.h>
 #include <asm/system.h>
 #include <fdt_support.h>
+#include <asm/cache.h>
 #include <env.h>
 #include <command.h>
 #include <net.h>
@@ -53,7 +54,6 @@ struct mm_region *mem_map = axiado_ax3005_mem_map;
 #define AX3000_CSR_BASE_ADRS_HCP		0x43100000
 #define R_MAC_0					0x00c
 #define R_MAC_1					0x010
-
 
 /**
  * @brief Program MAC addresses into HCP registers.
@@ -259,7 +259,7 @@ int ls_gic_rd_tables_init(void)
     gicd_base = dev_read_addr_index(dev, 0);
     gicr_base = dev_read_addr_index(dev, 1);
 
-    ret = gicv3_cpu_init(0);
+    ret = gicv3_cpu_init();
     if (ret)
         debug("%s: failed to init gic\n", __func__);
 

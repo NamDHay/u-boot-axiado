@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
  * (C) Copyright 2026
- * Nguyen Nam Huy namhuyngn03@gmail.com
+ * Nguyen Nam Huy hnnguyen@axiado.com
  */
 
 #include <command.h>
@@ -57,6 +57,7 @@ static int do_ax_i3c_scan(struct cmd_tbl *cmdtp, int flag,
      * Legacy I2C 7-bit address range.
      */
     for (addr = 0; addr < 128; addr++) {
+        ax_i3c_detach_dev(bus, 11);
         ax_i3c_attach_dev(bus, addr, 11);
         ret = ax_i3c_read(bus, addr, 0, 1, &val);
 
@@ -136,6 +137,8 @@ static int do_ax_i3c_read(struct cmd_tbl *cmdtp, int flag,
         return CMD_RET_FAILURE;
     }
 
+    ax_i3c_attach_dev(bus, slv_addr, 11);
+
     memset(buf, 0, len);
 
     ret = ax_i3c_read(bus, slv_addr, reg, len, buf);
@@ -190,7 +193,7 @@ static int do_ax_i3c_write(struct cmd_tbl *cmdtp, int flag,
         return CMD_RET_USAGE;
     }
 
-    len = argc - 3;
+    len = argc - 4;
 
     buf = malloc(len);
     if (!buf) {
@@ -198,8 +201,10 @@ static int do_ax_i3c_write(struct cmd_tbl *cmdtp, int flag,
         return CMD_RET_FAILURE;
     }
 
+    ax_i3c_attach_dev(bus, slv_addr, 11);
+
     for (i = 0; i < len; i++)
-        buf[i] = hextoul(argv[i + 3], NULL);
+        buf[i] = hextoul(argv[i + 4], NULL);
 
     ret = ax_i3c_write(bus, slv_addr, reg, len, buf);
     if (ret) {
@@ -256,15 +261,15 @@ static int do_ax_i3c(struct cmd_tbl *cmdtp, int flag,
 
 U_BOOT_CMD(
     ax_i3c, 16, 1, do_ax_i3c,
-    "Axiado bare-metal I3C test",
+    "Axiado bare-metal I3C diagnostics test",
     "init <bus>\n"
     "    - initialize I3C bus\n"
-    "scan\n"
+    "scan <bus>\n"
     "    - scan legacy I2C devices on the I3C bus\n"
-    "daa\n"
+    "daa <bus>\n"
     "    - perform Dynamic Address Assignment\n"
-    "read <addr> <reg> <len>\n"
+    "read <bus> <addr> <reg> <len>\n"
     "    - read data from I3C device\n"
-    "write <addr> <reg> <data> [data ...]\n"
+    "write <bus> <addr> <reg> <data> [data ...]\n"
     "    - write data to I3C device\n"
 );

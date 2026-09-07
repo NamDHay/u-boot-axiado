@@ -29,7 +29,7 @@
 /*
  * CAP
  */
-#define NVME_CAP_MQES(cap)      ((u16)((cap) & 0xffff))
+#define NVME_CAP_MQES(cap)      ((u32)((cap) & 0xffff))
 #define NVME_CAP_CQR(cap)       (((cap) >> 16) & 0x1)
 #define NVME_CAP_AMS(cap)       (((cap) >> 17) & 0x3)
 #define NVME_CAP_TO(cap)        (((cap) >> 24) & 0xff)

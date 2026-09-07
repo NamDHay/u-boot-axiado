@@ -6,6 +6,7 @@
 #define GIC_DIST_OFFSET		0x1000
 #define GIC_CPU_OFFSET_A9	0x0100
 #define GIC_CPU_OFFSET_A15	0x2000
+#define GIC_CPU_OFFSET_A53	0x20000
 
 /* Distributor Registers */
 #define GICD_CTLR		0x0000

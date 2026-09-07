@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
  * (C) Copyright 2026
- * Nguyen Nam Huy namhuyngn03@gmail.com
+ * Nguyen Nam Huy hnnguyen@axiado.com
  */
 
 #include <dm.h>
@@ -17,6 +17,10 @@
 #include "ax_pcie.h"
 #include "ax_pcie_conf.h"
 #include "ax_nvme.h"
+
+#define NVME_ADMIN_SQ_ADDR       0x92000000ULL
+#define NVME_ADMIN_CQ_ADDR       0x92001000ULL
+#define NVME_IDENTIFY_BUF_ADDR   0x92002000ULL
 
 static int ax_nvme_read32(struct ax_nvme_dev *dev,
                           u64 reg, u32 *val)
@@ -223,9 +227,26 @@ static u64 ax_nvme_cq_db_offset(struct ax_nvme_dev *ndev,
 static int ax_nvme_ring_sq(struct ax_nvme_dev *ndev,
                            struct ax_nvme_queue *q)
 {
-    return ax_nvme_write32(ndev,
-                           ax_nvme_sq_db_offset(ndev, q->qid),
-                           q->sq_tail);
+    /* return ax_nvme_write32(ndev, */
+    /*                        ax_nvme_sq_db_offset(ndev, q->qid), */
+    /*                        q->sq_tail); */
+    u64 offset;
+    int ret;
+
+    offset = ax_nvme_sq_db_offset(ndev, q->qid);
+
+    printf("Ring SQ DB:\n");
+    printf("  qid    = %u\n", q->qid);
+    printf("  offset = 0x%llx\n", offset);
+    printf("  value  = %u\n", q->sq_tail);
+
+    ret = ax_nvme_write32(ndev,
+                          offset,
+                          q->sq_tail);
+
+    printf("  ret    = %d\n", ret);
+
+    return ret;
 }
 
 static int ax_nvme_ring_cq(struct ax_nvme_dev *ndev,
@@ -291,6 +312,36 @@ static int ax_nvme_alloc_queue(struct ax_nvme_dev *ndev,
     return 0;
 }
 
+static int ax_nvme_alloc_admin_queue(struct ax_nvme_dev *ndev)
+{
+    struct ax_nvme_queue *q = &ndev->adminq;
+
+    memset((void *)NVME_ADMIN_SQ_ADDR, 0, 4096);
+    memset((void *)NVME_ADMIN_CQ_ADDR, 0, 4096);
+
+    q->sq_cmds = (struct nvme_command *)NVME_ADMIN_SQ_ADDR;
+    q->cqes = (struct nvme_completion *)NVME_ADMIN_CQ_ADDR;
+
+    q->sq_dma = NVME_ADMIN_SQ_ADDR;
+    q->cq_dma = NVME_ADMIN_CQ_ADDR;
+
+    q->qid = 0;
+    q->q_depth = 2;
+
+    q->sq_tail = 0;
+    q->cq_head = 0;
+    q->cq_phase = 1;
+    q->cmd_id = 0;
+
+    flush_dcache_range(NVME_ADMIN_SQ_ADDR,
+                       NVME_ADMIN_SQ_ADDR + 4096);
+
+    flush_dcache_range(NVME_ADMIN_CQ_ADDR,
+                       NVME_ADMIN_CQ_ADDR + 4096);
+
+    return 0;
+}
+
 static int ax_nvme_configure_admin_queue(struct ax_nvme_dev *ndev)
 {
     struct ax_nvme_queue *q;
@@ -322,10 +373,7 @@ static int ax_nvme_configure_admin_queue(struct ax_nvme_dev *ndev)
     ndev->ctrl_config |= NVME_CC_IOSQES;
     ndev->ctrl_config |= NVME_CC_IOCQES;
 
-    ret = ax_nvme_alloc_queue(ndev,
-                              q,
-                              NVME_ADMIN_QID,
-                              ndev->q_depth);
+    ret = ax_nvme_alloc_admin_queue(ndev);
     if (ret)
         return ret;
 
@@ -362,7 +410,9 @@ static int ax_nvme_submit_cmd(struct ax_nvme_dev *ndev,
                               struct nvme_command *cmd)
 {
     struct nvme_completion *cqe;
+    struct nvme_command *sqe;
     u16 cmdid;
+    u16 tail;
     u16 status;
     ulong start;
     int ret;
@@ -371,25 +421,41 @@ static int ax_nvme_submit_cmd(struct ax_nvme_dev *ndev,
 
     cmd->command_id = cpu_to_le16(cmdid);
 
-    /*
-     * Copy command vào SQ
-     */
-    memcpy(&q->sq_cmds[q->sq_tail],
-           cmd,
-           sizeof(*cmd));
+    tail = q->sq_tail;
+    sqe = &q->sq_cmds[tail];
 
-    flush_dcache_range(
-        (ulong)&q->sq_cmds[q->sq_tail],
-        (ulong)&q->sq_cmds[q->sq_tail] +
-        ALIGN(sizeof(*cmd), ARCH_DMA_MINALIGN));
+    printf("\n");
+    printf("NVMe Submit Command\n");
+    printf("  SQ base  : 0x%016llx\n", q->sq_dma);
+    printf("  SQ slot  : %u\n", tail);
+    printf("  SQE addr : %p\n", sqe);
+    printf("  CMDID    : %u\n", cmdid);
+    printf("  Opcode   : 0x%02x\n", cmd->opcode);
+
+    /*
+     * Copy command to SQ
+     */
+    memcpy(sqe, cmd, sizeof(*cmd));
+
+    flush_dcache_range((ulong)sqe,
+                       (ulong)sqe + sizeof(*cmd));
 
     /*
      * Advance SQ tail
      */
-    q->sq_tail++;
+    q->sq_tail = (tail + 1) % q->q_depth;
+
+    printf("  New SQ tail = %u\n", q->sq_tail);
 
     if (q->sq_tail == q->q_depth)
         q->sq_tail = 0;
+
+    printf("Dump SQ:\n");
+    for (int i = 0; i < 16; i++) {
+        printf("%08x: %08x\n",
+                (u32)(q->sq_dma + i * 4),
+                readl((void *)(q->sq_dma + i * 4)));
+    }
 
     /*
      * Ring SQ doorbell
@@ -397,6 +463,10 @@ static int ax_nvme_submit_cmd(struct ax_nvme_dev *ndev,
     ret = ax_nvme_ring_sq(ndev, q);
     if (ret)
         return ret;
+
+    printf("SQ entry address = %p\n",
+            &q->sq_cmds[q->sq_tail]);
+    printf("Ring SQ doorbell\n");
 
     /*
      * Poll CQ
@@ -407,10 +477,10 @@ static int ax_nvme_submit_cmd(struct ax_nvme_dev *ndev,
         cqe = &q->cqes[q->cq_head];
 
         invalidate_dcache_range(
-            (ulong)cqe,
-            (ulong)cqe +
-            ALIGN(sizeof(*cqe),
-                  ARCH_DMA_MINALIGN));
+                (ulong)cqe,
+                (ulong)cqe +
+                ALIGN(sizeof(*cqe),
+                    ARCH_DMA_MINALIGN));
 
         /*
          * CQ phase bit = status bit0
@@ -433,8 +503,8 @@ static int ax_nvme_submit_cmd(struct ax_nvme_dev *ndev,
      */
     if (le16_to_cpu(cqe->command_id) != cmdid) {
         printf("Unexpected completion cmdid=%u expected=%u\n",
-               le16_to_cpu(cqe->command_id),
-               cmdid);
+                le16_to_cpu(cqe->command_id),
+                cmdid);
 
         return -EIO;
     }
@@ -448,7 +518,7 @@ static int ax_nvme_submit_cmd(struct ax_nvme_dev *ndev,
      */
     if ((status >> 1) != 0) {
         printf("NVMe command failed: status=0x%04x\n",
-               status);
+                status);
 
         return -EIO;
     }
@@ -472,8 +542,8 @@ static int ax_nvme_submit_cmd(struct ax_nvme_dev *ndev,
 }
 
 int ax_nvme_identify_controller(struct ax_nvme_dev *ndev,
-                                void *buf,
-                                u64 dma_addr)
+        void *buf,
+        u64 dma_addr)
 {
     struct nvme_command cmd;
     int ret;
@@ -483,7 +553,7 @@ int ax_nvme_identify_controller(struct ax_nvme_dev *ndev,
     memset(buf, 0, 4096);
 
     flush_dcache_range((ulong)buf,
-                       (ulong)buf + 4096);
+            (ulong)buf + 4096);
 
     cmd.opcode = NVME_ADMIN_IDENTIFY;
 
@@ -499,21 +569,21 @@ int ax_nvme_identify_controller(struct ax_nvme_dev *ndev,
     cmd.cdw10 = cpu_to_le32(NVME_ID_CNS_CTRL);
 
     ret = ax_nvme_submit_cmd(ndev,
-                             &ndev->adminq,
-                             &cmd);
+            &ndev->adminq,
+            &cmd);
     if (ret)
         return ret;
 
     invalidate_dcache_range((ulong)buf,
-                            (ulong)buf + 4096);
+            (ulong)buf + 4096);
 
     return 0;
 }
 
 int ax_nvme_identify_namespace(struct ax_nvme_dev *ndev,
-                               u32 nsid,
-                               void *buf,
-                               u64 dma_addr)
+        u32 nsid,
+        void *buf,
+        u64 dma_addr)
 {
     struct nvme_command cmd;
     int ret;
@@ -522,7 +592,7 @@ int ax_nvme_identify_namespace(struct ax_nvme_dev *ndev,
     memset(buf, 0, 4096);
 
     flush_dcache_range((ulong)buf,
-                       (ulong)buf + 4096);
+            (ulong)buf + 4096);
 
     cmd.opcode = NVME_ADMIN_IDENTIFY;
 
@@ -533,25 +603,53 @@ int ax_nvme_identify_namespace(struct ax_nvme_dev *ndev,
     cmd.cdw10 = cpu_to_le32(NVME_ID_CNS_NS);
 
     ret = ax_nvme_submit_cmd(ndev,
-                             &ndev->adminq,
-                             &cmd);
+            &ndev->adminq,
+            &cmd);
     if (ret)
         return ret;
 
     invalidate_dcache_range((ulong)buf,
-                            (ulong)buf + 4096);
+            (ulong)buf + 4096);
+
+    return 0;
+}
+
+static int ax_nvme_test_identify(struct ax_nvme_dev *ndev)
+{
+    void *buf = (void *)NVME_IDENTIFY_BUF_ADDR;
+    int ret;
+
+    memset(buf, 0, 4096);
+
+    printf("Identify buffer = 0x%llx\n",
+            (u64)NVME_IDENTIFY_BUF_ADDR);
+
+    ret = ax_nvme_identify_controller(
+            ndev,
+            buf,
+            NVME_IDENTIFY_BUF_ADDR);
+
+    if (ret) {
+        printf("Identify Controller failed: %d\n", ret);
+        return ret;
+    }
+
+    printf("Identify Controller success\n");
 
     return 0;
 }
 
 int ax_nvme_probe(struct ax_nvme_dev *ndev,
-                  u8 pcie_port,
-                  u8 bus,
-                  u8 dev,
-                  u8 func)
+        u8 pcie_port,
+        u8 bus,
+        u8 dev,
+        u8 func)
 {
     u32 class_rev;
     u32 csts;
+    u32 max_q_entries;
+    u16 q_depth;
+
     int ret;
 
     memset(ndev, 0, sizeof(*ndev));
@@ -566,16 +664,16 @@ int ax_nvme_probe(struct ax_nvme_dev *ndev,
      * Check class code
      */
     ret = ax_pcie_cfg_read(pcie_port,
-                           bus,
-                           dev,
-                           func,
-                           PCI_CLASS_REVISION,
-                           &class_rev);
+            bus,
+            dev,
+            func,
+            PCI_CLASS_REVISION,
+            &class_rev);
     if (ret)
         return ret;
 
     printf("PCI class/rev = 0x%08x\n",
-           class_rev);
+            class_rev);
 
     /*
      * Enable Memory Space + Bus Master
@@ -595,34 +693,34 @@ int ax_nvme_probe(struct ax_nvme_dev *ndev,
      * Test MMIO access
      */
     ret = ax_nvme_read32(ndev,
-                         NVME_REG_CSTS,
-                         &csts);
+            NVME_REG_CSTS,
+            &csts);
     if (ret)
         return ret;
 
     printf("NVMe CSTS = 0x%08x\n",
-           csts);
+            csts);
 
     /*
      * Read CAP
      */
     ret = ax_nvme_read64(ndev,
-                         NVME_REG_CAP,
-                         &ndev->cap);
+            NVME_REG_CAP,
+            &ndev->cap);
     if (ret)
         return ret;
 
     printf("NVMe CAP = 0x%016llx\n",
-           ndev->cap);
+            ndev->cap);
 
-    printf("MQES   = %u\n",
-           NVME_CAP_MQES(ndev->cap));
+    printf("MQES   = %llu\n",
+            NVME_CAP_MQES(ndev->cap));
 
-    printf("DSTRD  = %u\n",
-           NVME_CAP_DSTRD(ndev->cap));
+    printf("DSTRD  = %llu\n",
+            NVME_CAP_DSTRD(ndev->cap));
 
-    printf("MPSMIN = %u\n",
-           NVME_CAP_MPSMIN(ndev->cap));
+    printf("MPSMIN = %llu\n",
+            NVME_CAP_MPSMIN(ndev->cap));
 
     /*
      * Doorbell stride
@@ -635,12 +733,16 @@ int ax_nvme_probe(struct ax_nvme_dev *ndev,
     /*
      * Queue depth
      */
-    ndev->q_depth = min_t(u16,
-                          NVME_CAP_MQES(ndev->cap) + 1,
-                          NVME_ADMIN_Q_DEPTH);
+    max_q_entries = (u32)NVME_CAP_MQES(ndev->cap) + 1;
 
-    if (ndev->q_depth < 2)
+    q_depth = min_t(u32,
+            max_q_entries,
+            NVME_ADMIN_Q_DEPTH);
+
+    if (q_depth < 2)
         return -EINVAL;
+
+    ndev->q_depth = q_depth;
 
     /*
      * Controller must be disabled before
@@ -654,6 +756,10 @@ int ax_nvme_probe(struct ax_nvme_dev *ndev,
      * Setup admin queue
      */
     ret = ax_nvme_configure_admin_queue(ndev);
+    if (ret)
+        return ret;
+
+    ret = ax_nvme_test_identify(ndev);
     if (ret)
         return ret;
 

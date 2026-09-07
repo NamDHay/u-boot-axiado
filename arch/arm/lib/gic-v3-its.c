@@ -3,11 +3,12 @@
  * Copyright 2019 Broadcom.
  *
  * (C) Copyright 2026
- * Nguyen Nam Huy <namhuyngn03@gmail.com>
+ * Nguyen Nam Huy <hnnguyen@axiado.com>
  */
 #include <cpu_func.h>
 #include <dm.h>
 #include <irq.h>
+#include <asm/processor.h>
 #include <asm/acpi_table.h>
 #include <asm/gic.h>
 #include <asm/gic-v3.h>
@@ -26,6 +27,7 @@ static u32 lpi_id_bits;
 #define LPI_NRBITS		lpi_id_bits
 #define LPI_PROPBASE_SZ		ALIGN(BIT(LPI_NRBITS), SZ_64K)
 #define LPI_PENDBASE_SZ		ALIGN(BIT(LPI_NRBITS) / 8, SZ_64K)
+#define MPIDR_AFF0_MASK     0xff
 
 /*
  * gic_v3_its_priv - gic details
@@ -72,26 +74,76 @@ static int gic_v3_its_get_gic_addr(struct gic_v3_its_priv *priv)
 	return 0;
 }
 
-int gicv3_cpu_init(unsigned int cpu)
+uint32_t aarch64_get_coreid(void)
 {
+	u64 mpidr;
+
+	asm volatile(
+		"mrs %0, mpidr_el1"
+		: "=r"(mpidr));
+
+	return mpidr & MPIDR_AFF0_MASK;
+}
+
+int gicv3_cpu_init(void)
+{
+    u32 cpu = aarch64_get_coreid();
 	struct gic_v3_its_priv priv;
-    volatile u32 GICD_WAKER = 0x100014 + cpu * 0x20000;
+    volatile u32 GICD_WAKER = 0x100014 + cpu * GIC_CPU_OFFSET_A53;
+    u32 val;
 
 	if (gic_v3_its_get_gic_addr(&priv))
 		return -EINVAL;
 
-    writel(0xFFFFFFFD, priv.gicd_base + GICR_WAKER);
+    val = readl(priv.gicd_base + GICD_WAKER);
+    val &= ~BIT(1);
+    writel(val, priv.gicd_base + GICD_WAKER);
 
-    while (readl(priv.gicd_base + GICD_WAKER) & BIT(2));
+    while (readl(priv.gicd_base + GICD_WAKER) & BIT(2))
+        cpu_relax();
     
-    asm volatile("msr  " __stringify(ICC_CTLR_EL1) ", %0\n; isb" ::"r"((uint64_t)0x1));
-    asm volatile("msr  " __stringify(ICC_PMR_EL1) ", %0\n; isb" ::"r"((uint64_t)0xFF)); /* priority mask register */
+    /*
+     * Configure CPU interface
+     */
+
+    /*
+	 * Enable system register interface.
+	 *
+	 * Usually already done by firmware/U-Boot GIC driver,
+	 * but safe to verify.
+	 */
+	asm volatile(
+		"mrs x0, ICC_SRE_EL1\n"
+		"orr x0, x0, #1\n"
+		"msr ICC_SRE_EL1, x0\n"
+		"isb"
+		:
+		:
+		: "x0", "memory"
+	);
+
+    /* Allow all priorities */
+    asm volatile("msr  " __stringify(ICC_PMR_EL1) ", %0\n; isb" ::"r"(0xFFULL));
+    /* Enable Group1 interrupt */
+    asm volatile("msr  " __stringify(ICC_CTLR_EL1) ", %0\n; isb" ::"r"(1ULL));
+    asm volatile("msr  " __stringify(ICC_IGRPEN1_EL1) ", %0\n; isb" ::"r"(1ULL));
+	/* Ensure GIC configuration completed. */
+	asm volatile("dsb sy\nisb" : : : "memory");
 
     writel(0x2, priv.gicd_base + GICD_CTLR);
 
-    asm volatile("msr  " __stringify(ICC_IGRPEN1_EL1) ", %0\n; isb" ::"r"((uint64_t)0x1));
+    /*
+     * Enable IRQ exceptions
+     *
+     * DAIF:
+     * D = Debug
+     * A = SError
+     * I = IRQ
+     * F = FIQ
+     */
+    asm volatile("msr DAIFClr, #0x7");
 
-    asm volatile("msr DAIFClr, #0x7"); // PSTATE bit msaking, D - debug expression, A - SError, I - IRQ,  F- FAQ takes
+    printf("%s - Init CORE_%u successful\n", __func__, cpu);
 
     return 0;
 }

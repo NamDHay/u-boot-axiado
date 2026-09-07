@@ -7,6 +7,7 @@
 #include <dm.h>
 #include <asm/io.h>
 #include <stdio.h>
+#include <linux/errno.h>
 
 #include "ax_diag.h"
 #include <bcd.h>

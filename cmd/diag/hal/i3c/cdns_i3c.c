@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
  * (C) Copyright 2026
- * Nguyen Nam Huy namhuyngn03@gmail.com
+ * Nguyen Nam Huy hnnguyen@axiado.com
  */
 
 #include <dm.h>
@@ -16,8 +16,8 @@
 
 #include "cdns_i3c.h"
 
+#define I3C_STATUS_TIMEOUT 10000
 #define SYS_CLK 200000000 // 200Mhz
-
 #define I3C_FREQ 2000000
 #define I2C_FREQ 100000
 
@@ -63,11 +63,11 @@ static u32 cdns_i3c_wait(uint bus, u32 mask)
     void __iomem *base = (void __iomem *)i3c_base[bus];
 	int timeout, int_status;
 
-	for (timeout = 0; timeout < 100; timeout++) {
+	for (timeout = 0; timeout < I3C_STATUS_TIMEOUT; timeout++) {
 		int_status = readl(base + MST_STATUS0);
 		if (int_status & mask)
 			break;
-		udelay(100);
+		udelay(1);
 	}
 
 	/* Clear interrupt status flags */
@@ -76,37 +76,202 @@ static u32 cdns_i3c_wait(uint bus, u32 mask)
 	return int_status & mask;
 }
 
+static inline void cdns_i3c_writel_fifo(void __iomem *addr,
+                                        const void *buf,
+                                        int nbytes)
+{
+    const u8 *data = buf;
+    u32 tmp;
+    int words;
+
+    words = nbytes / sizeof(u32);
+
+    while (words--) {
+        memcpy(&tmp, data, sizeof(tmp));
+        writel(tmp, addr);
+        data += sizeof(tmp);
+    }
+
+    if (nbytes & 3) {
+        tmp = 0;
+        memcpy(&tmp, data, nbytes & 3);
+        writel(tmp, addr);
+    }
+}
+
+static inline void cdns_i3c_readl_fifo(const void __iomem *addr,
+                                       void *buf,
+                                       int nbytes)
+{
+    u8 *data = buf;
+    u32 tmp;
+    int words;
+
+    words = nbytes / sizeof(u32);
+
+    while (words--) {
+        tmp = readl(addr);
+        memcpy(data, &tmp, sizeof(tmp));
+        data += sizeof(tmp);
+    }
+
+    if (nbytes & 3) {
+        tmp = readl(addr);
+        memcpy(data, &tmp, nbytes & 3);
+    }
+}
+
 static void cdns_i3c_flush_queue(uint bus)
 {
     void __iomem *base = (void __iomem *)i3c_base[bus];
 	clrbits_le32(base + CTRL, CTRL_DEV_EN); /* disable controller */
-	writel(FLUSH_SLV_DDR_RX_FIFO | FLUSH_SLV_DDR_TX_FIFO |
-            FLUSH_RX_FIFO | FLUSH_TX_FIFO |
-            FLUSH_CMD_FIFO, base + FLUSH_CTRL);
+    writel(FLUSH_CMD_RESP |
+            FLUSH_RX_FIFO |
+            FLUSH_TX_FIFO |
+            FLUSH_CMD_FIFO,
+            base + FLUSH_CTRL);
 	readl(base + CMDR);
 	setbits_le32(base + CTRL, CTRL_DEV_EN); /* enable controller */
 }
 
-static void cdns_i3c_init_clock(uint bus, uint32_t i2c_freq, uint32_t i3c_freq)
+static int cdns_i3c_cmdr_check_status(u8 bus)
 {
     void __iomem *base = (void __iomem *)i3c_base[bus];
-	uint32_t prscl0_v = 0;
-	uint32_t pre_i2c = 0;
-	uint32_t pre_i3c = 0;
+    u32 cmdr, cmd_id, cmd_err, xfer_byte;
+    u32 mst_stt_val;
 
-	pre_i2c = SYS_CLK / (i2c_freq * 5) - 1;
-	pre_i3c = SYS_CLK / (i3c_freq * 4) - 1;
-	prscl0_v = (pre_i2c << 16) | (pre_i3c);
+    mst_stt_val = readl(base + MST_STATUS0);
+    while (!(mst_stt_val & MST_STATUS0_CMDR_EMP)) {
+        cmdr =  readl(base + CMDR);
 
-	clrbits_le32(base + CTRL, CTRL_DEV_EN); /* dis controller before init clock */
+        cmd_id = CMDR_CMDID(cmdr);
+        cmd_err = CMDR_ERROR(cmdr);
+        xfer_byte = CMDR_XFER_BYTES(cmdr);
 
-	writel(prscl0_v, base + PRESCL_CTRL0);
-	writel(0x00001509, base + PRESCL_CTRL1);
-	setbits_le32(base + CTRL, CTRL_DEV_EN); /* enable controller */
+        if (cmd_err) {
+            pr_err("====> CMD %X has "
+                    "ERROR - ERROR "
+                    "value: %X\n",
+                    cmd_id, cmd_err);
+            pr_err("Bytes transfer: "
+                    "%d\n",
+                    xfer_byte);
+            return -EFAULT;
+        }
+        mst_stt_val = readl(base + MST_STATUS0);
+    }
+    return 0;
+}
+
+static int cdns_i3c_submit_cmd(u8 bus,
+                               u32 cmd0,
+                               u32 cmd1)
+{
+    void __iomem *base;
+    int ret;
+
+    base = (void __iomem *)i3c_base[bus];
+
+    writel(cmd1, base + CMD1_FIFO);
+    writel(cmd0, base + CMD0_FIFO);
+
+    setbits_le32(base + CTRL, CTRL_MCS);
+
+    mdelay(50);
+    ret = cdns_i3c_wait(bus, MST_STATUS0_IDLE);
+    if (!(ret & (MST_STATUS0_IDLE))) {
+        return -ETIMEDOUT;
+    }
+
+    return cdns_i3c_cmdr_check_status(bus);
+}
+
+static int cdns_i3c_init_clock(uint bus,
+                               uint32_t i2c_freq,
+                               uint32_t i3c_freq)
+{
+    void __iomem *base;
+    uint32_t sysclk_rate = SYS_CLK;
+    uint32_t pres;
+    uint32_t prescl0;
+    uint32_t prescl1;
+    uint32_t pres_step;
+    uint32_t ncycles;
+    uint32_t actual_i2c_freq;
+    uint32_t actual_i3c_freq;
+
+    if (bus >= CONFIG_MAX_I2C)
+        return -EINVAL;
+
+    if (!i2c_freq || !i3c_freq)
+        return -EINVAL;
+
+    base = (void __iomem *)i3c_base[bus];
+
+    /* Disable controller before changing clock configuration. */
+    clrbits_le32(base + CTRL, CTRL_DEV_EN);
+
+    /*
+     * Calculate I3C prescaler
+     * SCL = SYS_CLK / ((pres + 1) * 4)
+     */
+    pres = DIV_ROUND_UP(sysclk_rate, i3c_freq * 4) - 1;
+    if (pres > PRESCL_CTRL0_I3C_MAX)
+        return -ERANGE;
+
+    actual_i3c_freq =
+        sysclk_rate / ((pres + 1) * 4);
+
+    prescl0 = PRESCL_CTRL0_I3C(pres);
+
+    /*
+     * Calculate I2C prescaler
+     * SCL = SYS_CLK / ((pres + 1) * 5)
+     */
+    pres = (sysclk_rate / (i2c_freq * 5)) - 1;
+
+    if (pres > PRESCL_CTRL0_I2C_MAX)
+        return -ERANGE;
+
+    actual_i2c_freq =
+        sysclk_rate / ((pres + 1) * 5);
+
+    prescl0 |= PRESCL_CTRL0_I2C(pres);
+
+    /*
+     * Program PRESCL_CTRL0.
+     */
+    writel(prescl0, base + PRESCL_CTRL0);
+
+    /*
+     * Calculate I3C Open-Drain LOW timing
+     * pres_step = duration of one prescaler clock step in ns
+     * pres_step = 1e9 / (actual_i3c_freq * 4)
+     * ncycles = ceil(TLOW_OD_MIN / pres_step) - 2
+     * ---------------------------------------------------------
+     */
+    pres_step = 1000000000U /
+                (actual_i3c_freq * 4);
+
+    ncycles = DIV_ROUND_UP(I3C_BUS_TLOW_OD_MIN_NS,
+                           pres_step) - 2;
+
+    if (ncycles < 0)
+        ncycles = 0;
+
+    prescl1 = PRESCL_CTRL1_OD_LOW(ncycles);
+
+    writel(prescl1, base + PRESCL_CTRL1);
+
+    /* Enable controller again. */
+    setbits_le32(base + CTRL, CTRL_DEV_EN);
+
+    return 0;
 }
 
 static int cdns_i3c_bus_init(u8 bus)
 {
+    int ret;
     char name[5];
     void __iomem *base = (void __iomem *)i3c_base[bus];
     sprintf(name, "I3C%d", bus);
@@ -119,21 +284,45 @@ static int cdns_i3c_bus_init(u8 bus)
 		return -EINVAL;
 	}
 
-    /* Set MST_IDR and SLV_IDR */
+    clrbits_le32(base + CTRL, CTRL_DEV_EN);
+
+	/* init base config */
+	/* Set MST_IDR and SLV_IDR */
 	writel(MST_IDR_SET, base + MST_IDR);
 	writel(SLV_IDR_SET, base + SLV_IDR);
 
-    /* Set CMD_IBI_THR_CTRL (set 24th bit to 1) */
-	writel(CMD_IBI_THR_CTRL_SET, base + CMD_IBI_THR_CTRL);
+	/*
+	 * QUIRK: The AX3000-i3c controller may generate spurious IBI
+	 * interrupts when standard I2C devices (which do not
+	 * support IBI) are connected to the bus.
+	 *
+	 * Handling these unexpected IBIs can lead to a driver crash.
+	 * To avoid this, disable IBIR handling entirely for this
+	 * controller variant.
+	 */
+	writel(IBIR_THR(1), base + CMD_IBI_THR_CTRL);
+    writel(MST_INT_IBIR_THR, base + MST_IER);
+
+    writel(DEVS_CTRL_DEV_CLR_ALL, base + DEVS_CTRL);
 
     /* Enable MST_IER */
-	writel(MST_IER_ENABLE, base + MST_IER);
+    writel(MST_IER_ENABLE, base + MST_IER);
 
-    cdns_i3c_init_clock(bus, I2C_FREQ, I3C_FREQ);
-    cdns_i3c_flush_queue(bus);
+    ret = cdns_i3c_init_clock(bus, I2C_FREQ, I3C_FREQ);
+    if (ret) {
+        printf("cdns_i3c_init_clock failed\n");
+        return ret;
+    }
 
-    /* Enable master with MCS */
-    setbits_le32(base + CTRL, CTRL_MCS_EN | CTRL_MCS);
+    writel(FLUSH_CMD_RESP |
+            FLUSH_RX_FIFO |
+            FLUSH_TX_FIFO |
+            FLUSH_CMD_FIFO,
+            base + FLUSH_CTRL);
+	readl(base + CMDR);
+
+    setbits_le32(base + CTRL, CTRL_MCS_EN | I3C_BUS_MODE_MIXED_SLOW);
+
     setbits_le32(base + CTRL, CTRL_DEV_EN);
 
     return 0;
@@ -141,171 +330,129 @@ static int cdns_i3c_bus_init(u8 bus)
 
 static u8 prepare_dev_addr(uint8_t slave_address_7bit)
 {
-	/* Ensure the input is a 7-bit value */
-	uint8_t bits_7_to_1 = slave_address_7bit & 0x7F;
+    /* Ensure the input is a 7-bit value */
+    uint8_t bits_7_to_1 = slave_address_7bit & 0x7F;
 
-	/* XOR all bits from 7 to 1 */
-	uint8_t parity = 0;
-	for (int i = 0; i < 7; i++) {
-		parity ^= (bits_7_to_1 >> i) & 0x1;
-	}
+    /* XOR all bits from 7 to 1 */
+    uint8_t parity = 0;
+    for (int i = 0; i < 7; i++) {
+        parity ^= (bits_7_to_1 >> i) & 0x1;
+    }
 
-	/* Invert the parity (XOR -> XNOR) to
-	 * calculate bit 0 */
-	uint8_t bit_0 = ~parity & 0x1;
+    /* Invert the parity (XOR -> XNOR) to
+     * calculate bit 0 */
+    uint8_t bit_0 = ~parity & 0x1;
 
-	/* Append the parity bit as bit 0 to the
-	 * original 7-bit address */
-	uint8_t address_8bit = (bits_7_to_1 << 1) | bit_0;
+    /* Append the parity bit as bit 0 to the
+     * original 7-bit address */
+    uint8_t address_8bit = (bits_7_to_1 << 1) | bit_0;
 
-	return address_8bit;
+    return address_8bit;
 }
 
-static int cdns_i3c_attach_dev(u8 bus, u8 slv_addr, u8 slot)
+static int cdns_i3c_attach_i2c_dev(u8 bus, u8 slv_addr, u8 slot)
 {
     void __iomem *base = (void __iomem *)i3c_base[bus];
-    u32 rr0_val, dev_ctrl;
 
     clrbits_le32(base + CTRL, CTRL_DEV_EN); /* dis controller before edit RR */
 
-    rr0_val = (u32)prepare_dev_addr(slv_addr);
-    writel(rr0_val, base + DEV_ID_RR0(slot));
+    writel((u32)prepare_dev_addr(slv_addr), base + DEV_ID_RR0(slot));
 
-    dev_ctrl = readl(base + DEVS_CTRL);
-    dev_ctrl |= (1 << slot);
-    writel(dev_ctrl, base + DEVS_CTRL);
+    writel(readl(base + DEVS_CTRL) |
+           DEVS_CTRL_DEV_ACTIVE(slot), 
+           base + DEVS_CTRL);
 
-	setbits_le32(base + CTRL, CTRL_DEV_EN); /* enable controller */
+    setbits_le32(base + CTRL, CTRL_DEV_EN); /* enable controller */
     return 0;
 }
 
-static int cdns_i3c_cmdr_check_status(u8 bus)
+static int cdns_i3c_detach_i2c_dev(u8 bus, u8 slot)
 {
     void __iomem *base = (void __iomem *)i3c_base[bus];
 
-    u32 mst_stt_val = readl(base + MST_STATUS0);
-    u32 cmdr, cmd_id, cmd_err, xfer_byte;
-    if (!(mst_stt_val & MST_STATUS0_CMDR_EMP)) {
-        cmdr =  readl(base + CMDR);
-        cmd_id = CMDR_CMDID(cmdr);
-        cmd_err = CMDR_ERROR(cmdr);
-        xfer_byte = CMDR_XFER_BYTES(cmdr);
+    clrbits_le32(base + CTRL, CTRL_DEV_EN); /* dis controller before edit RR */
 
-        if (cmd_err) {
-			pr_err("====> CMD %X has "
-				   "ERROR - ERROR "
-				   "value: %X\n",
-				   cmd_id, cmd_err);
-			pr_err("Bytes transfer: "
-				   "%d\n",
-				   xfer_byte);
-            return -EAGAIN;
-        }
-    }
+    writel(readl(base + DEVS_CTRL) |
+           DEVS_CTRL_DEV_CLR(slot), 
+           base + DEVS_CTRL);
+
+    setbits_le32(base + CTRL, CTRL_DEV_EN); /* enable controller */
     return 0;
 }
 
-static int cdns_i3c_read(u8 bus, uint slv_addr, uint reg, uint len, u8 *buf) 
-{  
-    void __iomem *base = (void __iomem *)i3c_base[bus];
+static int cdns_i3c_read(u8 bus, uint slv_addr, uint reg, uint len, u8 *buf)
+{
+    void __iomem *base;
     u32 cmd0, cmd1;
-    u32 data_idx = 0;
-    int ret, i;
+    int ret;
 
+    if (bus >= CONFIG_MAX_I2C || !buf || !len)
+        return -EINVAL;
+
+    base = (void __iomem *)i3c_base[bus];
+
+    ret = cdns_i3c_wait(bus, MST_STATUS0_IDLE);
+    if (!(ret & (MST_STATUS0_IDLE))) {
+        return -ETIMEDOUT;
+    }
     cdns_i3c_flush_queue(bus);
 
-    /* Enable master with MCS */
-    setbits_le32(base + CTRL, CTRL_MCS_EN | CTRL_MCS);
-    setbits_le32(base + CTRL, CTRL_DEV_EN);
+    /* Do we need this ? */
+    setbits_le32(base + CTRL, CTRL_MCS_EN | I3C_BUS_MODE_MIXED_SLOW);
 
-    readl(base + CMDR);
-
-    cmd0 = CMD0_FIFO_DEV_ADDR(slv_addr) | CMD0_FIFO_PL_LEN(len) | CMD0_FIFO_RNW;  
+    cmd0 = CMD0_FIFO_DEV_ADDR(slv_addr) | CMD0_FIFO_PL_LEN(len) | CMD0_FIFO_RNW;
     cmd1 = CMD1_FIFO_CMDID(0xCB) | reg;
 
-    writel(cmd1, base + CMD1_FIFO);
-    writel(cmd0, base + CMD0_FIFO);
+    ret = cdns_i3c_submit_cmd(bus, cmd0, cmd1);
+    if (ret)
+        goto out;
 
-    /* Trigger command process */
-    setbits_le32(base + CTRL, CTRL_MCS | CTRL_DEV_EN);
+    cdns_i3c_readl_fifo(base + RX_FIFO, buf, len);
 
-    mdelay(10);
-    ret = cdns_i3c_wait(bus, MST_STATUS0_IDLE);
-	if (!(ret & (MST_STATUS0_IDLE))) {
-		return -ETIMEDOUT;
-    }
-
-    ret = cdns_i3c_cmdr_check_status(bus);
-    if (ret < 0)
-        return ret;
-
-    while (data_idx < len) {
-        u32 val = readl(base + RX_FIFO);
-
-        for (i = 0; i < 4 && data_idx < len; i++) {
-            buf[data_idx] = (u8)(val >> (i * 8));
-            data_idx++;
-        }
-    }
-
+out:
     cdns_i3c_flush_queue(bus);
 
-    return 0;
+    return ret;
 }
 
 static int cdns_i3c_write(u8 bus, uint slv_addr, uint reg, uint len, u8 *buf) 
 {  
-    void __iomem *base = (void __iomem *)i3c_base[bus];
-    u16 data_idx = 0;
-    u32 fifo_val = 0;
+    void __iomem *base;
     u32 cmd0, cmd1;
-    int ret, i;
+    int ret;
 
+    if (bus >= CONFIG_MAX_I2C || !buf || !len)
+        return -EINVAL;
+
+    base = (void __iomem *)i3c_base[bus];
+
+    ret = cdns_i3c_wait(bus, MST_STATUS0_IDLE);
+    if (!(ret & (MST_STATUS0_IDLE))) {
+        return -ETIMEDOUT;
+    }
     cdns_i3c_flush_queue(bus);
 
-    /* Enable master with MCS */
-    setbits_le32(base + CTRL, CTRL_MCS_EN | CTRL_MCS);
-    setbits_le32(base + CTRL, CTRL_DEV_EN);
+    /* Do we need this ? */
+    setbits_le32(base + CTRL, CTRL_MCS_EN | I3C_BUS_MODE_MIXED_SLOW);
 
-    readl(base + CMDR);
-
-    while (data_idx < len) {
-        fifo_val = 0;
-        for (i = 0; i < 4 && data_idx < len; i++) {
-            fifo_val = (fifo_val << 8) | buf[data_idx];
-            data_idx++;
-        }
-        writel(fifo_val, base + TX_FIFO);
-    }
+    cdns_i3c_writel_fifo(base + TX_FIFO, buf, len);
 
     cmd0 = CMD0_FIFO_DEV_ADDR(slv_addr) | CMD0_FIFO_PL_LEN(len);  
     cmd1 = CMD1_FIFO_CMDID(0xCD) | reg;
 
-    writel(cmd1, base + CMD1_FIFO);
-    writel(cmd0, base + CMD0_FIFO);
-
-    /* Trigger command process */
-    setbits_le32(base + CTRL, CTRL_MCS | CTRL_DEV_EN);
-
-    mdelay(10);
-    ret = cdns_i3c_wait(bus, MST_STATUS0_IDLE);
-	if (!(ret & (MST_STATUS0_IDLE))) {
-		return -ETIMEDOUT;
-    }
-
-    ret = cdns_i3c_cmdr_check_status(bus);
-    if (ret < 0)
-        return ret;
+    ret = cdns_i3c_submit_cmd(bus, cmd0, cmd1);
 
     cdns_i3c_flush_queue(bus);
 
-    return 0;
+    return ret;
 }
+
 
 struct ax_i3c_ops i3c = {
     .bus_init = cdns_i3c_bus_init,
-    /* .do_daa */
-    .attach_dev = cdns_i3c_attach_dev,
+    .attach_dev = cdns_i3c_attach_i2c_dev,
+    .detach_dev = cdns_i3c_detach_i2c_dev,
     .read = cdns_i3c_read,
     .write = cdns_i3c_write,
 };
+

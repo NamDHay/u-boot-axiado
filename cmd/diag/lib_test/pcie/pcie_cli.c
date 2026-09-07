@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
  * (C) Copyright 2026
- * Nguyen Nam Huy namhuyngn03@gmail.com
+ * Nguyen Nam Huy hnnguyen@axiado.com
  */
 #include <command.h>
 #include <dm.h>
@@ -92,6 +92,16 @@ static int ax_pcie_cmd_init(struct cmd_tbl *cmdtp, int flag,
 
     printf("PCIe_x%d init successed\n", port);
 
+    if (mode == AX_PCIE_MODE_RC) {
+        ret = ax_pcie_init_ep_bars(port, 1, 0, 0);
+        if (ret) {
+            printf("Failed to initialize endpoint BARs: %d\n", ret);
+            return CMD_RET_FAILURE;
+        }
+
+        ax_pcie_print_header(port, 1, 0, 0);
+    }
+
     return CMD_RET_SUCCESS;
 }
 
@@ -117,13 +127,13 @@ static int ax_pcie_cmd_enum(struct cmd_tbl *cmdtp, int flag,
         return CMD_RET_USAGE;
     }
 
-    ret = ax_pcie_init_ep_bars(port, 1, 0, 0);
+    ret = ax_pcie_init_ep_bars(port, bus, dev, func);
     if (ret) {
         printf("Failed to initialize endpoint BARs: %d\n", ret);
         return CMD_RET_FAILURE;
     }
 
-    ax_pcie_print_header(port, 1, 0, 0);
+    ax_pcie_print_header(port, bus, dev, func);
 
     return CMD_RET_SUCCESS;
 }
@@ -287,7 +297,7 @@ U_BOOT_CMD(
         8,
         1,
         do_ax_pcie,
-        "Axiado PCIe diagnostic command",
+        "Axiado bare-metal PCIe diagnostics test",
         "init <port> <RP|EP> <speed>\n"
         "    - Initialize PCIe controller\n"
         "\n"

@@ -50,8 +50,8 @@ U_BOOT_CMD(
         8,
         1,
         do_ax_nvme,
-        "Axiado PCIe diagnostic command",
+        "Axiado bare-metal NVMe diagnostics test",
         "init <port>\n"
-        "    - Initialize NVME controller\n"
+        "    - Initialize NVMe controller\n"
         "\n"
 );

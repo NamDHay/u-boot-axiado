@@ -5,37 +5,6 @@
 
 #include "ax_diag.h"
 #include "ax_gpio.h"
-#include "gpio_cli.h"
-
-int gpio_diag_init(void) {
-    static int is_init = 0;
-    if (is_init)
-        goto end;
-
-end:
-    is_init = 1;
-    return 0;
-};
-
-int gpio_diag_test(unsigned int testid) {
-    int ret;
-    switch (testid) {
-        case TOGGLE:
-        case LOOPBACK:
-            ret = 0;
-            break;
-        default:
-            pr_err("testid:%d not found\n", testid);
-            ret = -ESRCH;
-            break;
-    }
-
-    return ret;
-}
-
-void gpio_diag_stat(void) {
-    ;
-}
 
 int do_ax_gpio(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[]) 
 {
@@ -82,6 +51,6 @@ int do_ax_gpio(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
 
 U_BOOT_CMD(
         ax_gpio,	CONFIG_SYS_MAXARGS,	0,	do_ax_gpio,
-        "perform axiado gpio diagnostics",
+        "Axiado bare-metal GPIO diagnostics test",
         "<input|set|clear|toggle> <pin>\n"
         );

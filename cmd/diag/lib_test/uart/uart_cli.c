@@ -172,7 +172,7 @@ int do_ax_uart(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[]) {
 
 U_BOOT_CMD(
         ax_uart,	CONFIG_SYS_MAXARGS,	0,	do_ax_uart,
-        "perform axiado uart diagnostics",
+        "Axiado bare-metal UART diagnostics test",
         "baud <instance> <baudrate>\n"
         "put <instance> <string>\n"
         "get <instance> <len>\n"

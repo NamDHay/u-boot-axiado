@@ -61,7 +61,7 @@
 #define PRESCL_CTRL1_PP_LOW_MASK	GENMASK(15, 8)
 #define PRESCL_CTRL1_PP_LOW(x)		((x) << 8)
 #define PRESCL_CTRL1_OD_LOW_MASK	GENMASK(7, 0)
-#define PRESCL_CTRL1_OD_LOW(x)		(x)
+#define PRESCL_CTRL1_OD_LOW(x)		((x) & 0xffff)
 
 #define MST_IER				0x20
 #define MST_IDR				0x24
@@ -353,8 +353,6 @@
 
 #define MST_IDR_SET 0xFFFFFFFF /**< Master mode Interrupt disable value */
 #define SLV_IDR_SET 0xFFFFFFFF /**< Slave mode Interrupt disable value */
-#define CMD_IBI_THR_CTRL_SET \
-	0x01000000 /**< Threshold configuration value for Command Queue. */
-#define MST_IER_ENABLE 0xFFFFFFFF /**< Master mode Interrupt enable value */
+#define MST_IER_ENABLE GENMASK(18, 0) /**< Master mode Interrupt enable value */
 
 #endif /* __CDNS_I3C_H */

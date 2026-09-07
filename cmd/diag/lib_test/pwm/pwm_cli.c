@@ -50,7 +50,7 @@ static int do_ax_pwm(struct cmd_tbl *cmdtp, int flag, int argc,
 }
 
 U_BOOT_CMD(ax_pwm, CONFIG_SYS_MAXARGS, 0, do_ax_pwm,
-        "perform axiado pwm diagnostics",
+        "Axiado bare-metal PWM diagnostics test",
         "invert <channel> <polarity> - invert polarity\n"
         "config <channel> <period_ns> <duty_ns> - config PWM\n"
         "enable <channel> - enable PWM output\n"

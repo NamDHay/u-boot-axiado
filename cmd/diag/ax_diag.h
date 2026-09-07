@@ -10,6 +10,8 @@
 #ifdef CONFIG_TARGET_SCM3005
 #include "hal/base/Ultra/ax3000_base_adrs.h"
 #include "hal/base/Ultra/ax3000_slo_base_adrs.h"
+#elif CONFIG_TARGET_SCM3000
+#elif CONFIG_TARGET_SCM1100
 #endif
 
 #define DIAG_MAX_TEST 32

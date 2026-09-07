@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
  * (C) Copyright 2026
- * Nguyen Nam Huy namhuyngn03@gmail.com
+ * Nguyen Nam Huy hnnguyen@axiado.com
  */
 
 #include <dm.h>
@@ -13,9 +13,7 @@
 #include <malloc.h>
 #include <linux/log2.h>
 
-#include "ax3000_base_adrs.h"
-#include "ax3000_slo_base_adrs.h"
-
+#include "ax_diag.h"
 #include "ax_pcie.h"
 #include "axiado_pcie.h"
 #include "ax_pcie_conf.h"
@@ -52,7 +50,7 @@ const char ltssm_state_char[LTSSM_MAX_NUM_STATE][32] = {"DETECT.QUIET",
                                                         "LOOPBACK.EXIT",
                                                         "HOTRESET"};
 
-struct axiado_pcie pcie_x1 = {
+static struct axiado_pcie pcie_x1 = {
     .pcie_x1 = true,
     .pcie_x2 = false,
 
@@ -77,7 +75,7 @@ struct axiado_pcie pcie_x1 = {
     },
 };
 
-struct axiado_pcie pcie_x2 = {
+static struct axiado_pcie pcie_x2 = {
     .pcie_x1 = false,
     .pcie_x2 = true,
     
@@ -669,11 +667,11 @@ static void axiado_pcie_setup_windows(struct axiado_pcie *pcie)
                     0x0,
                     pcie->atr[table].size,
                     PCIE_ATR_TRSLID_PCIE_MEMORY);
-            /* axiado_pcie_setup_p2a_atr(pcie, table, */ 
-            /*         0x0, */
-            /*         (u64)pcie->bar[table].base & 0xFFFFFFFF, */
-            /*         pcie->bar[table].size, */
-            /*         PCIE_ATR_TRSLID_AXI4_MASTER_0); */
+            axiado_pcie_setup_p2a_atr(pcie, table, 
+                    0x0,
+                    (u64)pcie->bar[table].base & 0xFFFFFFFF,
+                    pcie->bar[table].size,
+                    PCIE_ATR_TRSLID_AXI4_MASTER_0);
         } else {
             axiado_pcie_setup_p2a_atr(pcie, table, 
                     0x0,

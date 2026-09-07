@@ -85,7 +85,7 @@ int do_ax_rtc(struct cmd_tbl *cmdtp, int flag, int argc, char * const argv[]) {
 
 U_BOOT_CMD(
         ax_rtc,	10,	0,	do_ax_rtc,
-        "perform axiado rtc diagnostics",
+        "Axiado bare-metal RTC diagnostics test",
         "set [yy mm dd hr min sec]  - set time for rtc device\n"
         "get                      	- show time of rtc device\n"
         );

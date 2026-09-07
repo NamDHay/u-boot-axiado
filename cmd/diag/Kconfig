@@ -22,6 +22,18 @@ config CDNS_GPIO
 	help
 	  This config support for Cadence GPIO.
 
+config CMD_AX_HDMI
+	bool "ax_hdmi - Axiado HDMI diagnostics"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
+	help
+	  This command provides access to HDMI board diagnostic tests.
+
+config INNO_HDMI
+	bool "Innosilicon HDMI support"
+	help
+	  This config support for Innosilicon HDMI.
+
 config CMD_AX_I2C
 	bool "ax_i2c - Axiado I2C diagnostics"
 	depends on ARCH_AXIADO
@@ -45,6 +57,18 @@ config CDNS_I3C
 	bool "Cadence I3C support"
 	help
 	  This config support for Cadence I3C.
+
+config CMD_AX_JTAG
+	bool "ax_jtag - Axiado Host JTAG diagnostics"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
+	help
+	  This command provides access to Host JTAG board diagnostic tests.
+
+config AXIADO_JTAG
+	bool "Axiado JTAG support"
+	help
+	  This config support for Axiado Host JTAG.
 
 config CMD_AX_MEM
 	bool "ax_mem - Axiado MEM diagnostics"
@@ -95,6 +119,39 @@ config CDNS_RTC
 	bool "Cadence RTC support"
 	help
 	  This config support for Cadence RTC.
+
+config CMD_AX_SPI
+	bool "ax_rtc - Axiado SPI diagnostics"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
+	help
+	  This command provides access to SPI board diagnostic tests.
+
+config DWC_SPI
+	bool "Designware Master SPI support"
+	help
+	  This config support for Designware Master SPI.
+
+config CMD_AX_EEPROM
+	bool "ax_eeprom - Axiado Eeprom diagnostics"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
+	help
+	  This command provides access to epprom board diagnostic tests.
+
+config CMD_AX_TSENS
+	bool "ax_tmp - Axiado TMP75 diagnostics"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
+	help
+	  This command provides access to TMP75 board diagnostic tests.
+
+config CMD_AX_VSENS
+	bool "ax_ina - Axiado INA232 diagnostics"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
+	help
+	  This command provides access to INA232 board diagnostic tests.
 
 config CMD_AX_UART
 	bool "ax_uart - Axiado UART diagnostics"

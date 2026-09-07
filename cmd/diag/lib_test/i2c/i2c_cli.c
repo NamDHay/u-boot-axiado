@@ -239,7 +239,7 @@ static int do_ax_i2c(struct cmd_tbl *cmdtp, int flag,
 
 U_BOOT_CMD(
     ax_i2c, 16, 1, do_ax_i2c,
-    "Axiado bare-metal I2C test",
+    "Axiado bare-metal I2C diagnostics test",
     "speed <bus> <hz>\n"
     "    - set I2C bus speed\n"
     "scan <bus>\n"

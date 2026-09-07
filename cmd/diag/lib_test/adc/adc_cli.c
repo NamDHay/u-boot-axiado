@@ -4,7 +4,6 @@
 #include <linux/printk.h>
 
 #include "ax_adc.h"
-#include "adc_cli.h"
 
 int do_ax_adc(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[]) 
 {
@@ -58,7 +57,7 @@ int do_ax_adc(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
 
 U_BOOT_CMD(
         ax_adc,	CONFIG_SYS_MAXARGS,	0,	do_ax_adc,
-        "perform axiado adc diagnostics",
+        "Axiado bare-metal SARADC diagnostics test",
         "start <channel> - Start total channels\n"
         "single <channel> - Get single raw data of ADC device channel\n"
         "multi <total_channel> - Get <total_channel> raw data of ADC device channel\n"

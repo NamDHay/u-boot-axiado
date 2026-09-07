@@ -19,6 +19,7 @@
 
 #define AX_PCIE_BAR_BASE	0x000000000ULL
 #define AX_PCIE_BAR_SIZE	0x10000000ULL
+
 /*
  * ---------------------------------------------------------------------------
  * Configuration space access helpers

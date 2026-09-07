@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
  * (C) Copyright 2026
- * Nguyen Nam Huy namhuyngn03@gmail.com
+ * Nguyen Nam Huy hnnguyen@axiado.com
  */
 
-#ifndef __GPIO_H
-#define __GPIO_H
+#ifndef __ADC_H
+#define __ADC_H
 
 struct ax_adc_ops {
     int (*start_channel)(int channel);
@@ -49,5 +49,4 @@ static inline int ax_adc_stop(void) {
     return adc.stop(); 
 }
 
-#endif /* __GPIO_H */
-
+#endif /* __ADC_H */
