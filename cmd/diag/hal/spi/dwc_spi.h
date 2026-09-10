@@ -124,18 +124,6 @@ typedef enum spi_tmod {
 } SPI_TMOD;
 
 /**
- * @brief SPI mode numbers (combinations of polarity and phases)
- */
-typedef enum spi_mode {
-	SPI_MODE_0 =
-		0x0, /**< CPOL = 0, CPHA = 0, SCK held low in the inactive state and Sampling of data occurs at odd edges. */
-	SPI_MODE_1, /**< CPOL = 0, CPHA = 1, SCK held low in the inactive state and Sampling of data occurs at even edges. */
-	SPI_MODE_2, /**< CPOL = 1, CPHA = 0, SCK held high in the in active and Sampling of data occurs at odd edges. */
-	SPI_MODE_3, /**< CPOL = 1, CPHA = 1, SCK held high in the in active Sampling of data occurs at even edges. */
-	SPI_INVALID_MODE
-} SPI_MODE;
-
-/**
  * @brief Defines the data that are required for reconfiguration of SPI
  */
 struct spi_dw_config_t {
@@ -147,7 +135,7 @@ struct spi_dw_config_t {
 	/* Following are valid for rx only mode */
 	uint32_t adrs_len; /**< Length of Address to be transmitted */
 	uint32_t inst_len; /**< Enhanced SPI mode instruction length in bits. */
-	uint32_t wait_cycle; /**< Wait cycles in Enhanced SPI mode between control frames
-transmit and data reception. */
+	uint32_t wait_cycle; /**< Wait cycles in Enhanced SPI mode between control frames transmit and data reception. */
 };
+
 #endif /*  DWC_SPI_H */

@@ -24,6 +24,7 @@ obj-$(CONFIG_CDNS_PWM) 		+= pwm/cdns_pwm.o
 obj-$(CONFIG_CDNS_RTC) 		+= rtc/cdns_rtc.o
 
 obj-$(CONFIG_DWC_SPI) 		+= spi/dwc_spi.o
+obj-$(CONFIG_CMD_AX_FLASH) 	+= flash/ax_flash.o
 
 obj-$(CONFIG_CDNS_UART) 	+= uart/cdns_uart.o
 

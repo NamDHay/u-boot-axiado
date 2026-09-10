@@ -4,8 +4,8 @@
  * Nguyen Nam Huy hnnguyen@axiado.com
  */
 
-#include <command.h>
 #include <dm.h>
+#include <command.h>
 #include <linux/errno.h>
 #include <linux/types.h>
 #include <linux/delay.h>

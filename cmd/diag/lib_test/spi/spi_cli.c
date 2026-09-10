@@ -68,9 +68,27 @@ static int do_ax_spi_setup(struct cmd_tbl *cmdtp, int flag,
 	max_hz = simple_strtoul(argv[3], NULL, 0);
 	mode = simple_strtoul(argv[4], NULL, 0);
 
-	ret = ax_spi_setup(bus, cs, max_hz, mode);
+	ret = ax_spi_init(bus);
 	if (ret) {
 		printf("SPI setup failed: %d\n", ret);
+		return CMD_RET_FAILURE;
+	}
+
+	ret = ax_spi_set_speed(bus, max_hz);
+	if (ret) {
+		printf("SPI set speed failed: %d\n", ret);
+		return CMD_RET_FAILURE;
+	}
+
+	ret = ax_spi_set_cs(bus, cs);
+	if (ret) {
+		printf("SPI set slave failed: %d\n", ret);
+		return CMD_RET_FAILURE;
+	}
+
+	ret = ax_spi_set_mode(bus, mode);
+	if (ret) {
+		printf("SPI set mode failed: %d\n", ret);
 		return CMD_RET_FAILURE;
 	}
 
@@ -103,7 +121,7 @@ static int do_ax_spi_write(struct cmd_tbl *cmdtp, int flag,
 		return CMD_RET_FAILURE;
 	}
 
-	ret = ax_spi_xfer(bus, len * 8, tx_buf, NULL);
+	ret = ax_spi_xfer(bus, len, tx_buf, 0, NULL);
 	if (ret) {
 		printf("SPI write failed: %d\n", ret);
 		return CMD_RET_FAILURE;
@@ -118,7 +136,6 @@ static int do_ax_spi_read(struct cmd_tbl *cmdtp, int flag,
 			  int argc, char *const argv[])
 {
 	unsigned int bus;
-	unsigned int bitlen;
 	unsigned int bytes;
 	u8 *rx_buf;
 	int ret;
@@ -127,18 +144,10 @@ static int do_ax_spi_read(struct cmd_tbl *cmdtp, int flag,
 		return CMD_RET_USAGE;
 
 	bus = simple_strtoul(argv[1], NULL, 0);
-	bitlen = simple_strtoul(argv[2], NULL, 0);
+	bytes = simple_strtoul(argv[2], NULL, 0);
 
-	if (!bitlen) {
-		printf("Invalid bit length\n");
-		return CMD_RET_FAILURE;
-	}
-
-	bytes = DIV_ROUND_UP(bitlen, 8);
-
-	if (bytes > AX_SPI_MAX_DATA_LEN) {
-		printf("Maximum transfer size is %d bytes\n",
-		       AX_SPI_MAX_DATA_LEN);
+	if (!bytes) {
+		printf("Invalid length\n");
 		return CMD_RET_FAILURE;
 	}
 
@@ -146,15 +155,15 @@ static int do_ax_spi_read(struct cmd_tbl *cmdtp, int flag,
 	if (!rx_buf)
 		return CMD_RET_FAILURE;
 
-	ret = ax_spi_xfer(bus, bitlen, NULL, rx_buf);
+	ret = ax_spi_xfer(bus, 0, NULL, bytes, rx_buf);
 	if (ret) {
 		printf("SPI read failed: %d\n", ret);
 		free(rx_buf);
 		return CMD_RET_FAILURE;
 	}
 
-	printf("SPI read (%u bits / %u bytes):\n",
-	       bitlen, bytes);
+	printf("SPI read (%u bytes):\n",
+	       bytes);
 	ax_spi_dump_data(rx_buf, bytes);
 
 	free(rx_buf);
@@ -185,7 +194,7 @@ static int do_ax_spi_xfer(struct cmd_tbl *cmdtp, int flag,
 
 	memset(rx_buf, 0, sizeof(rx_buf));
 
-	ret = ax_spi_xfer(bus, len, tx_buf, rx_buf);
+	ret = ax_spi_xfer(bus, len, tx_buf, len, rx_buf);
 	if (ret) {
 		printf("SPI transfer failed: %d\n", ret);
 		return CMD_RET_FAILURE;
@@ -232,7 +241,7 @@ static int do_ax_spi(struct cmd_tbl *cmdtp, int flag,
 U_BOOT_CMD(
 	ax_spi, CONFIG_SYS_MAXARGS, 1, do_ax_spi,
 	"Axiado SPI diagnostic command",
-	"setup <bus> <cs> <max_hz> <mode>\n"
+	"setup <bus> <cs> <mhz> <mode>\n"
 	"    - Configure SPI controller\n"
 	"ax_spi write <bus> <byte0> [byte1 ...]\n"
 	"    - Write data to SPI device\n"

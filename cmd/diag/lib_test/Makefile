@@ -26,5 +26,6 @@ obj-$(CONFIG_CMD_AX_PWM) 	+= pwm/pwm_cli.o
 obj-$(CONFIG_CMD_AX_RTC) 	+= rtc/rtc_cli.o
 
 obj-$(CONFIG_CMD_AX_SPI) 	+= spi/spi_cli.o
+obj-$(CONFIG_CMD_AX_FLASH) 	+= flash/flash_cli.o
 
 obj-$(CONFIG_CMD_AX_UART) 	+= uart/uart_cli.o

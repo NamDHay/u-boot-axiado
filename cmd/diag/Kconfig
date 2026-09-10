@@ -121,7 +121,7 @@ config CDNS_RTC
 	  This config support for Cadence RTC.
 
 config CMD_AX_SPI
-	bool "ax_rtc - Axiado SPI diagnostics"
+	bool "ax_spi - Axiado SPI diagnostics"
 	depends on ARCH_AXIADO
 	depends on CMD_AX_DIAG
 	help
@@ -131,6 +131,13 @@ config DWC_SPI
 	bool "Designware Master SPI support"
 	help
 	  This config support for Designware Master SPI.
+
+config CMD_AX_FLASH
+	bool "ax_flash - Axiado SPI Nor Flash diagnostics"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
+	help
+	  This command provides access to SPI Nor Flash board diagnostic tests.
 
 config CMD_AX_EEPROM
 	bool "ax_eeprom - Axiado Eeprom diagnostics"

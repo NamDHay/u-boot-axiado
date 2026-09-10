@@ -298,7 +298,7 @@ U_BOOT_CMD(
         1,
         do_ax_pcie,
         "Axiado bare-metal PCIe diagnostics test",
-        "init <port> <RP|EP> <speed>\n"
+        "ax_pcie init <port> <RP|EP> <speed>\n"
         "    - Initialize PCIe controller\n"
         "\n"
         "ax_pcie enum <port>\n"

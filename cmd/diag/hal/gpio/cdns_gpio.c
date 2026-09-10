@@ -28,8 +28,7 @@
 #define GET_BANK(pin) \
 	(pin / CONFIG_MAX_PIN_PER_BANK) /**< get bank number with pin number */
 #define GPIO_BIT(pin) \
-	(pin %              \
-	 CONFIG_MAX_PIN_PER_BANK) /**< pin number in a bank range 0 - 31 */
+	BIT((pin % CONFIG_MAX_PIN_PER_BANK)) /**< pin number in a bank range 0 - 31 */
 
 #define CONFIG_MAX_GPIO_BANK 8
 #define CONFIG_MAX_GPIO_PIN 256
