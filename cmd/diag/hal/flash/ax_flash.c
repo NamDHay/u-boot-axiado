@@ -16,7 +16,7 @@
 #include "ax_spi.h"
 #include "ax_flash.h"
 
-#define SPI_FLASH_TIMEOUT		10000
+#define SPI_FLASH_TIMEOUT		1000
 #define SPI_FLASH_SPEED 		5000000
 
 #define TX_FIFO_SZ 0x4 /**< size of max bytes on TX fifo register */
@@ -46,8 +46,6 @@ static int ax_flash_read_status(struct nor_flash_ctrl_t *flash, u8 cmd, u8 mask,
     if (ret)
         return ret;
 
-    printf("cmd: 0x%x 0x%x 0x%x 0x%x\n", src[0], src[1], src[2], src[3]);
-    printf("status: 0x%x 0x%x 0x%x 0x%x\n", dst[0], dst[1], dst[2], dst[3]);
     *result = (mask != (dst[RW_COMMAND_OFFSET - 1] & mask)) ? false : true;
 
     return 0;
@@ -65,10 +63,10 @@ static int ax_flash_wait_ready(struct nor_flash_ctrl_t *flash)
         ax_flash_read_status(flash, NOR_FLASH_CMD_RDSR,
                 NOR_FLASH_STATUS_WIP, &result);
 
-        if (result)
+        if (result == false)
             return 0;
 
-        mdelay(1);
+        mdelay(10);
     }
 
     return -ETIMEDOUT;
@@ -84,9 +82,8 @@ static int ax_flash_send_opcode(struct nor_flash_ctrl_t *flash, u8 cmd)
 
     src[0] = cmd;
 
-    printf("opcode: 0x%x 0x%x 0x%x 0x%x\n", src[0], src[1], src[2], src[3]);
     ret = ax_spi_xfer(flash->bus, 
-            NOR_FLASH_CMD_ONLY_OPCODE_SIZE,
+            4,
             src, 0, NULL);    
     if (ret) {
         printf("CMD: 0x%02x xfer failed, status: 0x%x\r\n", cmd, ret);
@@ -320,8 +317,10 @@ static int __hal_flash_write(struct nor_flash_ctrl_t *flash, offset_t offset,
          */
         tx_len = NOR_FLASH_3B_ADDR_LEN + 1;
     }
+
     memcpy(&txbuf[tx_len], src, size);
 
+    /* Send command*/
     ret = ax_spi_xfer(flash->bus, tx_len + size, txbuf, 0, NULL);
     if (ret)
         return ret;
@@ -520,10 +519,6 @@ int ax_flash_memtest(struct nor_flash_ctrl_t *flash, u32 flash_addr,
 
     if (!len)
         return -EINVAL;
-
-    printf("========================================\n");
-    printf("SPI Flash Memtest\n");
-    printf("========================================\n");
 
     printf("Flash address : 0x%08x\n", flash_addr);
     printf("Length        : 0x%zx (%zu bytes)\n",

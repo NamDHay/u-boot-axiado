@@ -7,10 +7,6 @@
  * @brief basic offset and bit value manages EMMC controller
  */
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* EMMC register description */
 
 #define AX_EMMC_ARG2		   		0x0 /**< EMMC Argument2 register */
@@ -272,10 +268,6 @@ extern "C" {
 	((long long)CONFIG_EMMC_STORAGE_SIZE * ONEGB_TO_BYTE_COUNT) /**< eMMC storage size in bytes */
 #define AX_EMMC_BLOCK_COUNT (EMMC_TOTAL_BYTE_COUNT / CONFIG_EMMC_BLOCK_SIZE) /**< eMMC block count */
 
-#ifdef __cplusplus
-}
-#endif /* __cplusplus */
-
 // Descriptor table
 #define ADMA_DESC_MAX_LEN    0xFFFF   // 65535 bytes per descriptor
 #define ADMA_ACT_TRAN        (0x2 << 4)  // 01b in bits 5:4
@@ -283,6 +275,17 @@ extern "C" {
 #define ADMA_VALID           (0x1 << 0)
 #define ADMA_END             (0x1 << 1)
 #define ADMA_INT             (0x1 << 2)
+
+#define EMMC_CHECK_VALID(emmc) (!(emmc) || (!(emmc->reg_base)))
+
+struct arasan_emmc_ctrl_t {
+	uint32_t version; /**< Version indicating compatibility with this API */
+	void __iomem *reg_base; /**< base address of eMMC instance */
+	void __iomem * phy_base; /**< PHY base address of eMMC instance */
+	emmc_speed_mode_t speed_mode; /* @EMMC_SPEED_MODE */
+	emmc_bus_width_t bus_width; /* @EMMC_BUS_WIDTH */
+	uint8_t sdclk_freq_select;
+};
 
 typedef struct {
     uint16_t attr;    // Control + attributes (bits [7:0])

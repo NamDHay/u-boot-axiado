@@ -769,10 +769,4 @@ config AXIADO_GPIO
 	help
 		Enable to support the GPIO driver on Axiado SoC
 
-config AXIADO_SGPIO
-	bool "Enable Axiado SoC SGPIO driver"
-	depends on DM_GPIO
-	help
-		Enable to support the SGPIO driver on Axiado SoC
-
 endif

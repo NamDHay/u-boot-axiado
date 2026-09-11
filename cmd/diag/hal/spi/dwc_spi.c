@@ -155,14 +155,11 @@ static int spi_write_tx_fifo(struct spi_ctrl_t *spi, uint32_t data, uint8_t coun
     if (spi == NULL) 
         return -EINVAL;
 
-    /* mdelay(5); */
     /* populate 4 bytes to tx fifo */
     if (1 == count) {
-        writeb((data >> 24) & 0xff,
-                spi->base + DR0);
+        writeb(data, spi->base + DR0);
     } else if (2 == count) {
-        writew((data >> 16) & 0xffff,
-                spi->base + DR0);
+        writew(data, spi->base + DR0);
     } else {
         writel(data, spi->base + DR0);
     }
@@ -184,7 +181,6 @@ static int spi_read_rx_fifo(struct spi_ctrl_t *spi, void *dst, size_t size)
     while(!rx_cnt){
         spi_dw_get_rx_counter(spi, &rx_cnt);
     }
-    /* printf("recv count = 0x%08x\r\n", rx_cnt); */
 
     if (rx_cnt >= SPI_MIN_RXFTLR) {
         *(uint32_t *)dst = readl(spi->base + DR0);
@@ -401,9 +397,14 @@ static int __hal_internal_spi_controller_tx(struct spi_ctrl_t *spi, const uint8_
          * Pack up to 4 bytes into a u32.
          * Unused bytes remain 0x00.
          */
-        while (count < TX_FIFO_SZ && src_idx < src_len) {
-            data |= (uint32_t)src[src_idx++] << (count * 8);
-            count++;
+        if (src_len != 1)
+            while (count < TX_FIFO_SZ && src_idx < src_len) {
+                data |= (uint32_t)src[src_idx++] << (count * 8);
+                count++;
+            }
+        else  {
+            count = 1;
+            src_idx++;
         }
 
         ret = spi_write_tx_fifo(spi, data, count);
@@ -489,7 +490,6 @@ static int spi_controller_xfer(struct spi_ctrl_t *spi, const uint8_t *src, size_
         config.tmod = SPI_TMOD_RX;
 
     ret = spi_reconfig(spi, &config);
-
     if (ret) {
         printf("%s - reconfigure failed\n", __func__);
         return ret;

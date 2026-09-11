@@ -104,12 +104,12 @@ static int cdns_uart_init(unsigned instance)
     u32 val;
     char name[8];
 
+    sprintf(name, "UART%d", instance);
+    ax_pinmux_set_state(name);
+
     val = readl(dev->base + CDNS_UART_CNTR_REG);
     if (val & UART_CTRL_TX_ENABLE)
         return 0;
-
-    sprintf(name, "UART%d", instance);
-    ax_pinmux_set_state(name);
 
     /* Reset FIFOs */
     writel(UART_CTRL_RX_RST |

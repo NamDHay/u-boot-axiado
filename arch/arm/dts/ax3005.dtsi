@@ -895,44 +895,6 @@
 			status = "disabled";
 		};
 
-        sgpio0: sgpio@33201c00 {
-			compatible = "axiado,sgpio";
-			reg = <0x0 0x33201c00 0x00 0x400>;
-			gpio-controller;
-			#gpio-cells = <2>;
-            pinctrl-names = "default";
-            pinctrl-0 = <&pinctrl_sgpio0_default>;
-			interrupt-parent = <&gic500>;
-			interrupts = <GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>;
-			design-variant = <512>;
-			/* Supports maximum of 128 pins */
-			ngpios = <128>;
-			/* SGPIO Clock Frequency 12 MHz */
-			bus-frequency = <12000000>;
-			apb-frequency = <100000000>;
-			dout-init = <0x00000000 0x00000000 0x00000000 0x00000000>;
-			status = "disabled";
-		};
-
-		sgpio1: sgpio@33281c00 {
-			compatible = "axiado,sgpio";
-			reg = <0x0 0x33281c00 0x00 0x400>;
-			gpio-controller;
-			#gpio-cells = <2>;
-            pinctrl-names = "default";
-            pinctrl-0 = <&pinctrl_sgpio1_default>;
-			interrupt-parent = <&gic500>;
-			interrupts = <GIC_SPI 27 IRQ_TYPE_LEVEL_HIGH>;
-			design-variant = <512>;
-			/* Supports maximum of 128 pins */
-			ngpios = <128>;
-			/* SGPIO Clock Frequency 12 MHz */
-			bus-frequency = <12000000>;
-			apb-frequency = <100000000>;
-			dout-init = <0x00000000 0x00000000 0x00000000 0x00000000>;
-			status = "disabled";
-		};
-
 		saradc:saradc@331A0000 {
 			compatible = "axiado,ax3000-saradc";
 			reg = <0x00 0x331a0000 0x00 0x400>;

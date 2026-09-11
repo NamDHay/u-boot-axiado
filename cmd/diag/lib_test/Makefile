@@ -3,6 +3,8 @@ ccflags-$(CONFIG_CMD_AX_DIAG) += \
 
 obj-$(CONFIG_CMD_AX_ADC) 	+= adc/adc_cli.o
 
+obj-$(CONFIG_CMD_AX_EMMC) 	+= emmc/emmc_cli.o
+
 obj-$(CONFIG_CMD_AX_GPIO) 	+= gpio/gpio_cli.o
 
 obj-$(CONFIG_CMD_AX_HDMI) 	+= hdmi/hdmi_cli.o
@@ -24,6 +26,8 @@ obj-$(CONFIG_CMD_AX_NVME) 	+= nvme/nvme_cli.o
 obj-$(CONFIG_CMD_AX_PWM) 	+= pwm/pwm_cli.o
 
 obj-$(CONFIG_CMD_AX_RTC) 	+= rtc/rtc_cli.o
+
+obj-$(CONFIG_CMD_AX_SGPIO) 	+= sgpio/sgpio_cli.o
 
 obj-$(CONFIG_CMD_AX_SPI) 	+= spi/spi_cli.o
 obj-$(CONFIG_CMD_AX_FLASH) 	+= flash/flash_cli.o

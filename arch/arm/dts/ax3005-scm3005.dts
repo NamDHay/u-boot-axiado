@@ -57,14 +57,6 @@
 	status = "okay";
 };
 
-&sgpio0 {
-	status = "okay";
-};
-
-&sgpio1 {
-	status = "okay";
-};
-
 &spi0 {
 	status = "okay";
 	bios_flash@0 {

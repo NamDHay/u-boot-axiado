@@ -251,10 +251,17 @@ static int do_ax_flash(struct cmd_tbl *cmdtp, int flag,
         printf("Erase flash address 0x%08x length 0x%zx\n",
                 flash_addr, len);
 
-        ret = ax_flash_erase(&flash,
-                flash_addr,
-                len);
+        uint32_t sector_count = (len / NOR_FLASH_SECTOR_SIZE);
+        sector_count = (len % NOR_FLASH_SECTOR_SIZE) ?
+            (sector_count + 1) :
+            sector_count;
 
+        uint32_t block_count = (len / NOR_FLASH_BLOCK_SIZE);
+        block_count = (len % NOR_FLASH_BLOCK_SIZE) ? (block_count + 1) :
+            block_count;
+
+        printf("Erase flash...\n");
+        ret = ax_flash_erase(&flash, flash_addr, sector_count * NOR_FLASH_SECTOR_SIZE);
         if (ret) {
             printf("Erase failed: %d\n", ret);
             return CMD_RET_FAILURE;

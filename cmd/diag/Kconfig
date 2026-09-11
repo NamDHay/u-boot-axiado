@@ -10,6 +10,18 @@ config INNO_ADC
 	help
 	  This config support for Innosilicon SARADC.
 
+config CMD_AX_EMMC
+	bool "ax_emmc - Axiado eMMC diagnostics"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
+	help
+	  This command provides access to eMMC board diagnostic tests.
+
+config ARASAN_SDHCI
+	bool "Arasan SDHCI support"
+	help
+	  This config support for Arasan SDHCI.
+
 config CMD_AX_GPIO
 	bool "ax_gpio - Axiado GPIO diagnostics"
 	depends on ARCH_AXIADO
@@ -119,6 +131,18 @@ config CDNS_RTC
 	bool "Cadence RTC support"
 	help
 	  This config support for Cadence RTC.
+
+config CMD_AX_SGPIO
+	bool "ax_sgpio - Axiado SGPIO diagnostics"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
+	help
+	  This command provides access to SGPIO board diagnostic tests.
+
+config AXIADO_SGPIO
+	bool "Axiado SGPIO support"
+	help
+	  This config support for Axiado SGPIO.
 
 config CMD_AX_SPI
 	bool "ax_spi - Axiado SPI diagnostics"
