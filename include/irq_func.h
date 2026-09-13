@@ -12,6 +12,21 @@
 struct pt_regs;
 struct cmd_tbl;
 
+#define IRQ_VEC_ID_MASK		0x7FFFFFFFU
+#define IRQ_VEC_TRIGGER_BIT	BIT(31)
+
+#define IRQ_TRIGGER_LEVEL	0
+#define IRQ_TRIGGER_EDGE	1
+
+#define IRQ_VEC(id, trigger) \
+	((int)((id) | ((trigger) ? IRQ_VEC_TRIGGER_BIT : 0)))
+
+#define IRQ_VEC_ID(vec) \
+((uint32_t)(vec) & IRQ_VEC_ID_MASK)
+
+#define IRQ_VEC_TRIGGER(vec) \
+	(((uint32_t)(vec) >> 31) & 0x1)
+
 typedef void (interrupt_handler_t)(void *arg);
 
 int interrupt_init(void);

@@ -15,7 +15,6 @@
 #include <asm/cache.h>
 #include <env.h>
 #include <command.h>
-#include <net.h>
 #include <irq_func.h>
 #include <asm/gic-v3.h>
 
@@ -46,110 +45,7 @@ static struct mm_region axiado_ax3005_mem_map[] = {
 struct mm_region *mem_map = axiado_ax3005_mem_map;
 
 #ifdef CONFIG_MISC_INIT_R
-/* Axiado MAC Updating */
-#define AXIADO_OUI_B2				0xF9
-#define MAX_MAC_CNT				5
-#define MAC_BASE_OFFSET				0x400
-#define MAC_CONFIG_BYTE_CNT 			0x400
-#define AX3000_CSR_BASE_ADRS_HCP		0x43100000
-#define R_MAC_0					0x00c
-#define R_MAC_1					0x010
 
-/**
- * @brief Program MAC addresses into HCP registers.
- *
- * @details
- * This function validates the base MAC address against the expected AXIADO OUI.
- * It then programs MAC addresses into hardware registers for enabled ports.
- *
- * @param mac   Pointer to base MAC address (6 bytes).
- * @param ports Bitmask indicating enabled MAC ports.
- *
- */
-static void write_mac_to_hcp_regs(uint8_t *mac, uint32_t ports)
-{
-	uint32_t mac_base, mac0, mac1, new_mac = 0;
-	uint8_t *c, i, mac_idx;
-
-	if (AXIADO_OUI_B2 != mac[2]) {
-		printf("MAC is not provisioned with AXIADO AX3005 OUI\n");
-		return;
-	}
-
-	if (!ports) {
-		printf("No MACs enabled\n");
-		return;
-	}
-
-	/* for incrementing MAC LSB, accounting overflow */
-	c = (uint8_t *)&new_mac;
-	c[0] = mac[5];
-	c[1] = mac[4];
-	c[2] = mac[3];
-
-	for (i = 0; i < MAX_MAC_CNT; i++) {
-		/* ports: BIT0->MAC1 BIT1->MAC2 BIT2->MAC3 BIT3->MAC4 BIT4->MAC0 */
-		if (ports & (0x1 << i)) {
-			mac0 = ((uint32_t)c[2] << 24) | ((uint32_t)mac[2] << 16) | ((uint32_t)mac[1] << 8) |
-				   ((uint32_t)mac[0] << 0);
-			mac1 = ((uint32_t)c[0] << 8) | ((uint32_t)c[1] << 0);
-
-			if (i == (MAX_MAC_CNT - 1))
-				mac_idx = 0;
-			else
-				mac_idx = i + 1;
-			mac_base = AX3000_CSR_BASE_ADRS_HCP + MAC_BASE_OFFSET + (mac_idx * MAC_CONFIG_BYTE_CNT);
-
-			/* program the MAC regs */
-			writel(mac0, mac_base + R_MAC_0);
-			writel(mac1, mac_base + R_MAC_1);
-
-			/* increment MAC LSB */
-			new_mac++;
-		}
-	}
-}
-
-/**
- * @brief Command handler for setmac
- *
- * @param cmdtp: Command table entry
- * @param flag: Command flags
- * @param argc: Argument count
- * @param argv: Argument vector
- * @return 0 on success, non-zero on failure
- */
-static int do_setmac(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
-{
-    u8 mac[6];
-	const char* mac_addr;
-
-	mac_addr = env_get("ethaddr");
-	if (!mac_addr) {
-        printf("ethaddr not set\n");
-        return -ENOMEM;
-	}
-
-	/* parse "xx:xx:xx:xx:xx:xx" into bytes */
-	if (!eth_env_get_enetaddr("ethaddr", mac)) {
-		printf("ethaddr is invalid: %s\n", mac_addr);
-		return -EINVAL;;
-	}
-
-	if (!is_valid_ethaddr(mac)) {
-        return -EINVAL;
-	}
-
-	printf("Set MAC address to be %s.\n", mac_addr);
-	write_mac_to_hcp_regs(mac, 0x1);
-	return 0;
-}
-
-U_BOOT_CMD(
-	setmac, 1, 1, do_setmac,
-	"Set MAC address",
-	""
-);
 /**
  * @brief Configure Board Specific parts
  *

@@ -276,6 +276,9 @@
 #define ADMA_END             (0x1 << 1)
 #define ADMA_INT             (0x1 << 2)
 
+#define arasan_reg_write32(base, offset, val)   writel(val, base + offset)
+#define arasan_reg_read32(base, offset)         readl(base + offset)
+
 #define EMMC_CHECK_VALID(emmc) (!(emmc) || (!(emmc->reg_base)))
 
 struct arasan_emmc_ctrl_t {
@@ -287,21 +290,33 @@ struct arasan_emmc_ctrl_t {
 	uint8_t sdclk_freq_select;
 };
 
-typedef struct {
+struct adma_desc_t {
     uint16_t attr;    // Control + attributes (bits [7:0])
     uint16_t length;  // Length in bytes (max 65535)
     uint32_t addr;    // Data buffer address (4-byte aligned)
-} adma_desc_t;
+};
 
-typedef struct {
-    adma_desc_t line1;
-    adma_desc_t line2;
-} desp_t; // only 2 lines for IP testing
+struct desp_t {
+    struct adma_desc_t line;
+};
 
 #define EMMC_HI_SPEED_ENABLE 	1
 #define EMMC_HI_SPEED_DISABLE 	0
 #define EMMC_DLL_ENABLE			1
 #define EMMC_DLL_DISABLE		0
-#endif /* _AX_HAL_AX_EMMC_REGS_H */
 
-//#endif
+int sd_issue_command(struct arasan_emmc_ctrl_t *emmc, uint32_t arg_2,
+				  uint32_t size_count, uint32_t arg_1,
+				  uint32_t transfer_cmd);
+
+int emmc_device_bus_width_switch(struct arasan_emmc_ctrl_t *emmc,
+					      emmc_bus_width_t bus_width);
+
+int emmc_hci_bus_width_switch(struct arasan_emmc_ctrl_t *emmc,
+					   emmc_bus_width_t bus_width);
+
+int emmc_select_normal_mode(struct arasan_emmc_ctrl_t *emmc);
+int emmc_select_hs200_mode(struct arasan_emmc_ctrl_t *emmc);
+int emmc_select_high_speed_mode(struct arasan_emmc_ctrl_t *emmc);
+
+#endif /* _AX_HAL_AX_EMMC_REGS_H */

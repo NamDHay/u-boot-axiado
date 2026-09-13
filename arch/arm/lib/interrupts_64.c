@@ -328,12 +328,17 @@ void __weak do_error(struct pt_regs *pt_regs)
     panic("Resetting CPU ...\n");
 }
 
-void irq_install_handler(int vec, interrupt_handler_t *handler, void *arg)
+void irq_install_handler(int irq, interrupt_handler_t *handler, void *arg)
 {
+    uint32_t vec;
+    uint32_t trigger;
 	struct udevice *dev;
 	fdt_addr_t gicd, gicr;
     u32 reg, shift, val;
     int ret;
+
+    vec = IRQ_VEC_ID(irq);
+    trigger = IRQ_VEC_TRIGGER(irq);
 
 	if ((vec < 0) || (vec >= MAX_IRQS)) {
 		return;
@@ -438,11 +443,15 @@ void irq_install_handler(int vec, interrupt_handler_t *handler, void *arg)
 		    GICD_ICFGR +
 		    reg * 4);
 
-	val &= ~(0x3 << shift);
-
 	/*
-	 * level triggered = bit[1] = 0
+	 * Level triggered = bit[1:0] = 0b00
+     * Edge triggered = bit[1:0] = 0b10
 	 */
+    
+    trigger = trigger << 1; 
+	val &= ~(0x3 << shift);
+    val |= (trigger << shift);
+
 	writel(val,
 	       gicd +
 	       GICD_ICFGR +

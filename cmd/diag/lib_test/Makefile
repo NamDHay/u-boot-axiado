@@ -33,3 +33,5 @@ obj-$(CONFIG_CMD_AX_SPI) 	+= spi/spi_cli.o
 obj-$(CONFIG_CMD_AX_FLASH) 	+= flash/flash_cli.o
 
 obj-$(CONFIG_CMD_AX_UART) 	+= uart/uart_cli.o
+
+obj-$(CONFIG_CMD_AX_WDT) 	+= wdt/wdt_cli.o

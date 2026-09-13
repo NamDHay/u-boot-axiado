@@ -200,42 +200,19 @@ static int do_ax_sgpio_ext_lb(struct cmd_tbl *cmdtp, int flag,
     return CMD_RET_SUCCESS;
 }
 
-static int do_ax_sgpio(struct cmd_tbl *cmdtp, int flag,
-        int argc, char *const argv[])
-{
-    const char *cmd;
+U_BOOT_LONGHELP(ax_sgpio,
+	"request <bus> <ngpios>\n"
+	"    - Initialize SGPIO device\n"
+	"put <bus> <byte0> [byte1 ...]\n"
+	"    - Write data to SGPIO device\n"
+	"get <bus> <len>\n"
+	"    - Read data from SGPIO device\n"
+	"ext_lb\n"
+	"    - External Loopback test"
+);
 
-    cmd = argv[1];
-
-    if (!strcmp(cmd, "request"))
-        return do_ax_sgpio_request(cmdtp, flag,
-                argc - 1, &argv[1]);
-
-    if (!strcmp(cmd, "put"))
-        return do_ax_sgpio_put(cmdtp, flag,
-                argc - 1, &argv[1]);
-
-    if (!strcmp(cmd, "get"))
-        return do_ax_sgpio_get(cmdtp, flag,
-                argc - 1, &argv[1]);
-
-    if (!strcmp(cmd, "ext_lb"))
-        return do_ax_sgpio_ext_lb(cmdtp, flag,
-                argc - 1, &argv[1]);
-
-    return CMD_RET_USAGE;
-}
-
-U_BOOT_CMD(
-        ax_sgpio, CONFIG_SYS_MAXARGS, 1, do_ax_sgpio,
-        "Axiado SGPIO diagnostic command",
-        "ax_sgpio request <bus> <ngpios>\n"
-        "    - Initalize SGPIO device\n"
-        "ax_sgpio put <bus> <byte0> [byte1 ...]\n"
-        "    - Write data to SGPIO device\n"
-        "ax_sgpio get <bus> <len>\n"
-        "    - Read data from SGPIO device\n"
-        "ax_sgpio ext_lb\n"
-        "    - External Loopback test"
-        );
-
+U_BOOT_CMD_WITH_SUBCMDS(ax_sgpio, "Axiado bare-metal SGPIO diagnostics test", ax_sgpio_help_text,
+	U_BOOT_SUBCMD_MKENT(request, CONFIG_SYS_MAXARGS, 1, do_ax_sgpio_request),
+	U_BOOT_SUBCMD_MKENT(put, CONFIG_SYS_MAXARGS, 1, do_ax_sgpio_put),
+	U_BOOT_SUBCMD_MKENT(get, CONFIG_SYS_MAXARGS, 1, do_ax_sgpio_get),
+	U_BOOT_SUBCMD_MKENT(ext_lb, CONFIG_SYS_MAXARGS, 1, do_ax_sgpio_ext_lb));

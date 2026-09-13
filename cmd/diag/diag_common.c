@@ -5,102 +5,246 @@
  */
 
 #include "ax_diag.h"
+#include "command.h"
 #include <config.h>
 #include <log.h>
 #include <linux/string.h>
 #include <linux/libfdt.h>
 
 struct diag_test diag_list[] = {
+#ifdef CONFIG_CMD_AX_ADC
     {
         "adc diagnostic test",
-        "adc",
+        "ax_adc",
         "This test verifies the adc operation.",
+        {
+            "ax_adc start 8" ,
+            "ax_adc multi 8" ,
+            NULL ,
+        },
     },
+#endif
+
+#ifdef CONFIG_CMD_AX_EMMC
     {
         "emmc diagnostic test",
-        "emmc",
+        "ax_emmc",
         "This test verifies the emmc operation.",
+        {
+            "ax_adc start 8" ,
+            "ax_adc multi 8" ,
+            NULL ,
+        },
     },
+#endif
+
+#ifdef CONFIG_CMD_AX_GPIO
     {
         "gpio diagnostic test",
-        "gpio",
+        "ax_gpio",
         "This test verifies the gpio operation.",
+        {
+            NULL
+        }
     },
+#endif
+
+#ifdef CONFIG_CMD_AX_HDMI
     {
         "hdmi diagnostic test",
-        "hdmi",
+        "ax_hdmi",
         "This test verifies the hdmi operation.",
+        {
+            NULL
+        }
     },
+#endif
+
+#ifdef CONFIG_CMD_AX_I2C
     {
         "i2c diagnostic test",
-        "i2c",
+        "ax_i2c",
         "This test verifies the i2c operation.",
+        {
+            NULL
+        }
     },
+#endif
+
+#ifdef CONFIG_CMD_AX_I3C
     {
         "i3c diagnostic test",
-        "i3c",
+        "ax_i3c",
         "This test verifies the i3c operation.",
+        {
+            NULL
+        }
     },
+#endif
+
+#ifdef CONFIG_CMD_AX_LTPI
     {
         "ltpi diagnostic test",
-        "ltpi",
+        "ax_ltpi",
         "This test verifies the ltpi operation.",
+        {
+            NULL
+        }
     },
+#endif
+
+#ifdef CONFIG_CMD_AX_UART
     {
         "uart diagnostic test",
-        "uart",
+        "ax_uart",
         "This test verifies the uart operation.",
+        {
+            "ax_uart ext_lb 0",
+            "ax_uart ext_lb 1",
+            "ax_uart ext_lb 2",
+            "ax_uart ext_lb 4",
+            "ax_uart ext_lb 5",
+            "ax_uart ext_lb 6",
+            "ax_uart ext_lb 7",
+            "ax_uart ext_lb 8",
+            NULL
+        }
     },
+#endif
+
+#ifdef CONFIG_CMD_AX_MEM
     {
         "mem diagnostic test",
-        "mem",
+        "ax_mem",
         "This test verifies the mem operation.",
+        {
+            "ax_memtest 0x90000000 0x10000000 1",
+            NULL
+        }
     },
+#endif
+
+#ifdef CONFIG_CMD_AX_PCIE
     {
         "pcie diagnostic test",
-        "pcie",
+        "ax_pcie",
         "This test verifies the pcie operation.",
+        {
+            "ax_pcie init 0 rp 4",
+            "ax_pcie init 1 rp 4",
+            NULL
+        }
     },
+#endif
+
+#ifdef CONFIG_CMD_AX_PWM
     {
         "pwm diagnostic test",
-        "pwm",
+        "ax_pwm",
         "This test verifies the pwm operation.",
+        {
+            NULL
+        }
     },
+#endif
+
+#ifdef CONFIG_CMD_AX_RMII
     {
         "rmii diagnostic test",
-        "rmii",
+        "ax_rmii",
         "This test verifies the rmii operation.",
+        {
+            NULL
+        }
     },
+#endif
+
+#ifdef CONFIG_CMD_AX_RTC
     {
         "rtc diagnostic test",
-        "rtc",
+        "ax_rtc",
         "This test verifies the rtc operation.",
+        {
+            NULL
+        }
     },
+#endif
+
+#ifdef CONFIG_CMD_AX_SGMII
     {
         "sgmii diagnostic test",
-        "sgmii",
+        "ax_sgmii",
         "This test verifies the sgmii operation.",
+        {
+            NULL
+        }
     },
+#endif
+
+#ifdef CONFIG_CMD_AX_SGPIO
     {
         "sgpio diagnostic test",
-        "sgpio",
+        "ax_sgpio",
         "This test verifies the sgpio operation.",
+        {
+            "ax_sgpio request 0 512",
+            "ax_sgpio request 1 512",
+            "ax_sgpio ext_lb",
+            NULL
+        }
     },
+#endif
+
+#ifdef CONFIG_CMD_AX_SPI
     {
         "spi diagnostic test",
-        "spi",
+        "ax_spi",
         "This test verifies the spi operation.",
+        {
+#ifdef CONFIG_CMD_AX_FLASH
+            "ax_flash init 0 0",
+            "ax_flash memtest 0 0 0x1000",
+            "ax_flash init 0 1",
+            "ax_flash memtest 0 0 0x1000",
+#endif
+            NULL
+        }
     },
+#endif
+
+#ifdef CONFIG_CMD_AX_USB
     {
         "usb diagnostic test",
-        "usb",
+        "ax_usb",
         "This test verifies the usb operation.",
+        {
+            NULL
+        }
     },
+#endif
+
+#ifdef CONFIG_CMD_AX_XGMII
     {
         "xgmii diagnostic test",
-        "xgmii",
+        "ax_xgmii",
         "This test verifies the xgmii operation.",
+        {
+            NULL
+        }
     },
+#endif
+
+#ifdef CONFIG_CMD_AX_WDT
+    {
+        "wdt diagnostic test",
+        "ax_wdt",
+        "This test verifies the wdt operation.",
+        {
+            "ax_wdt start 5000" ,
+            NULL
+        }
+    },
+#endif
 };
 
 unsigned int diag_list_size = ARRAY_SIZE(diag_list);
@@ -109,7 +253,7 @@ static int diag_info_single(struct diag_test *test, int full)
 {
     if (full)
         printf("%s - %s\n"
-            "  %s\n", test->cmd, test->name, test->desc);
+                "  %s\n", test->cmd, test->name, test->desc);
     else
         printf("  %-15s - %s\n", test->cmd, test->name);
 
@@ -121,8 +265,8 @@ int diag_info(char *name)
     unsigned int i;
 
     if (name == NULL) {
-		for (i = 0; i < diag_list_size; i++)
-			diag_info_single(diag_list + i, 0);
+        for (i = 0; i < diag_list_size; i++)
+            diag_info_single(diag_list + i, 0);
 
         return 0;
     } else {
@@ -138,24 +282,22 @@ int diag_info(char *name)
     }
 }
 
-static int diag_run_single(struct diag_test *test, unsigned long testid) {
+static int diag_run_single(struct diag_test *ip, unsigned long testid) 
+{
+    int i;
     int ret;
 
-    ret = test->init();
-    if (ret) {
-        pr_err("%s init failed, %d\n", test->name, ret);
-        goto log;
+    for (i = 0; ip->testcase[i] != NULL; i++) {
+        printf("\n\n\n\nRunning: \"%s\"\n", ip->testcase[i]);
+        ret = run_command(ip->testcase[i], 0);
+        if (ret) {
+            printf("\nError: Command failed with exit code %d. Halting sequence.\n",
+                    ret);
+            return ret;
+        }
     }
-
-    ret = test->test(testid);
-    if (ret) {
-        pr_err("%s case %ld failed, %d\n", test->name, testid, ret);
-        goto log;
-    }
-
-log:
-    test->stat();
-    return ret;
+    printf("\n\n\n\n===================================================================\n");
+    return 0;
 }
 
 int diag_run(char *name, unsigned long testid)

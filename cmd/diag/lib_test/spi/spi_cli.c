@@ -209,44 +209,19 @@ static int do_ax_spi_xfer(struct cmd_tbl *cmdtp, int flag,
 	return CMD_RET_SUCCESS;
 }
 
-static int do_ax_spi(struct cmd_tbl *cmdtp, int flag,
-		     int argc, char *const argv[])
-{
-	const char *cmd;
-
-	if (argc < 2)
-		return CMD_RET_USAGE;
-
-	cmd = argv[1];
-
-	if (!strcmp(cmd, "setup"))
-		return do_ax_spi_setup(cmdtp, flag,
-				       argc - 1, &argv[1]);
-
-	if (!strcmp(cmd, "write"))
-		return do_ax_spi_write(cmdtp, flag,
-				       argc - 1, &argv[1]);
-
-	if (!strcmp(cmd, "read"))
-		return do_ax_spi_read(cmdtp, flag,
-				      argc - 1, &argv[1]);
-
-	if (!strcmp(cmd, "xfer"))
-		return do_ax_spi_xfer(cmdtp, flag,
-				      argc - 1, &argv[1]);
-
-	return CMD_RET_USAGE;
-}
-
-U_BOOT_CMD(
-	ax_spi, CONFIG_SYS_MAXARGS, 1, do_ax_spi,
-	"Axiado SPI diagnostic command",
+U_BOOT_LONGHELP(ax_spi,
 	"setup <bus> <cs> <mhz> <mode>\n"
 	"    - Configure SPI controller\n"
-	"ax_spi write <bus> <byte0> [byte1 ...]\n"
+	"write <bus> <byte0> [byte1 ...]\n"
 	"    - Write data to SPI device\n"
-	"ax_spi read <bus> <bitlen>\n"
+	"read <bus> <bitlen>\n"
 	"    - Read data from SPI device\n"
-	"ax_spi xfer <bus> <byte0> [byte1 ...]\n"
+	"xfer <bus> <byte0> [byte1 ...]\n"
 	"    - Full duplex SPI transfer"
-);
+    );
+
+U_BOOT_CMD_WITH_SUBCMDS(ax_spi, "Axiado bare-metal SPI diagnostics test", ax_spi_help_text,
+        U_BOOT_SUBCMD_MKENT(setup, CONFIG_SYS_MAXARGS, 1, do_ax_spi_setup),
+        U_BOOT_SUBCMD_MKENT(write, CONFIG_SYS_MAXARGS, 1, do_ax_spi_write),
+        U_BOOT_SUBCMD_MKENT(read, CONFIG_SYS_MAXARGS, 1, do_ax_spi_read),
+        U_BOOT_SUBCMD_MKENT(xfer, CONFIG_SYS_MAXARGS, 1, do_ax_spi_xfer));

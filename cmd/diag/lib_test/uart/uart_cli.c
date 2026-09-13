@@ -1,3 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * (C) Copyright 2026
+ * Nguyen Nam Huy hnnguyen@axiado.com
+ */
+
 #include <command.h>
 #include <dm.h>
 #include <errno.h>
@@ -6,7 +12,6 @@
 #include "asm/io.h"
 
 #include "ax_uart.h"
-#include "uart_cli.h"
 
 #define UART_TIMEOUT_MS  1000
 

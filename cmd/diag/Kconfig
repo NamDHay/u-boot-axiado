@@ -108,6 +108,11 @@ config CMD_AX_NVME
 	help
 	  This command provides access to NVME board diagnostic tests.
 
+config AXIADO_PINMUX
+	bool "Axiado pinmuxing support"
+	help
+	  This config support for Axiado pinmuxing.
+
 config CMD_AX_PWM
 	bool "ax_pwm - Axiado PWM diagnostics"
 	depends on ARCH_AXIADO
@@ -196,8 +201,15 @@ config CDNS_UART
 	help
 	  This config support for Cadence UART.
 
-config AXIADO_PINMUX
-	bool "Axiado pinmuxing support"
+config CMD_AX_WDT
+	bool "ax_wdt - Axiado WatchDog diagnostics"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
 	help
-	  This config support for Axiado pinmuxing.
+	  This command provides access to WDT board diagnostic tests.
+
+config CDNS_WDT
+	bool "Cadence WatchDog support"
+	help
+	  This config support for Cadence WDT.
 

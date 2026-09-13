@@ -3,7 +3,7 @@ ccflags-$(CONFIG_CMD_AX_DIAG) += \
 
 obj-$(CONFIG_INNO_ADC) 		+= adc/inno_saradc.o
 
-obj-$(CONFIG_ARASAN_SDHCI) 	+= emmc/arasan_sdhci.o
+obj-$(CONFIG_ARASAN_SDHCI) 	+= emmc/arasan_sdhci.o emmc/arasan_sdhci_hs.o
 
 obj-$(CONFIG_CDNS_GPIO) 	+= gpio/cdns_gpio.o
 
@@ -32,3 +32,4 @@ obj-$(CONFIG_CMD_AX_FLASH) 	+= flash/ax_flash.o
 
 obj-$(CONFIG_CDNS_UART) 	+= uart/cdns_uart.o
 
+obj-$(CONFIG_CDNS_WDT) 		+= wdt/cdns_wdt.o

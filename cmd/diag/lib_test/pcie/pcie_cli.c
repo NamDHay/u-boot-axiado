@@ -106,9 +106,9 @@ static int ax_pcie_cmd_init(struct cmd_tbl *cmdtp, int flag,
 }
 
 /*
- * ax_pcie enum <port>
+ * ax_pcie link <port>
  */
-static int ax_pcie_cmd_enum(struct cmd_tbl *cmdtp, int flag,
+static int ax_pcie_cmd_link(struct cmd_tbl *cmdtp, int flag,
         int argc, char *const argv[])
 {
     int ret;
@@ -261,64 +261,36 @@ static int ax_pcie_cmd_cap(struct cmd_tbl *cmdtp, int flag,
     return CMD_RET_SUCCESS;
 }
 
-static int do_ax_pcie(struct cmd_tbl *cmdtp,
-        int flag,
-        int argc,
-        char *const argv[])
-{
-    if (argc < 3)
-        return CMD_RET_USAGE;
-
-    if (!strcmp(argv[1], "init"))
-        return ax_pcie_cmd_init(cmdtp, flag, argc - 1, &argv[1]);
-
-    if (!strcmp(argv[1], "enum"))
-        return ax_pcie_cmd_enum(cmdtp, flag, argc - 1, &argv[1]);
-
-    if (!strcmp(argv[1], "header"))
-        return ax_pcie_cmd_header(cmdtp, flag,
-                argc - 1, &argv[1]);
-
-    if (!strcmp(argv[1], "cap"))
-        return ax_pcie_cmd_cap(cmdtp, flag,
-                argc - 1, &argv[1]);
-
-    if (!strcmp(argv[1], "cfg_read"))
-        return ax_pcie_cmd_cfg_read(cmdtp, flag, argc - 1, &argv[1]);
-
-    if (!strcmp(argv[1], "cfg_write"))
-        return ax_pcie_cmd_cfg_write(cmdtp, flag, argc - 1, &argv[1]);
-
-    return CMD_RET_USAGE;
-}
-
-U_BOOT_CMD(
-        ax_pcie,
-        8,
-        1,
-        do_ax_pcie,
-        "Axiado bare-metal PCIe diagnostics test",
-        "ax_pcie init <port> <RP|EP> <speed>\n"
-        "    - Initialize PCIe controller\n"
+U_BOOT_LONGHELP(ax_pcie,
+        "init <port> <RP|EP> <speed>\n"
+        " - Initialize PCIe controller\n"
         "\n"
-        "ax_pcie enum <port>\n"
-        "    - Start PCIe link training\n"
+        "link <port>\n"
+        " - Start PCIe link training\n"
         "\n"
-        "ax_pcie header <port> <bus>.<dev>.<func>\n"
-        "    - Print PCI configuration header\n"
+        "header <port> <bus>.<dev>.<func>\n"
+        " - Print PCI configuration header\n"
         "\n"
-        "ax_pcie cap <port> <bus>.<dev>.<func>\n"
-        "    - Print PCI capabilities\n"
+        "cap <port> <bus>.<dev>.<func>\n"
+        " - Print PCI capabilities\n"
         "\n"
-        "ax_pcie cfg_read <port> <bus>.<dev>.<func> <offset>\n"
-        "    - Read PCIe configuration space\n"
+        "cfg_read <port> <bus>.<dev>.<func> <offset>\n"
+        " - Read PCIe configuration space\n"
         "\n"
-        "ax_pcie cfg_write <port> <bus>.<dev>.<func> <offset> <value>\n"
-        "    - Write PCIe configuration space\n"
+        "cfg_write <port> <bus>.<dev>.<func> <offset> <value>\n"
+        " - Write PCIe configuration space\n"
         "\n"
-        "ax_pcie mem_read <port> <addr> <len>\n"
-        "    - Read PCIe memory\n"
+        "mem_read <port> <addr> <len>\n"
+        " - Read PCIe memory\n"
         "\n"
-        "ax_pcie mem_write <port> <addr> <value> <len>\n"
-        "    - Write PCIe memory"
+        "mem_write <port> <addr> <value> <len>\n"
+        " - Write PCIe memory"
 );
+
+U_BOOT_CMD_WITH_SUBCMDS(ax_pcie, "Axiado bare-metal PCIe diagnostics test", ax_pcie_help_text,
+        U_BOOT_SUBCMD_MKENT(init, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_init),
+        U_BOOT_SUBCMD_MKENT(link, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_link),
+        U_BOOT_SUBCMD_MKENT(header, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_header),
+        U_BOOT_SUBCMD_MKENT(cap, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_cap),
+        U_BOOT_SUBCMD_MKENT(cfg_read, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_cfg_read),
+        U_BOOT_SUBCMD_MKENT(cfg_write, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_cfg_write));
