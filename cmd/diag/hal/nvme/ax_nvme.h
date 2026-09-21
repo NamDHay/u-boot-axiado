@@ -74,8 +74,10 @@
 #define NVME_ADMIN_QID          0
 #define NVME_IO_QID             1
 
-#define NVME_Q_DEPTH            2
 #define NVME_ADMIN_Q_DEPTH      2
+#define NVME_IO_Q_DEPTH         16
+#define NVME_MAX_XFER_BYTES     (256 * 1024)
+#define NVME_CMD_TIMEOUT_MS     5000
 
 /*
  * NVMe opcodes
@@ -86,6 +88,8 @@
 #define NVME_ADMIN_CREATE_CQ    0x05
 #define NVME_ADMIN_IDENTIFY     0x06
 #define NVME_ADMIN_SET_FEATURES 0x09
+
+#define NVME_FEAT_NUM_QUEUES    0x07
 
 #define NVME_CMD_FLUSH          0x00
 #define NVME_CMD_WRITE          0x01
@@ -103,7 +107,7 @@
 #define NVME_QUEUE_PHYS_CONTIG  BIT(0)
 #define NVME_CQ_IRQ_ENABLED     BIT(1)
 
-#define NVME_SQ_PRIO_MEDIUM     (0 << 1)
+#define NVME_SQ_PRIO_MEDIUM     (2 << 1)
 
 /*
  * Submission queue entry
@@ -187,9 +191,20 @@ struct ax_nvme_dev {
     u32 page_size;
     u32 db_stride;
 
-    u16 q_depth;
+    u16 q_depth;            /* admin queue depth */
 
     u32 ctrl_config;
+
+    /* Identify Controller */
+    char sn[21];
+    char mn[41];
+    char fr[9];
+    u32 max_xfer_bytes;     /* from MDTS, capped by NVME_MAX_XFER_BYTES */
+
+    /* Identify Namespace (nsid) */
+    u32 nsid;
+    u64 nsze;               /* namespace size in blocks */
+    u32 lba_shift;          /* log2(block size) */
 
     struct ax_nvme_queue adminq;
     struct ax_nvme_queue ioq;
@@ -213,6 +228,12 @@ int ax_nvme_identify_namespace(struct ax_nvme_dev *ndev,
                                void *buf,
                                u64 dma_addr);
 
+/*
+ * Block I/O.  @buf is the CPU pointer, @dma_addr the PCIe bus address of the
+ * same memory (identity mapped through the inbound ATR, so usually equal).
+ * @buf/@dma_addr must be dword aligned; @buf should be cache-line aligned
+ * and lie inside the inbound window (AXIADO_PCIE_DMA_*).
+ */
 int ax_nvme_read(struct ax_nvme_dev *ndev,
                  u32 nsid,
                  u64 lba,
@@ -227,4 +248,4 @@ int ax_nvme_write(struct ax_nvme_dev *ndev,
                   const void *buf,
                   u64 dma_addr);
 
-#endif /* __NVME_H__ */
+#endif /* __NVME_H */

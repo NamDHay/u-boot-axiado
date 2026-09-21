@@ -14,6 +14,10 @@ obj-$(CONFIG_CDNS_I3C) 		+= i3c/cdns_i3c.o
 
 obj-$(CONFIG_AXIADO_JTAG) 	+= jtag/axiado_jtag.o
 
+obj-$(CONFIG_AXIADO_LTPI) 	+= ltpi/axiado_ltpi.o
+
+obj-$(CONFIG_AXIADO_MBOX) 	+= mailbox/axiado_mailbox.o
+
 obj-$(CONFIG_CMD_AX_PCIE) 	+= pcie/ax_pcie.o
 obj-$(CONFIG_INNO_PCIE) 	+= pcie/axiado_pcie.o
 
@@ -30,6 +34,12 @@ obj-$(CONFIG_AXIADO_SGPIO) 	+= sgpio/axiado_sgpio.o
 obj-$(CONFIG_DWC_SPI) 		+= spi/dwc_spi.o
 obj-$(CONFIG_CMD_AX_FLASH) 	+= flash/ax_flash.o
 
+obj-$(CONFIG_OPENTITAN_TPM)	+= tpm/opentitan_tpm.o
+
 obj-$(CONFIG_CDNS_UART) 	+= uart/cdns_uart.o
 
 obj-$(CONFIG_CDNS_WDT) 		+= wdt/cdns_wdt.o
+obj-$(CONFIG_AXIADO_WDT) 	+= wdt/axiado_wdt.o
+
+obj-$(CONFIG_AXIADO_USB) 	+= usb/ax_usb.o
+obj-$(CONFIG_CRG_XHCI) 		+= usb/xhci/xhci.o usb/xhci/xhci_msc.o usb/xhci/xhci_ring.o

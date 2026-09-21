@@ -82,6 +82,30 @@ config AXIADO_JTAG
 	help
 	  This config support for Axiado Host JTAG.
 
+config CMD_AX_LTPI
+	bool "ax_jtag - Axiado LTPI diagnostics"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
+	help
+	  This command provides access to LTPI board diagnostic tests.
+
+config AXIADO_LTPI
+	bool "Axiado LTPI support"
+	help
+	  This config support for Axiado LTPI.
+
+config CMD_AX_MBX
+	bool "ax_mbx - Axiado Hardware Mailbox diagnostics"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
+	help
+	  This command provides access to Hardware Mailbox board diagnostic tests.
+
+config AXIADO_MBOX
+	bool "Axiado SoCs Mailbox support"
+	help
+	  This config support for Axiado SoCs Mailbox.
+
 config CMD_AX_MEM
 	bool "ax_mem - Axiado MEM diagnostics"
 	depends on ARCH_AXIADO
@@ -212,4 +236,26 @@ config CDNS_WDT
 	bool "Cadence WatchDog support"
 	help
 	  This config support for Cadence WDT.
+
+config AXIADO_WDT
+	bool "Axiado WatchDog support"
+	help
+	  This config support for Axiado WDT.
+
+config CMD_AX_USB
+	bool "ax_usb - Axiado USB diagnostics"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
+	help
+	  This command provides access to USB board diagnostic tests.
+
+config AXIADO_USB
+	bool "Axiado SoCs USB support"
+	help
+	  This config support for Axiado SoCs USB.
+
+config CRG_XHCI
+	bool "Corigine XHCI support"
+	help
+	  This config support for Corigine XHCI.
 

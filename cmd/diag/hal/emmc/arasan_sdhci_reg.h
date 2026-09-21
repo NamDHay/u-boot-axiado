@@ -40,6 +40,8 @@
 #define AX_EMMC_ARG1_BUS_WIDTH_1		 0x03B70000 /**< Value to set bus width to 1 in EXT_CSD register */
 #define AX_EMMC_ARG1_BUS_WIDTH_4		 0x03B70100 /**< Value to set bus width to 4 in EXT_CSD register */
 #define AX_EMMC_ARG1_BUS_WIDTH_8		 0x03B70200 /**< Value to set bus width to 8 in EXT_CSD register */
+#define AX_EMMC_ARG1_BUS_WIDTH_4_DDR	 0x03B70500 /**< Value to set bus width to 4 (DDR) in EXT_CSD register */
+#define AX_EMMC_ARG1_BUS_WIDTH_8_DDR	 0x03B70600 /**< Value to set bus width to 8 (DDR) in EXT_CSD register */
 #define AX_EMMC_ARG1_HS_TIMING_HI_SPEED	 0x03B90100 /**< Value to set HS_TIMING [185d] to High Speed in EXT_CSD register */
 #define AX_EMMC_ARG1_HS_TIMING_HS200	 0x03B90200 /**< Value to set HS_TIMING [185d] to High Speed in EXT_CSD register */
 #define AX_EMMC_ARG1_HS_TIMING_HS400	 0x03B90300 /**< Value to set HS_TIMING [185d] to High Speed in EXT_CSD register */
@@ -288,6 +290,7 @@ struct arasan_emmc_ctrl_t {
 	emmc_speed_mode_t speed_mode; /* @EMMC_SPEED_MODE */
 	emmc_bus_width_t bus_width; /* @EMMC_BUS_WIDTH */
 	uint8_t sdclk_freq_select;
+    emmc_tranfer_mode trans_mode;
 };
 
 struct adma_desc_t {
@@ -296,8 +299,9 @@ struct adma_desc_t {
     uint32_t addr;    // Data buffer address (4-byte aligned)
 };
 
+#define EMMC_ADMA_MAX_TABLE    5
 struct desp_t {
-    struct adma_desc_t line;
+    struct adma_desc_t line[EMMC_ADMA_MAX_TABLE]; /* Diag max table */
 };
 
 #define EMMC_HI_SPEED_ENABLE 	1
@@ -317,6 +321,11 @@ int emmc_hci_bus_width_switch(struct arasan_emmc_ctrl_t *emmc,
 
 int emmc_select_normal_mode(struct arasan_emmc_ctrl_t *emmc);
 int emmc_select_hs200_mode(struct arasan_emmc_ctrl_t *emmc);
+int emmc_select_hs400_mode(struct arasan_emmc_ctrl_t *emmc);
 int emmc_select_high_speed_mode(struct arasan_emmc_ctrl_t *emmc);
+int emmc_select_ddr50_mode(struct arasan_emmc_ctrl_t *emmc);
+
+int emmc_set_speed_mode(struct arasan_emmc_ctrl_t *emmc,
+        emmc_speed_mode_t speed_mode);
 
 #endif /* _AX_HAL_AX_EMMC_REGS_H */

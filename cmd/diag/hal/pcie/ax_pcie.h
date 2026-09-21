@@ -28,6 +28,7 @@ struct ax_pcie_ops {
 
     int (*mem_read)(u8 port, u64 offset, void *buf, size_t len);
     int (*mem_write)(u8 port, u64 offset, const void *buf, size_t len);
+    int (*debug_print)(u8 port);
 };
 
 extern struct ax_pcie_ops pcie;
@@ -62,6 +63,12 @@ static inline int ax_pcie_mem_write(u8 port, u64 offset, const void *buf, size_t
     if (pcie.mem_write == NULL) return -ENOSYS;
 
     return pcie.mem_write(port, offset, buf, len); 
+}
+
+static inline int ax_pcie_debug_print(u8 port) {  
+    if (pcie.debug_print == NULL) return -ENOSYS;
+
+    return pcie.debug_print(port); 
 }
 
 #endif /* __PCIE_H */

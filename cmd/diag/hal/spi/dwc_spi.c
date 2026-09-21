@@ -218,6 +218,9 @@ static int spi_controller_init(struct spi_ctrl_t *spi)
     /* Set the Chip Select */
     writel(1 << spi->chipsel, spi->base + SER);
 
+    /* Tunning the SPI speed */
+    writel(0x05, spi->base + RX_SAMPLE_DELAY);
+
     /* Enable SSI */
     writel(0x1, spi->base + SSIENR);
 
@@ -283,6 +286,7 @@ static int spi_controller_set_speed(struct spi_ctrl_t *spi)
     clk_div /= 2;
     clk_div = (clk_div + 1) & 0xfffe;
     writel(clk_div, spi->base + BAUDR);
+
     printf("%s: speed=%d clk_div=0x%x\n", __func__, CONFIG_SPI_CLK, clk_div);
 
     /* Enable SSI */

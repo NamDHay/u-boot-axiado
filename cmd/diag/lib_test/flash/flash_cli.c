@@ -298,7 +298,7 @@ U_BOOT_CMD(
         1,
         do_ax_flash,
         "AX SPI flash diagnostic command",
-        "init <bus>\n"
+        "init <bus> <cs>\n"
         "    - initialize SPI flash\n"
         "ax_flash id <bus>\n"
         "    - read JEDEC ID\n"

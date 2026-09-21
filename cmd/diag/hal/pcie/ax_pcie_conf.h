@@ -38,6 +38,7 @@
 #define PCI_CFG_SUBSYS_ID               0x2e
 #define PCI_CFG_EXP_ROM                0x30
 #define PCI_CFG_CAP_PTR                0x34
+#define PCI_CFG_MEM_BASE_LIMIT         0x20   /* Type-1: mem base [15:0], mem limit [31:16] */
 #define PCI_CFG_INT_LINE               0x3c
 #define PCI_CFG_INT_PIN                0x3d
 #define PCI_CFG_MIN_GNT                0x3e
@@ -232,7 +233,7 @@
 #define PCI_EXP_DEVCTL_PHANTOM_MASK    0x0e00
 #define PCI_EXP_DEVCTL_PHANTOM_SHIFT   9
 
-#define PCI_EXP_DEVCTL_AUX_PME         BIT(11)
+#define PCI_EXP_DEVCTL_AUX_PME         BIT(10)
 #define PCI_EXP_DEVCTL_NOSNOOP         BIT(11)
 
 #define PCI_EXP_DEVCTL_READRQ_MASK     0x7000
@@ -454,10 +455,28 @@
 #define PCI_SRIOV_BAR4                 0x34
 #define PCI_SRIOV_BAR5                 0x38
 
+/*
+ * PCI memory pool handed out to endpoint BARs.
+ *
+ * PCI address 0 is deliberately NOT used: a BAR that reads back 0 is
+ * indistinguishable from an unassigned BAR.  The pool must live inside the
+ * outbound (AXI -> PCIe) memory window, atr[0], of axiado_pcie.c.
+ */
+#define AX_PCIE_BAR_BASE               0x00100000ULL
+#define AX_PCIE_BAR_SIZE               0x0FF00000ULL
+
+/*
+ * Wait until a function answers config reads (not 0xffff / CRS 0x0001).
+ * NVMe SSDs can take hundreds of ms after link-up before they answer.
+ */
+int ax_pcie_wait_device_ready(int port, u8 bus, u8 dev, u8 func,
+                              u32 timeout_ms);
+
 int ax_pcie_check_cap(u8 port, u8 bus, u8 dev, u8 func,
                           int cap_type, u16 cap_id);
 
 int ax_pcie_init_ep_bars(int port, u8 bus, u8 dev, u8 func);
+void ax_pcie_reset_bar_pool(void);
 
 void ax_pcie_print_header(int port, u8 bus, u8 dev, u8 func);
 void ax_pcie_print_capabilities(int port, u8 bus, u8 dev, u8 func);
@@ -481,5 +500,4 @@ void ax_pcie_print_msix_cap(int port,
 void ax_pcie_print_pm_cap(int port,
 				 u8 bus, u8 dev, u8 func,
 				 u16 offset);
-
 #endif /* __PCIE_CONF_H */

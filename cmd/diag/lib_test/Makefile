@@ -18,9 +18,11 @@ obj-$(CONFIG_CMD_AX_VSENS) 	+= ina_sensor/ina_cli.o
 
 obj-$(CONFIG_CMD_AX_JTAG) 	+= jtag/jtag_cli.o
 
+obj-$(CONFIG_CMD_AX_MBX) 	+= mailbox/mbox_cli.o
+
 obj-$(CONFIG_CMD_AX_MEM) 	+= mem/mem_cli.o
 
-obj-$(CONFIG_CMD_AX_PCIE) 	+= pcie/pcie_cli.o
+obj-$(CONFIG_CMD_AX_PCIE) 	+= pcie/pcie_cli.o pcie/pcie_ep_cli.o
 obj-$(CONFIG_CMD_AX_NVME) 	+= nvme/nvme_cli.o
 
 obj-$(CONFIG_CMD_AX_PWM) 	+= pwm/pwm_cli.o
@@ -35,3 +37,5 @@ obj-$(CONFIG_CMD_AX_FLASH) 	+= flash/flash_cli.o
 obj-$(CONFIG_CMD_AX_UART) 	+= uart/uart_cli.o
 
 obj-$(CONFIG_CMD_AX_WDT) 	+= wdt/wdt_cli.o
+
+obj-$(CONFIG_CMD_AX_USB) 	+= usb/usb_cli.o

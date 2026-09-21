@@ -125,7 +125,7 @@ static int inno_saradc_channel_data(int channel, unsigned int *data)
     return 0;
 }
 
-extern struct ax_adc_ops adc = {
+struct ax_adc_ops adc = {
     .start_channel = inno_saradc_start_channel,
     .start_channels = inno_saradc_start_channels,
     .channel_data = inno_saradc_channel_data,

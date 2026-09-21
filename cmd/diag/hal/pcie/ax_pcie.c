@@ -17,8 +17,6 @@
 #include "ax_pcie.h"
 #include "ax_pcie_conf.h"
 
-#define AX_PCIE_BAR_BASE	0x000000000ULL
-#define AX_PCIE_BAR_SIZE	0x10000000ULL
 
 /*
  * ---------------------------------------------------------------------------
@@ -31,6 +29,11 @@ static u64 ax_pcie_bar_next = AX_PCIE_BAR_BASE;
 static u64 ax_pcie_align(u64 value, u64 align)
 {
 	return (value + align - 1) & ~(align - 1);
+}
+
+void ax_pcie_reset_bar_pool(void)
+{
+	ax_pcie_bar_next = AX_PCIE_BAR_BASE;
 }
 
 static int ax_pcie_alloc_bar(u64 size, u64 *addr)
@@ -90,6 +93,32 @@ static int ax_pcie_cfg_read32(int port, u8 bus, u8 dev, u8 func,
 				offset, val);
 }
 
+int ax_pcie_wait_device_ready(int port, u8 bus, u8 dev, u8 func,
+			      u32 timeout_ms)
+{
+	ulong start = get_timer(0);
+	u32 id = 0xffffffff;
+	int ret;
+
+	do {
+		ret = ax_pcie_cfg_read(port, bus, dev, func,
+				       PCI_CFG_VENDOR_ID, &id);
+		if (ret)
+			return ret;
+
+		/* 0xffff = nobody home, 0x0001 = CRS (device still busy) */
+		if ((id & 0xffff) != 0xffff && (id & 0xffff) != 0x0001 && id)
+			return 0;
+
+		mdelay(10);
+	} while (get_timer(start) < timeout_ms);
+
+	printf("PCIe %02x:%02x.%x not ready, vendor/device = 0x%08x\n",
+	       bus, dev, func, id);
+
+	return -ETIMEDOUT;
+}
+
 int ax_pcie_check_cap(u8 port, u8 bus, u8 dev, u8 func,
                           int cap_type, u16 cap_id)
 {
@@ -142,7 +171,7 @@ int ax_pcie_check_cap(u8 port, u8 bus, u8 dev, u8 func,
         if (ret)
             return ret;
 
-        offset = (val >> 8) & 0xff;
+        offset = val & 0xfc;
 
         while (offset && count++ < 48) {
             ret = ax_pcie_cfg_read(port,
@@ -411,17 +440,14 @@ static int ax_pcie_probe_bar(int port, u8 bus, u8 dev, u8 func,
 	if (index < 0 || index > 5)
 		return -EINVAL;
 
+	memset(bar, 0, sizeof(*bar));
+	bar->index = index;
+
 	if (ax_pcie_cfg_read32(port, bus, dev, func,
 			       PCI_CFG_BAR0 + index * 4,
 			       &orig_lo))
 		return -EIO;
 
-	if (!orig_lo) {
-		bar->size = 0;
-		return 0;
-	}
-
-	bar->index = index;
 	bar->is_io = orig_lo & PCI_BAR_IO;
 
 	if (!bar->is_io) {
@@ -429,9 +455,13 @@ static int ax_pcie_probe_bar(int port, u8 bus, u8 dev, u8 func,
 			((orig_lo & PCI_BAR_MEM_TYPE_MASK) ==
 			 PCI_BAR_MEM_TYPE_64);
 
+		/* BAR5 cannot be the low half of a 64-bit BAR */
+		if (index == 5)
+			bar->is_64bit = false;
+
 		bar->prefetch = orig_lo & PCI_BAR_PREFETCH;
 
-		if (bar->is_64bit && index < 5) {
+		if (bar->is_64bit) {
 			if (ax_pcie_cfg_read32(port, bus, dev, func,
 					       PCI_CFG_BAR0 +
 					       (index + 1) * 4,
@@ -440,53 +470,50 @@ static int ax_pcie_probe_bar(int port, u8 bus, u8 dev, u8 func,
 		}
 	}
 
-	/* Probe BAR size */
+	/*
+	 * Probe the size: write all ones and read back the mask.
+	 * An unimplemented BAR reads back 0.  Do NOT decide "unused" from
+	 * the current BAR value - a 32-bit BAR that has not been programmed
+	 * yet legitimately reads 0.
+	 */
 	if (ax_pcie_cfg_write(port, bus, dev, func,
-			      PCI_CFG_BAR0 + index * 4,
-			      0xffffffff))
+			      PCI_CFG_BAR0 + index * 4, 0xffffffff))
 		return -EIO;
 
-	if (bar->is_64bit) {
-		if (ax_pcie_cfg_write(port, bus, dev, func,
-				      PCI_CFG_BAR0 +
-				      (index + 1) * 4,
-				      0xffffffff))
-			return -EIO;
-	}
+	if (bar->is_64bit &&
+	    ax_pcie_cfg_write(port, bus, dev, func,
+			      PCI_CFG_BAR0 + (index + 1) * 4, 0xffffffff))
+		return -EIO;
 
 	if (ax_pcie_cfg_read32(port, bus, dev, func,
-			       PCI_CFG_BAR0 + index * 4,
-			       &mask_lo))
+			       PCI_CFG_BAR0 + index * 4, &mask_lo))
 		return -EIO;
 
-	if (bar->is_64bit) {
-		if (ax_pcie_cfg_read32(port, bus, dev, func,
-				       PCI_CFG_BAR0 +
-				       (index + 1) * 4,
-				       &mask_hi))
-			return -EIO;
-	}
+	if (bar->is_64bit &&
+	    ax_pcie_cfg_read32(port, bus, dev, func,
+			       PCI_CFG_BAR0 + (index + 1) * 4, &mask_hi))
+		return -EIO;
 
 	/* Restore BAR */
 	ax_pcie_cfg_write(port, bus, dev, func,
-			  PCI_CFG_BAR0 + index * 4,
-			  orig_lo);
+			  PCI_CFG_BAR0 + index * 4, orig_lo);
 
 	if (bar->is_64bit)
 		ax_pcie_cfg_write(port, bus, dev, func,
-				  PCI_CFG_BAR0 + (index + 1) * 4,
-				  orig_hi);
+				  PCI_CFG_BAR0 + (index + 1) * 4, orig_hi);
 
 	if (bar->is_io) {
-		mask = mask_lo & PCI_BAR_IO_ADDR_MASK;
-		bar->size = (~mask) + 1;
+		u32 m = mask_lo & PCI_BAR_IO_ADDR_MASK;
+
+		bar->size = (u32)(~m + 1);	/* stay in 32 bits */
+	} else if (bar->is_64bit) {
+		mask = ((u64)mask_hi << 32) | (mask_lo & PCI_BAR_ADDR_MASK);
+		bar->size = ~mask + 1;
 	} else {
-		mask = mask_lo & PCI_BAR_ADDR_MASK;
+		u32 m = mask_lo & PCI_BAR_ADDR_MASK;
 
-		if (bar->is_64bit)
-			mask |= (u64)mask_hi << 32;
-
-		bar->size = (~mask) + 1;
+		/* 32-bit BAR: must not be sign-extended to 64 bits */
+		bar->size = (u32)(~m + 1);
 	}
 
 	return 0;
@@ -588,6 +615,11 @@ int ax_pcie_init_ep_bars(int port, u8 bus, u8 dev, u8 func)
 		printf("BAR%d size: 0x%llx\n",
 		       i,
 		       (unsigned long long)bar.size);
+
+		if (bar.is_io) {
+			printf("BAR%d: I/O BAR ignored\n", i);
+			continue;
+		}
 
 		ret = ax_pcie_alloc_bar(bar.size, &bar.addr);
 		if (ret) {

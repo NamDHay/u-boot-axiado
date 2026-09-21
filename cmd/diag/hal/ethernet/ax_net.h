@@ -9,7 +9,7 @@
 
 #define ARP_HLEN 6
 struct net_dev {
-	void __iomem *base;
+	uint32_t port;
 	unsigned char enetaddr[ARP_HLEN];
 	int phy_interface;
 	int max_speed;

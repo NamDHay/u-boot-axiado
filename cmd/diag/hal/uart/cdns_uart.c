@@ -172,6 +172,7 @@ static int cdns_uart_setbaud(unsigned instance, int baud)
             calc_bauderror = baud - calc_baud;
         else
             calc_bauderror = calc_baud - baud;
+
         if (((calc_bauderror * 100) / baud) < 3)
             break;
     }

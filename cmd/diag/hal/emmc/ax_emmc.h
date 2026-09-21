@@ -27,12 +27,22 @@ typedef enum {
     EMMC_BUS_8BIT_DDR // 8-bit bus width, dual data rate
 } emmc_bus_width_t;
 
+/* @TRANSFER_MODE */
+typedef enum {
+    EMMC_PIO,
+    EMMC_SDMA,
+    EMMC_ADMA,
+} emmc_tranfer_mode;
+
 struct ax_emmc_ops {
     /* Controller initialization */
     int (*init)(void);
 
     /* Controller reset */
     int (*reset)(void);
+
+    /* Set transfer mode */
+    int (*set_transfer)(emmc_tranfer_mode trans_mode);
 
     /* Set bus speed */
     int (*set_speed)(emmc_speed_mode_t speed_mode);
@@ -72,6 +82,14 @@ static inline int ax_emmc_reset(void)
         return -ENOSYS;
 
     return emmc.reset();
+}
+
+static inline int ax_emmc_set_transfer(emmc_tranfer_mode trans_mode)
+{
+    if (emmc.set_transfer== NULL)
+        return -ENOSYS;
+
+    return emmc.set_transfer(trans_mode);
 }
 
 static inline int ax_emmc_set_speed(emmc_speed_mode_t speed_mode)

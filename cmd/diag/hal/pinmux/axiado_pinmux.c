@@ -13,8 +13,9 @@
 #include "ax_pinmux.h"
 
 #define UNUSED_PINMUX (-1)
-#define I3C_I2C_MUX_OFFSET 0x1B4
+#define I2C_SPI_MUX_OFFSET    0x108
 #define SPI_TPM_MUX_OFFSET    0x11C
+#define I3C_I2C_MUX_OFFSET    0x1B4
 
 struct axiado_group_config {
     char *group_name;
@@ -22,7 +23,7 @@ struct axiado_group_config {
     u8 bit_vals;
     u32 ctrl_bit_mask;
     u8 pin_cnt;
-    u8 pin[8];
+    u8 pin[20];
 };
 
 static const struct axiado_group_config axiado_groups[] = {
@@ -67,7 +68,7 @@ static const struct axiado_group_config axiado_groups[] = {
     { "I2C20",  I3C_I2C_MUX_OFFSET, 0, BIT(0), 0x2, { 58, 59 } },
     { "I2C21",  I3C_I2C_MUX_OFFSET, 0, BIT(1), 0x2, { 61, 62 } },
     { "I2C22",  I3C_I2C_MUX_OFFSET, 0, BIT(4), 0x2, { 123, 124 } },
-    { "I2C23",  UNUSED_PINMUX, 0, 0x0, 0x2, { 208, 209 } },
+    { "I2C23",  I2C_SPI_MUX_OFFSET, 0, BIT(1), 0x2, { 208, 209 } },
     { "I2C24",  UNUSED_PINMUX, 0, 0x0, 0x2, { 217, 218 } },
     { "I2C25",  UNUSED_PINMUX, 0, 0x0, 0x2, { 220, 221 } },
     { "I2C26",  I3C_I2C_MUX_OFFSET, 0, BIT(2), 0x2, { 234, 235 } },
@@ -114,8 +115,8 @@ static const struct axiado_group_config axiado_groups[] = {
     { "SPI1",   SPI_TPM_MUX_OFFSET, 0, BIT(1), 0x8, { 42, 43, 44, 45, 47, 48, 49 ,50 } },
     { "SPI2",   UNUSED_PINMUX, 0, 0x0, 0x7, { 142, 143, 144, 145, 148, 149 } },
     { "SPI3",   UNUSED_PINMUX, 0, 0x0, 0x7, { 106, 107, 108, 109, 111, 112, 113 } },
-    { "SPI5",   UNUSED_PINMUX, 0, 0x0, 0x7, { 60, 61, 62, 63, 57, 58, 59 } },
-    { "SPI6",   SPI_TPM_MUX_OFFSET, 0, BIT(1), 0x7, { 239, 240, 241, 242, 235, 236, 237 } },
+    { "SPI5",   I2C_SPI_MUX_OFFSET, 1, BIT(1), 16, { 10, 11, 12, 13, 15, 16, 17, 18, 60, 61, 62, 63, 57, 58, 59 } },
+    { "SPI6",   I2C_SPI_MUX_OFFSET, 1, BIT(2), 0x7, { 239, 240, 241, 242, 235, 236, 237 } },
 
     /* TPM Group */
     { "TPM0",   SPI_TPM_MUX_OFFSET, 1, BIT(1), 0x7, { 42, 43, 44, 45, 47, 48, 49 } },

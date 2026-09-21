@@ -9,10 +9,11 @@
 #include <linux/errno.h>
 #include <linux/delay.h>
 
+#include "ax_diag.h"
 #include "ax_emmc.h"
 
-#define AX_MMC_READ_ADDR	0x90000000UL
-#define AX_MMC_WRITE_ADDR	0xA0000000UL
+#define AX_MMC_READ_ADDR	AX3000_MEM_BASE_ADRS_DDR_LO + 0x10000000
+#define AX_MMC_WRITE_ADDR	AX3000_MEM_BASE_ADRS_DDR_LO + 0x20000000
 
 #define AX_MMC_BLOCK_SIZE	512
 
@@ -27,12 +28,14 @@ static int do_ax_mmc_init(struct cmd_tbl *cmdtp, int flag,
     int ret;
     u32 width;
     u32 speed;
+    u32 transfer;
 
-    if (argc != 3)
+    if (argc != 4)
         return CMD_RET_USAGE;
 
     width = hextoul(argv[1], NULL);
     speed = hextoul(argv[2], NULL);
+    transfer = hextoul(argv[3], NULL);
 
     ret = ax_emmc_init();
     if (ret) {
@@ -40,10 +43,22 @@ static int do_ax_mmc_init(struct cmd_tbl *cmdtp, int flag,
         return CMD_RET_FAILURE;
     }
 
-    ret = ax_emmc_set_bus_width((emmc_bus_width_t)width);
+    ret = ax_emmc_set_transfer((emmc_tranfer_mode)transfer);
     if (ret) {
-        printf("eMMC set bus width failed: %d\n", ret);
+        printf("eMMC set transfer mode failed: %d\n", ret);
         return CMD_RET_FAILURE;
+    }
+
+    if (speed != EMMC_MODE_DDR50) {
+        if (speed == EMMC_MODE_HS400) {
+            width = EMMC_BUS_8BIT;
+        }
+
+        ret = ax_emmc_set_bus_width((emmc_bus_width_t)width);
+        if (ret) {
+            printf("eMMC set bus width failed: %d\n", ret);
+            return CMD_RET_FAILURE;
+        }
     }
 
     ret = ax_emmc_set_speed((emmc_speed_mode_t)speed);
@@ -224,8 +239,8 @@ static int do_ax_mmc_memtest(struct cmd_tbl *cmdtp, int flag,
 
     total_words = (blkcnt * block_size) / sizeof(u32);
 
-    write_buf = (u32 *)AX_MMC_WRITE_ADDR;
-    read_buf = (u32 *)AX_MMC_READ_ADDR;
+    write_buf = (void __iomem *)AX_MMC_WRITE_ADDR;
+    read_buf = (void __iomem *)AX_MMC_READ_ADDR;
 
     printf("eMMC memtest: start=%u, blocks=%u\n",
             start, blkcnt);
@@ -283,7 +298,7 @@ static int do_ax_mmc_info(struct cmd_tbl *cmdtp, int flag,
 }
 
 U_BOOT_LONGHELP(ax_mmc,
-        "init <width> <speed>\n"
+        "init <width> <speed> <dma>\n"
         "    - initialize eMMC device\n"
         "    - width:\n"
         "       0: EMMC_BUS_1BIT\n"
@@ -297,6 +312,10 @@ U_BOOT_LONGHELP(ax_mmc,
         "       2: EMMC_MODE_HS200\n"
         "       3: EMMC_MODE_HS400\n"
         "       4: EMMC_MODE_DDR50\n"
+        "    - transfer:\n"
+        "       0: PIO\n"
+        "       1: SDMA\n"
+        "       2: ADMA\n"
         "reset\n"
         "    - reset eMMC controller\n"
         "read <start_block> <block_count>\n"

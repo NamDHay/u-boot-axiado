@@ -8,24 +8,38 @@
 #define __MAILBOX_H
 
 struct ax_mbox_ops {
-    int (*request)(uint chan);
-    int (*free)(uint chan);
+    int (*request)(void);
+    int (*free)(void);
+    int (*startup)(uint chan);
+    int (*shutdown)(uint chan);
     int (*send)(uint chan, const void *data);
     int (*recv)(uint chan, void *data, ulong timeout);
 };
 
 extern struct ax_mbox_ops mbox;
 
-static inline int ax_mbox_request(uint chan) {  
+static inline int ax_mbox_request(void) {  
     if (mbox.request == NULL) return -ENOSYS;
 
-    return mbox.request(chan); 
+    return mbox.request(); 
 }
 
-static inline int ax_mbox_free(uint chan) {  
+static inline int ax_mbox_free(void) {  
     if (mbox.free == NULL) return -ENOSYS;
 
-    return mbox.free(chan); 
+    return mbox.free(); 
+}
+
+static inline int ax_mbox_startup(uint chan) {  
+    if (mbox.startup == NULL) return -ENOSYS;
+
+    return mbox.startup(chan); 
+}
+
+static inline int ax_mbox_shutdown(uint chan) {  
+    if (mbox.shutdown == NULL) return -ENOSYS;
+
+    return mbox.shutdown(chan); 
 }
 
 static inline int ax_mbox_send(uint chan, const void *data) {

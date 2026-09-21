@@ -23,7 +23,9 @@
 #define A53_CORE2_WDT_IRQ       225 
 #define A53_CORE3_WDT_IRQ       226 
 
+#ifdef CONFIG_TARGET_SCM3005
 #define CONFIG_WDT_CLK          100000000
+#endif
 
 #define CDNS_WDT_ZMR_REG        0x0
 #define CDNS_WDT_CCR_REG	    0x4
@@ -85,10 +87,10 @@ struct wdt_config_t {
 };
 
 static struct wdt_config_t wdt_config[CONFIG_NR_CPUS] = {
-    { .base = (void __iomem *)A53_CORE0_WDT_BASE_ADDR, .irq_num = A53_CORE0_WDT_IRQ, .rst = true },
-    { .base = (void __iomem *)A53_CORE1_WDT_BASE_ADDR, .irq_num = A53_CORE1_WDT_IRQ, .rst = true },
-    { .base = (void __iomem *)A53_CORE2_WDT_BASE_ADDR, .irq_num = A53_CORE2_WDT_IRQ, .rst = true },
-    { .base = (void __iomem *)A53_CORE3_WDT_BASE_ADDR, .irq_num = A53_CORE3_WDT_IRQ, .rst = true },
+    { .base = (void __iomem *)A53_CORE0_WDT_BASE_ADDR, .irq_num = A53_CORE0_WDT_IRQ, .rst = false },
+    { .base = (void __iomem *)A53_CORE1_WDT_BASE_ADDR, .irq_num = A53_CORE1_WDT_IRQ, .rst = false },
+    { .base = (void __iomem *)A53_CORE2_WDT_BASE_ADDR, .irq_num = A53_CORE2_WDT_IRQ, .rst = false },
+    { .base = (void __iomem *)A53_CORE3_WDT_BASE_ADDR, .irq_num = A53_CORE3_WDT_IRQ, .rst = false },
 };
 
 static int cdns_wdt_start(u64 timeout);
@@ -109,12 +111,14 @@ static uint32_t aarch64_get_coreid(void)
 
 void cdns_wdt_interrupt_handler(void *arg)
 {
-    struct wdt_config *wdt = arg;
+    struct wdt_config_t *wdt = arg;
 
     if (!wdt)
         return;
 
     printf("WDT Interrupt Trigger\n");
+    if (wdt->rst)
+        cdns_wdt_reset();
 }
 
 /**
@@ -154,8 +158,6 @@ static int cdns_wdt_start(u64 timeout)
 	timeout = max_t(u64, timeout, CDNS_WDT_MIN_TIMEOUT);
 	timeout = min_t(u64, timeout, CDNS_WDT_MAX_TIMEOUT);
 
-	printf("%s: CLK_FREQ %ld, timeout %lld\n", __func__, clk_f, timeout);
-
 	if (clk_f <= CDNS_WDT_CLK_75MHZ) {
 		prescaler = CDNS_WDT_PRESCALE_512;
 		ctrl_clksel = CDNS_WDT_PRESCALE_SELECT_512;
@@ -177,6 +179,7 @@ static int cdns_wdt_start(u64 timeout)
     writel(CDNS_WDT_ZMR_ZKEY_VAL, wdt->base + CDNS_WDT_ZMR_REG);
 
 	count = (count << 2) & CDNS_WDT_CCR_CRV_MASK;
+	printf("%s: CLK_FREQ %ld, timeout %llds, CRV 0x%x\n", __func__, clk_f, timeout, count);
 
 	/* Write counter access key first to be able write to register */
 	data = count | CDNS_WDT_REGISTER_ACCESS_KEY | ctrl_clksel;

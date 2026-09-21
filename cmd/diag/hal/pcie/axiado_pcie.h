@@ -19,6 +19,22 @@
 #define PCIE_STORAGE_CLASS_CODE         0x01800000 /* PCIe Class Code for Storage Mode */
 #define PCIE_TRUSTEDS_CLASS_CODE        0x0B800000 /* PCIe Class Code for Trusted Services Mode */
 #define PCIE_PERST_PULLUP_SET (0x1 << 22)
+
+/* ---- Root-port bring-up timing / windows (added) ---- */
+#define PCIE_PERST_ASSERT_MS        100   /* Tperst: hold PERST# asserted   */
+#define PCIE_POST_LINK_DELAY_MS     100   /* spec: wait 100ms after link up */
+#define PCIE_EP_READY_TIMEOUT_MS    5000  /* CRS / slow SSDs                */
+#define AXIADO_PCIE_ECAM_SIZE       0x10000000ULL /* 256 buses * 1 MiB      */
+
+/*
+ * Inbound (PCIe -> AXI) window, used when an endpoint (NVMe) does DMA to
+ * host memory.  Identity mapped: PCI address == AXI/DDR address.
+ * Must cover every buffer handed to the device (queues, PRPs, data).
+ */
+#define AXIADO_PCIE_DMA_PCI_BASE    0x80000000ULL
+#define AXIADO_PCIE_DMA_AXI_BASE    0x80000000ULL
+#define AXIADO_PCIE_DMA_SIZE        0x40000000ULL /* 1 GiB */
+
 #define PCIE_PHY_GEN1 (0x1 << 12)
 #define PCIE_PHY_GEN2 (0x3 << 12)
 #define PCIE_PHY_GEN3 (0x7 << 12)
@@ -120,10 +136,10 @@
 #define REG_PCIE_X1_IP_CTRL_ADRS_OFFSET 0x118
 #define REG_PCIE_X2_IP_CTRL_ADRS_OFFSET 0x188
 
-#define REG_PCIE_GEN_SETTINGS_ADRS_OFFSET 0x0000 + 0x0080
-#define REG_PCIE_PEX_DEV_ADRS_OFFSET 0x0000 + 0x00C0
-#define REG_PCIE_PEX_SPC_ADRS_OFFSET 0x0000 + 0x00D4
-#define REG_PCIE_IMASK_LOCAL_ADRS_OFFSET 0x0180 + 0x0000
+#define REG_PCIE_GEN_SETTINGS_ADRS_OFFSET (0x0000 + 0x0080)
+#define REG_PCIE_PEX_DEV_ADRS_OFFSET (0x0000 + 0x00C0)
+#define REG_PCIE_PEX_SPC_ADRS_OFFSET (0x0000 + 0x00D4)
+#define REG_PCIE_IMASK_LOCAL_ADRS_OFFSET (0x0180 + 0x0000)
 #define REG_PCIE_PHYMAC_CFG_ADRS_OFFSET (0x0300 + 0x003C)
 #define REG_PCIE_EQ_TUNING_31_0_ADRS_OFFSET (0x0300 + 0x005C)
 #define REG_PCIE_EQ_TUNING_63_32_ADRS_OFFSET (0x0300 + 0x0060)
@@ -134,7 +150,7 @@
 #define PCIE_PHY_CONF_CTRL_LTSSM 0xFFFFFFFB
 #define REG_PCIE_CFGCTRL_ADRS_OFFSET 0x0084
 
-#define REG_PCIE_BASIC_STATUS_ADRS_OFFSET 0x0000 + 0x0018
+#define REG_PCIE_BASIC_STATUS_ADRS_OFFSET (0x0000 + 0x0018)
 #define LINK_STATUS_LOW_POWER_ADDR 0x000003dc
 #define PCIE_ATR_TRSLID_PCIE_MEMORY 0x0
 #define PCIE_ATR_TRSLID_PCIE_CFG 0x1
@@ -153,6 +169,18 @@
 #define PCIE_ATR_TRSL_MASK_OFFSET 0x18
 #define PCIE_ATR_TABLE_OFFSET 0x20
 #define ATR_TRSL_MASK_SET(dst, val) (((uint32_t)dst & ~0xFFFFFFFF) | ((uint32_t)val & 0xFFFFFFFF))
+#define REG_PCIE_PCIE_SRIOV_31_0_ADRS_OFFSET 0x0120
+#define REG_PCIE_PCIE_SRIOV_63_32_ADRS_OFFSET 0x0124
+#define REG_PCIE_AXI_MST0_VF_APER_LO_LSBS_N3_ADRS_OFFSET 0x064
+#define REG_PCIE_AXI_MST0_VF_APER_LO_MSBS_N3_ADRS_OFFSET 0x070
+#define REG_PCIE_AXI_MST0_VF_APER_HI_LSBS_N3_ADRS_OFFSET 0x07c
+#define REG_PCIE_AXI_MST0_VF_APER_HI_MSBS_N3_ADRS_OFFSET 0x0
+#define REG_PCIE_AXI_MST0_VF_APER_LO_MSBS_N3_FLD_REMAP_DIS_LSB 27
+#define REG_PCIE_AXI_MST0_VF_APER_LO_MSBS_N3_FLD_APER_SIZE_LSB 16
+#define REG_PCIE_AXI_MST0_VF_APER_LO_MSBS_N3_FLD_ADRS_LO_LSB 0
+#define REG_PCIE_X1_PF_CTRL_STATUS_ADRS_OFFSET 0x044
+#define REG_PCIE_X2_PF_CTRL_STATUS_ADRS_OFFSET 0x094
+#define REG_PCIE_X2_VF_MSI_TRG_N2_ADRS_OFFSET 0x054
 
 #define REG_PCIE_COMMAND_STATUS_ADRS_OFFSET (0x0000 + 0x4)
 /* -------------------------------------------------- */
@@ -658,7 +686,7 @@ struct axiado_pcie {
 
     struct axiado_pcie_atr atr[2];
 
-    struct axiado_pcie_atr bar[2];
+    struct axiado_pcie_atr bar[3];
 };
 
 enum PCIE_XPRESS_LTSSM {
@@ -707,6 +735,8 @@ enum TRSF_ID_ENUM {
     BIDGE_INTERNAL_REG,
     ID_INVALID
 };
+
+enum axiado_pcie_bars { BAR_01 = 0, BAR_23 = 2, BAR_45 = 4 };
 
 enum ATR_PCIE_WIN { PCIE_WIN_0 = 0, PCIE_WIN_1 };
 

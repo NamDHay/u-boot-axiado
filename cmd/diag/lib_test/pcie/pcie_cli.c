@@ -59,7 +59,7 @@ static int ax_pcie_parse_bdf(const char *str, u8 *bus, u8 *dev, u8 *func)
 }
 
 /*
- * ax_pcie init <port> RP/EP <speed>
+ * ax_pcie init <port> <speed>
  */
 static int ax_pcie_cmd_init(struct cmd_tbl *cmdtp, int flag,
         int argc, char *const argv[])
@@ -70,19 +70,12 @@ static int ax_pcie_cmd_init(struct cmd_tbl *cmdtp, int flag,
     unsigned int speed;
     char *endp;
 
-    if (argc < 4)
+    if (argc < 3)
         return CMD_RET_USAGE;
 
-    if (!strncmp(argv[2], "rp", 2)) {
-        mode = AX_PCIE_MODE_RC;
-    } else if (!strncmp(argv[2], "ep", 2)) {
-        mode = AX_PCIE_MODE_EP;
-    } else {
-        printf("Mode not found\n");
-        return CMD_RET_FAILURE;
-    }
     port = simple_strtol(argv[1], &endp, 16);
-    speed = simple_strtol(argv[3], &endp, 16);
+    speed = simple_strtol(argv[2], &endp, 16);
+    mode = AX_PCIE_MODE_RC;
 
     ret = ax_pcie_init(port, mode, speed);
     if (ret) {
@@ -92,15 +85,13 @@ static int ax_pcie_cmd_init(struct cmd_tbl *cmdtp, int flag,
 
     printf("PCIe_x%d init successed\n", port);
 
-    if (mode == AX_PCIE_MODE_RC) {
-        ret = ax_pcie_init_ep_bars(port, 1, 0, 0);
-        if (ret) {
-            printf("Failed to initialize endpoint BARs: %d\n", ret);
-            return CMD_RET_FAILURE;
-        }
-
-        ax_pcie_print_header(port, 1, 0, 0);
+    ret = ax_pcie_init_ep_bars(port, 1, 0, 0);
+    if (ret) {
+        printf("Failed to initialize endpoint BARs: %d\n", ret);
+        return CMD_RET_FAILURE;
     }
+
+    ax_pcie_print_header(port, 1, 0, 0);
 
     return CMD_RET_SUCCESS;
 }
@@ -262,7 +253,7 @@ static int ax_pcie_cmd_cap(struct cmd_tbl *cmdtp, int flag,
 }
 
 U_BOOT_LONGHELP(ax_pcie,
-        "init <port> <RP|EP> <speed>\n"
+        "init <port> <speed>\n"
         " - Initialize PCIe controller\n"
         "\n"
         "link <port>\n"
@@ -282,9 +273,9 @@ U_BOOT_LONGHELP(ax_pcie,
         "\n"
         "mem_read <port> <addr> <len>\n"
         " - Read PCIe memory\n"
-        "\n"
-        "mem_write <port> <addr> <value> <len>\n"
-        " - Write PCIe memory"
+"\n"
+"mem_write <port> <addr> <value> <len>\n"
+" - Write PCIe memory"
 );
 
 U_BOOT_CMD_WITH_SUBCMDS(ax_pcie, "Axiado bare-metal PCIe diagnostics test", ax_pcie_help_text,
