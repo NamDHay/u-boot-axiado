@@ -5,6 +5,10 @@
  * Licensed under the GPL-2 or later.
  */
 
+#include <dm.h>
+#include <linux/types.h>
+#include <linux/string.h>
+
 /* We need the weak marking as this symbol is provided specially */
 extern const char system_map[] __attribute__((weak));
 
@@ -20,23 +24,29 @@ extern const char system_map[] __attribute__((weak));
  */
 const char *symbol_lookup(unsigned long addr, unsigned long *caddr)
 {
-	const char *sym, *csym;
-	char *esym;
-	unsigned long sym_addr;
+    const char *sym, *csym;
+    char *esym;
+    unsigned long sym_addr;
 
-	sym = system_map;
-	csym = NULL;
-	*caddr = 0;
+    *caddr = 0;
 
-	while (*sym) {
-		sym_addr = hextoul(sym, &esym);
-		sym = esym;
-		if (sym_addr > addr)
-			break;
-		*caddr = sym_addr;
-		csym = sym;
-		sym += strlen(sym) + 1;
-	}
+    if (!system_map)
+        return NULL;
 
-	return csym;
+    sym = system_map;
+    csym = NULL;
+
+    while (*sym) {
+        sym_addr = hextoul(sym, &esym);
+        sym = esym;
+
+        if (sym_addr > addr)
+            break;
+
+        *caddr = sym_addr;
+        csym = sym;
+        sym += strlen(sym) + 1;
+    }
+
+    return csym;
 }

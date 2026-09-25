@@ -10,6 +10,8 @@
 #include <linux/string.h>
 #include <linux/types.h>
 #include <stdio.h>
+#include <malloc.h>
+#include <display_options.h>
 
 #include "ax_pcie.h"
 #include "ax_pcie_conf.h"
@@ -200,6 +202,105 @@ static int ax_pcie_cmd_cfg_write(struct cmd_tbl *cmdtp, int flag,
     return CMD_RET_SUCCESS;
 }
 
+static int ax_pcie_cmd_mem_read(struct cmd_tbl *cmdtp, int flag,
+        int argc, char *const argv[])
+{
+    u8 port;
+    u64 offset;
+    size_t len;
+    void *buf;
+    int ret;
+
+    if (argc != 4)
+        return CMD_RET_USAGE;
+
+    port = simple_strtoul(argv[1], NULL, 0);
+    offset = simple_strtoull(argv[2], NULL, 0);
+    len = simple_strtoul(argv[3], NULL, 0);
+
+    if (len == 0) {
+        printf("Invalid length: 0\n");
+        return CMD_RET_USAGE;
+    }
+
+    buf = malloc(len);
+    if (!buf) {
+        printf("Failed to allocate %zu bytes\n", len);
+        return CMD_RET_FAILURE;
+    }
+
+    memset(buf, 0, len);
+
+    ret = ax_pcie_mem_read(port, offset, buf, len);
+    if (ret) {
+        printf("PCIe%d mem_read offset 0x%llx len 0x%zx failed: %d\n",
+                port, offset, len, ret);
+        free(buf);
+        return CMD_RET_FAILURE;
+    }
+
+    printf("PCIe%d MEM[0x%llx] len 0x%zx:\n",
+            port, offset, len);
+
+    print_buffer((ulong)offset, buf, 1, len, 16);
+
+    free(buf);
+
+    return CMD_RET_SUCCESS;
+}
+
+static int ax_pcie_cmd_mem_write(struct cmd_tbl *cmdtp, int flag,
+        int argc, char *const argv[])
+{
+    u8 port;
+    u64 offset;
+    u64 value;
+    size_t len = sizeof(u32);
+    void *buf;
+    int ret;
+
+    if (argc != 4 && argc != 5)
+        return CMD_RET_USAGE;
+
+    port = simple_strtoul(argv[1], NULL, 0);
+    offset = simple_strtoull(argv[2], NULL, 0);
+    value = simple_strtoull(argv[3], NULL, 0);
+
+    if (argc == 5)
+        len = simple_strtoul(argv[4], NULL, 0);
+
+    if (len == 0 || len > sizeof(value)) {
+        printf("Invalid length: %zu (valid range: 1-%zu)\n",
+                len, sizeof(value));
+        return CMD_RET_USAGE;
+    }
+
+    buf = calloc(1, len);
+    if (!buf) {
+        printf("Failed to allocate %zu bytes\n", len);
+        return CMD_RET_FAILURE;
+    }
+
+    memcpy(buf, &value, len);
+
+    ret = ax_pcie_mem_write(port, offset, buf, len);
+    if (ret) {
+        printf("PCIe%d mem_write offset 0x%llx len 0x%zx "
+               "value 0x%llx failed: %d\n",
+                port, offset, len, value, ret);
+        free(buf);
+        return CMD_RET_FAILURE;
+    }
+
+    printf("PCIe%d MEM[0x%llx] <= 0x%0*llx (%zu bytes)\n",
+            port, offset,
+            (int)(len * 2), value, len);
+
+    free(buf);
+
+    return CMD_RET_SUCCESS;
+}
+
 /*
  * ax_pcie header <port> <bus>.<dev>.<func>
  */
@@ -252,6 +353,34 @@ static int ax_pcie_cmd_cap(struct cmd_tbl *cmdtp, int flag,
     return CMD_RET_SUCCESS;
 }
 
+/*
+ * ax_pcie debug <port>
+ */
+static int ax_pcie_cmd_debug(struct cmd_tbl *cmdtp, int flag,
+        int argc, char *const argv[])
+{
+    int port;
+    u8 bus, dev, func;
+    int ret;
+
+    if (argc != 2)
+        return CMD_RET_USAGE;
+
+    port = simple_strtoul(argv[1], NULL, 0);
+
+    ax_pcie_debug_print(port);
+    
+    if(argc > 2) {
+        if(!strcmp(argv[2], "-v"))
+            ax_pcie_print_header(port, 1, 0, 0);
+
+        if(!strcmp(argv[2], "-vv"))
+            ax_pcie_print_capabilities(port, 1, 0, 0);
+    }
+
+    return CMD_RET_SUCCESS;
+}
+
 U_BOOT_LONGHELP(ax_pcie,
         "init <port> <speed>\n"
         " - Initialize PCIe controller\n"
@@ -273,9 +402,12 @@ U_BOOT_LONGHELP(ax_pcie,
         "\n"
         "mem_read <port> <addr> <len>\n"
         " - Read PCIe memory\n"
-"\n"
-"mem_write <port> <addr> <value> <len>\n"
-" - Write PCIe memory"
+        "\n"
+        "mem_write <port> <addr> <value> <len>\n"
+        " - Write PCIe memory"
+        "\n"
+        "debug <port>\n"
+        " - Print PCIe config"
 );
 
 U_BOOT_CMD_WITH_SUBCMDS(ax_pcie, "Axiado bare-metal PCIe diagnostics test", ax_pcie_help_text,
@@ -284,4 +416,7 @@ U_BOOT_CMD_WITH_SUBCMDS(ax_pcie, "Axiado bare-metal PCIe diagnostics test", ax_p
         U_BOOT_SUBCMD_MKENT(header, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_header),
         U_BOOT_SUBCMD_MKENT(cap, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_cap),
         U_BOOT_SUBCMD_MKENT(cfg_read, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_cfg_read),
-        U_BOOT_SUBCMD_MKENT(cfg_write, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_cfg_write));
+        U_BOOT_SUBCMD_MKENT(cfg_write, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_cfg_write),
+        U_BOOT_SUBCMD_MKENT(mem_read, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_mem_read),
+        U_BOOT_SUBCMD_MKENT(mem_write, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_mem_write),
+        U_BOOT_SUBCMD_MKENT(debug, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_debug));

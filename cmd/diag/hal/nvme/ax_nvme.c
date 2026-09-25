@@ -25,12 +25,14 @@
 /*
  * DMA memory shared with the NVMe controller.
  *
- * Everything here is a *PCIe bus address* as seen by the SSD, so it MUST lie
- * inside the inbound (PCIe->AXI) window set up in axiado_pcie.c
- * (AXIADO_PCIE_DMA_PCI_BASE / _SIZE).  Make sure nothing else (U-Boot heap,
+ * Everything here is a *PCIe bus address* as seen by the SSD; the SSD DMAs
+ * to it directly.  Bus address == CPU address is assumed (check the dma-ranges
+ * of the Linux DTS if they differ).  Make sure nothing else (U-Boot heap,
  * stack, relocated code) lives in this range.
  */
-#define NVME_DMA_BASE            0x92000000ULL
+#ifndef NVME_DMA_BASE
+#define NVME_DMA_BASE            0x90000000ULL   /* override: -DNVME_DMA_BASE=0x89000000ULL */
+#endif
 #define NVME_ADMIN_SQ_ADDR       (NVME_DMA_BASE + 0x0000)
 #define NVME_ADMIN_CQ_ADDR       (NVME_DMA_BASE + 0x1000)
 #define NVME_IDENTIFY_BUF_ADDR   (NVME_DMA_BASE + 0x2000)
@@ -109,6 +111,91 @@ static void ax_nvme_dump_state(struct ax_nvme_dev *ndev)
     printf("NVMe state: CC=0x%08x CSTS=0x%08x\n", cc, csts);
 }
 
+/*
+ * Command/Status, Secondary Status and AER Status are RW1C: writing back
+ * what you read clears any bit that was set and leaves the rest alone.
+ * Call this before a fresh attempt so a later error dump reflects only
+ * what happened during THIS command, not a stale abort from a previous run.
+ */
+static void ax_nvme_clear_pcie_errors(struct ax_nvme_dev *ndev)
+{
+    u32 v;
+    int cap;
+
+    /* RP: primary status (0x06, in the 0x04 dword) + secondary status (0x1e, in the 0x1c dword) */
+    if (!ax_pcie_cfg_read(ndev->pcie_port, 0, 0, 0, PCI_CFG_COMMAND, &v))
+        ax_pcie_cfg_write(ndev->pcie_port, 0, 0, 0, PCI_CFG_COMMAND, v);
+    if (!ax_pcie_cfg_read(ndev->pcie_port, 0, 0, 0, 0x1c, &v))
+        ax_pcie_cfg_write(ndev->pcie_port, 0, 0, 0, 0x1c, v);
+
+    cap = ax_pcie_check_cap(ndev->pcie_port, 0, 0, 0, 1, PCI_EXT_CAP_ID_AER);
+    if (cap > 0) {
+        if (!ax_pcie_cfg_read(ndev->pcie_port, 0, 0, 0, cap + PCI_AER_UNCORR_STATUS, &v))
+            ax_pcie_cfg_write(ndev->pcie_port, 0, 0, 0, cap + PCI_AER_UNCORR_STATUS, v);
+        if (!ax_pcie_cfg_read(ndev->pcie_port, 0, 0, 0, cap + PCI_AER_CORR_STATUS, &v))
+            ax_pcie_cfg_write(ndev->pcie_port, 0, 0, 0, cap + PCI_AER_CORR_STATUS, v);
+    }
+
+    /* EP: same, on the drive's own function */
+    if (!ax_pcie_cfg_read(ndev->pcie_port, ndev->bus, ndev->dev, ndev->func,
+                          PCI_CFG_COMMAND, &v))
+        ax_pcie_cfg_write(ndev->pcie_port, ndev->bus, ndev->dev, ndev->func,
+                          PCI_CFG_COMMAND, v);
+
+    cap = ax_pcie_check_cap(ndev->pcie_port, ndev->bus, ndev->dev, ndev->func,
+                            1, PCI_EXT_CAP_ID_AER);
+    if (cap > 0) {
+        if (!ax_pcie_cfg_read(ndev->pcie_port, ndev->bus, ndev->dev, ndev->func,
+                              cap + PCI_AER_UNCORR_STATUS, &v))
+            ax_pcie_cfg_write(ndev->pcie_port, ndev->bus, ndev->dev, ndev->func,
+                              cap + PCI_AER_UNCORR_STATUS, v);
+        if (!ax_pcie_cfg_read(ndev->pcie_port, ndev->bus, ndev->dev, ndev->func,
+                              cap + PCI_AER_CORR_STATUS, &v))
+            ax_pcie_cfg_write(ndev->pcie_port, ndev->bus, ndev->dev, ndev->func,
+                              cap + PCI_AER_CORR_STATUS, v);
+    }
+}
+
+static void ax_nvme_dump_errors_one(u8 port, u8 bus, u8 dev, u8 func,
+                                    const char *name)
+{
+    u32 v;
+    int cap;
+
+    if (ax_pcie_cfg_read(port, bus, dev, func, PCI_CFG_COMMAND, &v))
+        return;
+    /* [15:0] command, [31:16] status (bit13 RxMasterAbort, 12 RxTargetAbort, 11 SigTargetAbort) */
+    printf("  %s cmd/status    = 0x%08x\n", name, v);
+
+    cap = ax_pcie_check_cap(port, bus, dev, func, 0, PCI_CAP_ID_PCIE);
+    if (cap > 0 && !ax_pcie_cfg_read(port, bus, dev, func,
+                                     cap + PCI_EXP_DEVCTL, &v))
+        /* DevSta [31:16]: bit0 CorrErr, 1 NonFatal, 2 Fatal, 3 UnsupReq */
+        printf("  %s devctl/devsta = 0x%08x\n", name, v);
+
+    cap = ax_pcie_check_cap(port, bus, dev, func, 1, PCI_EXT_CAP_ID_AER);
+    if (cap > 0) {
+        u32 unc = 0, cor = 0;
+
+        ax_pcie_cfg_read(port, bus, dev, func, cap + PCI_AER_UNCORR_STATUS, &unc);
+        ax_pcie_cfg_read(port, bus, dev, func, cap + PCI_AER_CORR_STATUS, &cor);
+        /* uncorr: bit14 CplTimeout, 15 CmplAbort, 16 UnexpCpl, 20 UnsupReq */
+        printf("  %s AER uncorr/corr = 0x%08x / 0x%08x\n", name, unc, cor);
+    }
+}
+
+static void ax_nvme_dump_pcie_errors(struct ax_nvme_dev *ndev)
+{
+    u32 v;
+
+    printf("PCIe error dump after failure:\n");
+    ax_nvme_dump_errors_one(ndev->pcie_port, 0, 0, 0, "RP");
+    if (!ax_pcie_cfg_read(ndev->pcie_port, 0, 0, 0, 0x1c, &v))
+        printf("  RP secondary status = 0x%08x\n", v >> 16);
+    ax_nvme_dump_errors_one(ndev->pcie_port, ndev->bus, ndev->dev,
+                            ndev->func, "EP");
+}
+
 static int ax_nvme_wait_ready(struct ax_nvme_dev *ndev,
                               bool enabled)
 {
@@ -141,8 +228,10 @@ static int ax_nvme_wait_ready(struct ax_nvme_dev *ndev,
             return -EIO;
         }
 
-        if (!!(csts & NVME_CSTS_RDY) == enabled)
+        if (!!(csts & NVME_CSTS_RDY) == enabled) {
+            printf("NVMe Status ready\n");
             return 0;
+        }
 
         udelay(100);
     }
@@ -224,10 +313,6 @@ static int ax_nvme_get_bar0(struct ax_nvme_dev *ndev)
 
         bar |= ((u64)bar_hi << 32);
     }
-
-    /* not assigned by ax_pcie_init_ep_bars() yet */
-    if (!bar)
-        return -ENOENT;
 
     ndev->bar0 = bar;
 
@@ -368,6 +453,18 @@ static int ax_nvme_configure_admin_queue(struct ax_nvme_dev *ndev)
     printf("AQA = 0x%08x ASQ = 0x%016llx ACQ = 0x%016llx\n",
            aqa, q->sq_dma, q->cq_dma);
 
+    {
+        u32 aqa_rb = 0;
+        u64 asq_rb = 0, acq_rb = 0;
+
+        ax_nvme_read32(ndev, NVME_REG_AQA, &aqa_rb);
+        ax_nvme_read64(ndev, NVME_REG_ASQ, &asq_rb);
+        ax_nvme_read64(ndev, NVME_REG_ACQ, &acq_rb);
+        if (aqa_rb != aqa || asq_rb != q->sq_dma || acq_rb != q->cq_dma)
+            printf("Admin queue regs read back differently: AQA=0x%08x ASQ=0x%016llx ACQ=0x%016llx\n",
+                   aqa_rb, asq_rb, acq_rb);
+    }
+
     return ax_nvme_enable_ctrl(ndev);
 }
 
@@ -423,9 +520,19 @@ static int ax_nvme_submit_cmd(struct ax_nvme_dev *ndev,
     } while (get_timer(start) < NVME_CMD_TIMEOUT_MS);
 
     if (!done) {
+        u32 *w = (u32 *)sqe;
+
         printf("NVMe command timeout (q%u opc 0x%02x)\n", q->qid,
                cmd->opcode);
         ax_nvme_dump_state(ndev);
+        printf("  SQE[%u] @%p: %08x %08x %08x %08x\n", (q->sq_tail + q->q_depth - 1) % q->q_depth,
+               sqe, w[0], w[1], w[6], w[7]);
+        ax_nvme_cache_inv(cqe, sizeof(*cqe));
+        w = (u32 *)cqe;
+        printf("  CQE[%u] @%p: %08x %08x %08x %08x (still zero => SSD never wrote it)\n",
+               q->cq_head, cqe, w[0], w[1], w[2], w[3]);
+        ax_nvme_dump_pcie_errors(ndev);
+        ax_pcie_debug_print(ndev->pcie_port);   /* ATR + RP window dump */
         return -ETIMEDOUT;
     }
 
@@ -765,6 +872,9 @@ int ax_nvme_probe(struct ax_nvme_dev *ndev,
     ret = ax_pcie_wait_device_ready(pcie_port, bus, dev, func, 5000);
     if (ret)
         return ret;
+
+    /* start this attempt with a clean AER/status slate (see comment above) */
+    ax_nvme_clear_pcie_errors(ndev);
 
     ret = ax_pcie_cfg_read(pcie_port, bus, dev, func,
                            PCI_CFG_REVISION_ID, &class_rev);

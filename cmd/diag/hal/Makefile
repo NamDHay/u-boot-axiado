@@ -19,7 +19,7 @@ obj-$(CONFIG_AXIADO_LTPI) 	+= ltpi/axiado_ltpi.o
 obj-$(CONFIG_AXIADO_MBOX) 	+= mailbox/axiado_mailbox.o
 
 obj-$(CONFIG_CMD_AX_PCIE) 	+= pcie/ax_pcie.o
-obj-$(CONFIG_INNO_PCIE) 	+= pcie/axiado_pcie.o
+obj-$(CONFIG_INNO_PCIE) 	+= pcie/axiado_pcie.o pcie/axiado_pcie_ep.o
 
 obj-$(CONFIG_CMD_AX_NVME) 	+= nvme/ax_nvme.o
 

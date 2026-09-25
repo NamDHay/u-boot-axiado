@@ -9,6 +9,7 @@
 
 #include <linux/types.h>
 #include <linux/bitops.h>
+#include <pci.h>
 
 /*
  * PCI Configuration Space
@@ -417,6 +418,7 @@
 /*
  * AER Extended Capability
  */
+#define PCI_AER_CAP_HEADER             0x00
 #define PCI_AER_UNCORR_STATUS          0x04
 #define PCI_AER_UNCORR_MASK            0x08
 #define PCI_AER_UNCORR_SEVERITY        0x0c
@@ -424,6 +426,18 @@
 #define PCI_AER_CORR_MASK              0x14
 #define PCI_AER_CAP_CONTROL            0x18
 #define PCI_AER_HEADER_LOG             0x1c
+#define PCI_AER_HEADER_LOG_DW0         0x1c
+#define PCI_AER_HEADER_LOG_DW1         0x20
+#define PCI_AER_HEADER_LOG_DW2         0x24
+#define PCI_AER_HEADER_LOG_DW3         0x28
+#define PCI_AER_ROOT_ERR_CMD           0x2c
+#define PCI_AER_ROOT_ERR_STATUS        0x30
+#define PCI_AER_ROOT_ERR_SRC           0x34
+#define PCI_AER_TLP_PREFIX_LOG         0x38
+#define PCI_AER_TLP_PREFIX_LOG_DW0     0x38
+#define PCI_AER_TLP_PREFIX_LOG_DW1     0x3c
+#define PCI_AER_TLP_PREFIX_LOG_DW2     0x40
+#define PCI_AER_TLP_PREFIX_LOG_DW3     0x44
 
 /*
  * ACS Extended Capability
@@ -462,8 +476,8 @@
  * indistinguishable from an unassigned BAR.  The pool must live inside the
  * outbound (AXI -> PCIe) memory window, atr[0], of axiado_pcie.c.
  */
-#define AX_PCIE_BAR_BASE               0x00100000ULL
-#define AX_PCIE_BAR_SIZE               0x0FF00000ULL
+#define AX_PCIE_BAR_BASE               0x500000000ULL
+#define AX_PCIE_BAR_SIZE               0x10000000ULL
 
 /*
  * Wait until a function answers config reads (not 0xffff / CRS 0x0001).
@@ -500,4 +514,7 @@ void ax_pcie_print_msix_cap(int port,
 void ax_pcie_print_pm_cap(int port,
 				 u8 bus, u8 dev, u8 func,
 				 u16 offset);
+
+void ax_pcie_enable_aer(int port, u8 bus, u8 dev, u8 func);
+
 #endif /* __PCIE_CONF_H */

@@ -232,7 +232,7 @@ int ax_nvme_identify_namespace(struct ax_nvme_dev *ndev,
  * Block I/O.  @buf is the CPU pointer, @dma_addr the PCIe bus address of the
  * same memory (identity mapped through the inbound ATR, so usually equal).
  * @buf/@dma_addr must be dword aligned; @buf should be cache-line aligned
- * and lie inside the inbound window (AXIADO_PCIE_DMA_*).
+ * and be reachable by the SSD's DMA.
  */
 int ax_nvme_read(struct ax_nvme_dev *ndev,
                  u32 nsid,

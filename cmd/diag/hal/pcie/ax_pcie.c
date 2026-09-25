@@ -13,6 +13,7 @@
 #include <linux/errno.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
+#include <linux/string.h>
 
 #include "ax_pcie.h"
 #include "ax_pcie_conf.h"
@@ -20,32 +21,135 @@
 
 /*
  * ---------------------------------------------------------------------------
- * Configuration space access helpers
+ * Endpoint BAR pool
  * ---------------------------------------------------------------------------
+ *
+ * Endpoint BARs are carved out of the first usable outbound memory window
+ * that the controller reports through ax_pcie_get_regions().  The window's
+ * bus_start is the PCI bus address of its first byte, which is what has to
+ * be programmed into the BARs (phys_start is the CPU-side address and is
+ * not used here).
  */
 
-static u64 ax_pcie_bar_next = AX_PCIE_BAR_BASE;
+#define AX_PCIE_MAX_REGIONS		8
+
+/* A 32-bit memory BAR can only decode addresses below this limit */
+#define AX_PCIE_4G			0x100000000ULL
+
+/*
+ * PCI address 0 is deliberately NOT handed out: a BAR that reads back 0 is
+ * indistinguishable from an unassigned BAR.
+ */
+#define AX_PCIE_BAR_MIN_ADDR		0x1000ULL
+
+static u64 ax_pcie_bar_next;
+static u64 ax_pcie_bar_end;
+static int ax_pcie_bar_port = -1;
+static bool ax_pcie_bar_ready;
 
 static u64 ax_pcie_align(u64 value, u64 align)
 {
 	return (value + align - 1) & ~(align - 1);
 }
 
+/* Forget the current pool; the next BAR init reloads it from the port */
 void ax_pcie_reset_bar_pool(void)
 {
-	ax_pcie_bar_next = AX_PCIE_BAR_BASE;
+	ax_pcie_bar_ready = false;
+	ax_pcie_bar_port = -1;
+	ax_pcie_bar_next = 0;
+	ax_pcie_bar_end = 0;
 }
 
-static int ax_pcie_alloc_bar(u64 size, u64 *addr)
+/*
+ * Can this region hold endpoint MMIO BARs?  I/O windows and inbound
+ * (system memory) ranges cannot.  The flags are interpreted as U-Boot
+ * PCI_REGION_* values.
+ */
+static bool ax_pcie_region_usable(const struct ax_pci_region *region)
 {
+	if (!region->size)
+		return false;
+
+	if (region->flags & (PCI_REGION_TYPE | PCI_REGION_SYS_MEMORY))
+		return false;
+
+	return true;
+}
+
+/*
+ * Set up the BAR pool from the port's outbound memory window.  Does nothing
+ * if the pool is already loaded for this port.
+ */
+static int ax_pcie_load_bar_pool(int port)
+{
+	struct ax_pci_region *regions;
+	int cnt;
+	int ret;
+	int i;
+
+	if (ax_pcie_bar_ready && ax_pcie_bar_port == port)
+		return 0;
+
+	ret = ax_pcie_get_regions(port, &regions, &cnt);
+	if (ret) {
+		printf("PCIe port %d: cannot get regions: %d\n", port, ret);
+		return ret;
+	}
+
+	if (cnt > AX_PCIE_MAX_REGIONS)
+		cnt = AX_PCIE_MAX_REGIONS;
+
+	for (i = 0; i < cnt; i++) {
+		u64 base = (u64)regions[i].bus_start;
+		u64 end = base + regions[i].size;
+
+		if (!ax_pcie_region_usable(&regions[i]) || end < base)
+			continue;
+
+		ax_pcie_bar_next = base ? base : AX_PCIE_BAR_MIN_ADDR;
+		ax_pcie_bar_end = end;
+		ax_pcie_bar_port = port;
+		ax_pcie_bar_ready = true;
+
+		printf("PCIe port %d: BAR pool bus 0x%llx-0x%llx\n",
+		       port,
+		       (unsigned long long)base,
+		       (unsigned long long)(end - 1));
+
+		return 0;
+	}
+
+	printf("PCIe port %d: no outbound memory region for BARs\n", port);
+
+	return -ENODEV;
+}
+
+/*
+ * Carve @size bytes (naturally aligned) out of the BAR pool.
+ *
+ * @addr_32bit: the BAR is a 32-bit BAR, so the block must also end below
+ *              4 GiB.  Returns -ENOMEM when the pool cannot satisfy that,
+ *              which is not an error for the pool itself.
+ */
+static int ax_pcie_alloc_bar(u64 size, bool addr_32bit, u64 *addr)
+{
+	u64 end = ax_pcie_bar_end;
 	u64 base;
 
-	if (!size || !addr)
+	/* BAR sizes are always a power of two */
+	if (!size || !addr || (size & (size - 1)))
 		return -EINVAL;
+
+	if (!ax_pcie_bar_ready)
+		return -ENODEV;
+
+	if (addr_32bit && end > AX_PCIE_4G)
+		end = AX_PCIE_4G;
 
 	base = ax_pcie_align(ax_pcie_bar_next, size);
 
-	if (base + size > AX_PCIE_BAR_BASE + AX_PCIE_BAR_SIZE)
+	if (base + size > end)
 		return -ENOMEM;
 
 	*addr = base;
@@ -53,6 +157,12 @@ static int ax_pcie_alloc_bar(u64 size, u64 *addr)
 
 	return 0;
 }
+
+/*
+ * ---------------------------------------------------------------------------
+ * Configuration space access helpers
+ * ---------------------------------------------------------------------------
+ */
 
 static int ax_pcie_cfg_read8(int port, u8 bus, u8 dev, u8 func,
 			     u16 offset, u8 *val)
@@ -152,7 +262,7 @@ int ax_pcie_check_cap(u8 port, u8 bus, u8 dev, u8 func,
             if ((val & PCI_EXT_CAP_ID_MASK) == cap_id)
                 return offset;
 
-            next = (val & PCI_EXT_CAP_NEXT_MASK) >> 20;
+            next = (val & PCI_EXT_CAP_NEXT_MASK) >> PCI_EXT_CAP_NEXT_SHIFT;
 
             if (next <= offset)
                 break;
@@ -173,17 +283,17 @@ int ax_pcie_check_cap(u8 port, u8 bus, u8 dev, u8 func,
 
         offset = val & 0xfc;
 
-        while (offset && count++ < 48) {
+        while (offset >= 0x40 && count++ < 48) {
             ret = ax_pcie_cfg_read(port,
                                    bus, dev, func,
                                    offset, &val);
             if (ret)
                 return ret;
 
-            if ((val & 0xff) == cap_id)
+            if (((val >> (PCI_CAP_ID * 8)) & 0xff) == cap_id)
                 return offset;
 
-            offset = (val >> 8) & 0xff;
+            offset = (val >> (PCI_CAP_NEXT * 8)) & 0xfc;
         }
     }
 
@@ -382,7 +492,7 @@ static void ax_pcie_print_status(u16 status)
 }
 
 static void ax_pcie_print_bar(int port, u8 bus, u8 dev, u8 func,
-			      int index, u32 bar)
+			      int index, int nbars, u32 bar)
 {
 	u32 upper;
 	u64 addr;
@@ -402,7 +512,7 @@ static void ax_pcie_print_bar(int port, u8 bus, u8 dev, u8 func,
 	addr = bar & PCI_BAR_ADDR_MASK;
 
 	if ((bar & PCI_BAR_MEM_TYPE_MASK) == PCI_BAR_MEM_TYPE_64 &&
-	    index < 5) {
+	    index < nbars - 1) {
 		if (ax_pcie_cfg_read32(port, bus, dev, func,
 				       PCI_CFG_BAR0 + (index + 1) * 4,
 				       &upper))
@@ -431,13 +541,13 @@ static void ax_pcie_print_bar(int port, u8 bus, u8 dev, u8 func,
 }
 
 static int ax_pcie_probe_bar(int port, u8 bus, u8 dev, u8 func,
-			     int index, struct ax_pcie_bar *bar)
+			     int index, int nbars, struct ax_pcie_bar *bar)
 {
 	u32 orig_lo, orig_hi = 0;
 	u32 mask_lo, mask_hi = 0;
 	u64 mask;
 
-	if (index < 0 || index > 5)
+	if (index < 0 || index >= nbars)
 		return -EINVAL;
 
 	memset(bar, 0, sizeof(*bar));
@@ -455,8 +565,8 @@ static int ax_pcie_probe_bar(int port, u8 bus, u8 dev, u8 func,
 			((orig_lo & PCI_BAR_MEM_TYPE_MASK) ==
 			 PCI_BAR_MEM_TYPE_64);
 
-		/* BAR5 cannot be the low half of a 64-bit BAR */
-		if (index == 5)
+		/* The last BAR cannot be the low half of a 64-bit BAR */
+		if (index == nbars - 1)
 			bar->is_64bit = false;
 
 		bar->prefetch = orig_lo & PCI_BAR_PREFETCH;
@@ -532,6 +642,10 @@ static int ax_pcie_program_bar(int port,
 	if (bar->is_io)
 		return -ENOTSUPP;
 
+	/* lower_32_bits() below would silently wrap a 32-bit BAR above 4 GiB */
+	if (!bar->is_64bit && bar->addr + bar->size > AX_PCIE_4G)
+		return -ERANGE;
+
 	bar_lo = lower_32_bits(bar->addr);
 
 	if (bar->is_64bit) {
@@ -575,11 +689,41 @@ int ax_pcie_init_ep_bars(int port, u8 bus, u8 dev, u8 func)
 {
 	struct ax_pcie_bar bar;
 	u16 command;
+	u8 header_type;
+	int nbars;
 	int i;
 	int ret;
 
 	printf("\nPCIe BAR initialization for %02x:%02x.%x\n",
 	       bus, dev, func);
+
+	/*
+	 * Type 0 (endpoint) has six BARs.  Type 1 (bridge / root port) only
+	 * has two: the registers after them hold bus numbers and forwarding
+	 * windows and must not be probed as BARs.
+	 */
+	ret = ax_pcie_cfg_read8(port, bus, dev, func,
+				PCI_CFG_HEADER_TYPE, &header_type);
+	if (ret)
+		return ret;
+
+	switch (header_type & PCI_HEADER_TYPE_MASK) {
+	case PCI_HEADER_TYPE_NORMAL:
+		nbars = 6;
+		break;
+	case PCI_HEADER_TYPE_BRIDGE:
+		nbars = 2;
+		break;
+	default:
+		printf("Unsupported header type 0x%02x\n",
+		       header_type & PCI_HEADER_TYPE_MASK);
+		return -EINVAL;
+	}
+
+	/* Find out where BARs may be placed before touching the device */
+	ret = ax_pcie_load_bar_pool(port);
+	if (ret)
+		return ret;
 
 	/*
 	 * Disable Memory Space while probing/programming BARs.
@@ -596,11 +740,11 @@ int ax_pcie_init_ep_bars(int port, u8 bus, u8 dev, u8 func)
 	if (ret)
 		return ret;
 
-	for (i = 0; i < 6; i++) {
+	for (i = 0; i < nbars; i++) {
 		memset(&bar, 0, sizeof(bar));
 
 		ret = ax_pcie_probe_bar(port, bus, dev, func,
-					i, &bar);
+					i, nbars, &bar);
 		if (ret) {
 			printf("Failed to probe BAR%d: %d\n",
 			       i, ret);
@@ -621,7 +765,17 @@ int ax_pcie_init_ep_bars(int port, u8 bus, u8 dev, u8 func)
 			continue;
 		}
 
-		ret = ax_pcie_alloc_bar(bar.size, &bar.addr);
+		ret = ax_pcie_alloc_bar(bar.size, !bar.is_64bit, &bar.addr);
+		if (ret == -ENOMEM && !bar.is_64bit) {
+			/*
+			 * The pool lives above 4 GiB, so a 32-bit BAR cannot
+			 * be placed in it.  Leave it unassigned rather than
+			 * programming a truncated address.
+			 */
+			printf("BAR%d: 32-bit BAR does not fit below 4 GiB, left unassigned\n",
+			       i);
+			continue;
+		}
 		if (ret) {
 			printf("Failed to allocate BAR%d: %d\n",
 			       i, ret);
@@ -658,21 +812,22 @@ int ax_pcie_init_ep_bars(int port, u8 bus, u8 dev, u8 func)
 static void ax_pcie_print_header_bdf(int port,
 				     u8 bus, u8 dev, u8 func)
 {
-	u16 vendor;
-	u16 device;
-	u16 command;
-	u16 status;
-	u16 subsystem_vendor;
-	u16 subsystem_device;
-	u8 revision;
-	u8 class;
-	u8 subclass;
-	u8 prog_if;
-	u8 header_type;
-	u8 int_line;
-	u8 int_pin;
-	u8 cap_ptr;
+	u16 vendor = 0;
+	u16 device = 0;
+	u16 command = 0;
+	u16 status = 0;
+	u16 subsystem_vendor = 0;
+	u16 subsystem_device = 0;
+	u8 revision = 0;
+	u8 class = 0;
+	u8 subclass = 0;
+	u8 prog_if = 0;
+	u8 header_type = 0;
+	u8 int_line = 0;
+	u8 int_pin = 0;
+	u8 cap_ptr = 0;
 	u32 bar;
+	int nbars;
 	int i;
 
 	if (ax_pcie_cfg_read16(port, bus, dev, func,
@@ -752,15 +907,19 @@ static void ax_pcie_print_header_bdf(int port,
 
 	printf("\tCapability Ptr: 0x%02x\n", cap_ptr);
 
+	/* Type 1 headers (root port / bridge) only have BAR0 and BAR1 */
+	nbars = ((header_type & PCI_HEADER_TYPE_MASK) ==
+		 PCI_HEADER_TYPE_BRIDGE) ? 2 : 6;
+
 	printf("\n\tBARs:\n");
 
-	for (i = 0; i < 6; i++) {
+	for (i = 0; i < nbars; i++) {
 		if (ax_pcie_cfg_read32(port, bus, dev, func,
 				       PCI_CFG_BAR0 + i * 4,
 				       &bar))
 			break;
 
-		ax_pcie_print_bar(port, bus, dev, func, i, bar);
+		ax_pcie_print_bar(port, bus, dev, func, i, nbars, bar);
 
 		if (!(bar & PCI_BAR_IO) &&
 		    (bar & PCI_BAR_MEM_TYPE_MASK) ==
@@ -779,8 +938,8 @@ void ax_pcie_print_pm_cap(int port,
 				 u8 bus, u8 dev, u8 func,
 				 u16 offset)
 {
-	u16 cap;
-	u16 ctrl;
+	u16 cap = 0;
+	u16 ctrl = 0;
 
 	ax_pcie_cfg_read16(port, bus, dev, func,
 			   offset + PCI_PM_CAP, &cap);
@@ -823,10 +982,10 @@ void ax_pcie_print_msi_cap(int port,
 				  u8 bus, u8 dev, u8 func,
 				  u16 offset)
 {
-	u16 ctrl;
-	u32 addr_lo;
+	u16 ctrl = 0;
+	u32 addr_lo = 0;
 	u32 addr_hi = 0;
-	u16 data;
+	u16 data = 0;
 	bool is_64bit;
 
 	ax_pcie_cfg_read16(port, bus, dev, func,
@@ -886,9 +1045,9 @@ void ax_pcie_print_msix_cap(int port,
 				   u8 bus, u8 dev, u8 func,
 				   u16 offset)
 {
-	u16 ctrl;
-	u32 table;
-	u32 pba;
+	u16 ctrl = 0;
+	u32 table = 0;
+	u32 pba = 0;
 	u32 table_size;
 
 	ax_pcie_cfg_read16(port, bus, dev, func,
@@ -931,9 +1090,9 @@ static void ax_pcie_print_pcie_dev_cap(int port,
 				       u8 bus, u8 dev, u8 func,
 				       u16 offset)
 {
-	u32 cap;
-	u16 ctl;
-	u16 sta;
+	u32 cap = 0;
+	u16 ctl = 0;
+	u16 sta = 0;
 
 	ax_pcie_cfg_read32(port, bus, dev, func,
 			   offset + PCI_EXP_DEVCAP, &cap);
@@ -1013,14 +1172,14 @@ static void ax_pcie_print_pcie_dev_cap(int port,
 
 static void ax_pcie_print_pcie_link_cap(int port,
 					u8 bus, u8 dev, u8 func,
-					u16 offset)
+					u16 offset, u8 version)
 {
-	u32 cap;
-	u16 ctl;
-	u16 sta;
-	u32 cap2;
-	u16 ctl2;
-	u16 sta2;
+	u32 cap = 0;
+	u16 ctl = 0;
+	u16 sta = 0;
+	u32 cap2 = 0;
+	u16 ctl2 = 0;
+	u16 sta2 = 0;
 
 	ax_pcie_cfg_read32(port, bus, dev, func,
 			   offset + PCI_EXP_LNKCAP, &cap);
@@ -1031,14 +1190,17 @@ static void ax_pcie_print_pcie_link_cap(int port,
 	ax_pcie_cfg_read16(port, bus, dev, func,
 			   offset + PCI_EXP_LNKSTA, &sta);
 
-	ax_pcie_cfg_read32(port, bus, dev, func,
-			   offset + PCI_EXP_LNKCAP2, &cap2);
+	/* The *2 registers only exist in version 2+ of the capability */
+	if (version >= 2) {
+		ax_pcie_cfg_read32(port, bus, dev, func,
+				   offset + PCI_EXP_LNKCAP2, &cap2);
 
-	ax_pcie_cfg_read16(port, bus, dev, func,
-			   offset + PCI_EXP_LNKCTL2, &ctl2);
+		ax_pcie_cfg_read16(port, bus, dev, func,
+				   offset + PCI_EXP_LNKCTL2, &ctl2);
 
-	ax_pcie_cfg_read16(port, bus, dev, func,
-			   offset + PCI_EXP_LNKSTA2, &sta2);
+		ax_pcie_cfg_read16(port, bus, dev, func,
+				   offset + PCI_EXP_LNKSTA2, &sta2);
+	}
 
 	printf("\t\t\tLnkCap: 0x%08x\n", cap);
 
@@ -1100,9 +1262,11 @@ static void ax_pcie_print_pcie_link_cap(int port,
 	printf("\t\t\t\tDLL Active: %s\n",
 	       sta & PCI_EXP_LNKSTA_DLL_ACTIVE ? "yes" : "no");
 
-	printf("\t\t\tLnkCap2: 0x%08x\n", cap2);
-	printf("\t\t\tLnkCtl2: 0x%04x\n", ctl2);
-	printf("\t\t\tLnkSta2: 0x%04x\n", sta2);
+	if (version >= 2) {
+		printf("\t\t\tLnkCap2: 0x%08x\n", cap2);
+		printf("\t\t\tLnkCtl2: 0x%04x\n", ctl2);
+		printf("\t\t\tLnkSta2: 0x%04x\n", sta2);
+	}
 }
 
 /*
@@ -1115,7 +1279,7 @@ void ax_pcie_print_pcie_cap(int port,
 				   u8 bus, u8 dev, u8 func,
 				   u16 offset)
 {
-	u16 cap;
+	u16 cap = 0;
 	u8 version;
 	u8 type;
 
@@ -1134,13 +1298,13 @@ void ax_pcie_print_pcie_cap(int port,
 	       ax_pcie_type_name(type), type);
 
 	ax_pcie_print_pcie_dev_cap(port, bus, dev, func, offset);
-	ax_pcie_print_pcie_link_cap(port, bus, dev, func, offset);
+	ax_pcie_print_pcie_link_cap(port, bus, dev, func, offset, version);
 
 	if (type == PCI_EXP_TYPE_ROOT_PORT ||
 	    type == PCI_EXP_TYPE_DOWNSTREAM_PORT) {
-		u32 slot_cap;
-		u16 slot_ctl;
-		u16 slot_sta;
+		u32 slot_cap = 0;
+		u16 slot_ctl = 0;
+		u16 slot_sta = 0;
 
 		ax_pcie_cfg_read32(port, bus, dev, func,
 				   offset + PCI_EXP_SLT_CAP,
@@ -1168,8 +1332,8 @@ void ax_pcie_print_pcie_cap(int port,
 	}
 
 	if (type == PCI_EXP_TYPE_ROOT_PORT) {
-		u16 root_ctl;
-		u32 root_sta;
+		u16 root_ctl = 0;
+		u32 root_sta = 0;
 
 		ax_pcie_cfg_read16(port, bus, dev, func,
 				   offset + PCI_EXP_RTCTL,
@@ -1331,11 +1495,11 @@ void ax_pcie_print_capabilities(int port, u8 bus, u8 dev, u8 func)
 			switch (cap_id) {
 			case PCI_EXT_CAP_ID_AER:
 			{
-				u32 uncorr_status;
-				u32 uncorr_mask;
-				u32 uncorr_severity;
-				u32 corr_status;
-				u32 corr_mask;
+				u32 uncorr_status = 0;
+				u32 uncorr_mask = 0;
+				u32 uncorr_severity = 0;
+				u32 corr_status = 0;
+				u32 corr_mask = 0;
 
 				ax_pcie_cfg_read32(
 					port, bus, dev, func,
@@ -1381,8 +1545,8 @@ void ax_pcie_print_capabilities(int port, u8 bus, u8 dev, u8 func)
 
 			case PCI_EXT_CAP_ID_ACS:
 			{
-				u16 cap;
-				u16 ctl;
+				u16 cap = 0;
+				u16 ctl = 0;
 
 				ax_pcie_cfg_read16(
 					port, bus, dev, func,
@@ -1399,12 +1563,12 @@ void ax_pcie_print_capabilities(int port, u8 bus, u8 dev, u8 func)
 
 			case PCI_EXT_CAP_ID_SRIOV:
 			{
-				u16 ctrl;
-				u16 total_vf;
-				u16 num_vf;
-				u16 first_vf;
-				u16 vf_offset;
-				u16 vf_stride;
+				u16 ctrl = 0;
+				u16 total_vf = 0;
+				u16 num_vf = 0;
+				u16 first_vf = 0;
+				u16 vf_offset = 0;
+				u16 vf_stride = 0;
 
 				ax_pcie_cfg_read16(
 					port, bus, dev, func,
@@ -1474,17 +1638,51 @@ void ax_pcie_print_capabilities(int port, u8 bus, u8 dev, u8 func)
  * Public header print
  * ---------------------------------------------------------------------------
  *
- * Current API only receives "port", so we use BDF 00:00.0.
- *
- * If your controller has another root-port BDF, change bus/dev/func here
- * or extend the public API to:
- *
- *     ax_pcie_print_header(port, bus, dev, func)
- *
- * which is actually closer to lspci.
+ * Dumps the config header of the function at bus:dev.func, similar to
+ * "lspci -vv".  Works for both endpoints (type 0) and root ports /
+ * bridges (type 1).
  */
 
 void ax_pcie_print_header(int port, u8 bus, u8 dev, u8 func)
 {
 	ax_pcie_print_header_bdf(port, bus, dev, func);
+}
+
+/* Root Error Command: correctable / non-fatal / fatal error reporting */
+#define AX_AER_ROOT_ERR_CMD_ALL	(BIT(0) | BIT(1) | BIT(2))
+
+/* Device Control: correctable / non-fatal / fatal / unsupported request */
+#define AX_EXP_DEVCTL_ERR_ALL	(PCI_EXP_DEVCTL_CERE | PCI_EXP_DEVCTL_NFERE | \
+				 PCI_EXP_DEVCTL_FERE | PCI_EXP_DEVCTL_URRE)
+
+void ax_pcie_enable_aer(int port, u8 bus, u8 dev, u8 func)
+{
+	u32 val;
+	int cap;
+
+	/* Root Error Command lives in the AER extended capability */
+	cap = ax_pcie_check_cap(port, bus, dev, func, 1, PCI_EXT_CAP_ID_AER);
+	if (cap > 0 &&
+	    !ax_pcie_cfg_read(port, bus, dev, func,
+			      cap + PCI_AER_ROOT_ERR_CMD, &val)) {
+		val |= AX_AER_ROOT_ERR_CMD_ALL;
+		ax_pcie_cfg_write(port, bus, dev, func,
+				  cap + PCI_AER_ROOT_ERR_CMD, val);
+	}
+
+	/*
+	 * Error reporting enables live in Device Control of the PCI Express
+	 * capability.  Device Control and Device Status share one dword and
+	 * the status bits are write-1-to-clear, so drop the status half
+	 * before writing back or pending errors would be wiped.
+	 */
+	cap = ax_pcie_check_cap(port, bus, dev, func, 0, PCI_CAP_ID_PCIE);
+	if (cap > 0 &&
+	    !ax_pcie_cfg_read(port, bus, dev, func,
+			      cap + PCI_EXP_DEVCTL, &val)) {
+		val &= 0xffff;
+		val |= AX_EXP_DEVCTL_ERR_ALL;
+		ax_pcie_cfg_write(port, bus, dev, func,
+				  cap + PCI_EXP_DEVCTL, val);
+	}
 }

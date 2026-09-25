@@ -7,6 +7,8 @@
 #ifndef __PCIE_H
 #define __PCIE_H
 
+#include <stdio.h>
+
 struct ax_pcie_bar {
 	u64 addr;
 	u64 size;
@@ -16,9 +18,20 @@ struct ax_pcie_bar {
 	int index;
 };
 
+struct ax_pci_region {
+	void __iomem *bus_start;	/* Start on the bus */
+	void __iomem *phys_start;	/* Start in physical address space */
+	size_t size;	/* Size */
+	unsigned long flags;	/* Resource flags */
+};
+
 struct ax_pcie_ops {
     int (*init)(u8 port, u8 controller_mode, u8 speed);
     int (*reset)(u8 port);
+
+    int (*get_regions)(u8 port,
+			    struct ax_pci_region **regions,
+			    int *region_cnt);
 
     int (*cfg_read)(int port, u8 bus, u8 dev, u8 func,
                     u16 offset, u32 *val);
@@ -69,6 +82,14 @@ static inline int ax_pcie_debug_print(u8 port) {
     if (pcie.debug_print == NULL) return -ENOSYS;
 
     return pcie.debug_print(port); 
+}
+
+static inline int ax_pcie_get_regions(u8 port,
+			    struct ax_pci_region **regions,
+			    int *region_cnt) {  
+    if (pcie.get_regions == NULL) return -ENOSYS;
+
+    return pcie.get_regions(port, regions, region_cnt); 
 }
 
 #endif /* __PCIE_H */

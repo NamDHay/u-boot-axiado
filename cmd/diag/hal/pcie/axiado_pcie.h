@@ -7,17 +7,32 @@
 #ifndef __AXIADO_PCIE_H
 #define __AXIADO_PCIE_H
 
+#define BIT_SET_VAL(end_bit, start_bit, dst, set_val)                                                            \
+    (~(((u32)(0x1 << start_bit) - 1) ^ ((u32)(0x1 << (end_bit + 1)) - 1)) & (u32)dst) | \
+        ((((u32)(0x1 << start_bit) - 1) ^ ((u32)(0x1 << (end_bit + 1)) - 1)) &               \
+         ((u32)set_val << start_bit))
+
+#define BIT_GET_VAL(end_bit, start_bit, dst) \
+    ((((u32)(0x1 << start_bit) - 1) ^ ((u32)(0x1 << (end_bit + 1)) - 1)) & dst) >> start_bit
+
 #define AX_PCIE_TL_CLOCK_FREQ_MHZ  500
 #define IS_LANE_REVERSAL_EN 1
 #define IS_COMMON_SLOT_CLOCK_SET 1
+#define MAX_VF (64)
 
 #define PCIE_ETHERNET_CLASS_CODE \
 	0x02000000 /* PCIe Class Code for network in EP Mode */
 #define PCIE_VGA_CLASS_CODE 0x03000000 /* PCIe Class Code for VGA in EP Mode */
 #define PCIE_BRIDGE_CLASS_CODE 0x06040000 /* PCIe Class Code for Host Mode */
 #define PCIE_USB_CLASS_CODE             0x0C03FE00 /* PCIe Class Code for USB Mode */
-#define PCIE_STORAGE_CLASS_CODE         0x01800000 /* PCIe Class Code for Storage Mode */
+#define PCIE_STORAGE_CLASS_CODE         0x01080200 /* PCIe Class Code for Storage Mode */
 #define PCIE_TRUSTEDS_CLASS_CODE        0x0B800000 /* PCIe Class Code for Trusted Services Mode */
+
+/* REG_PCIE_X1_PCIE_PCI_IDS_63_32_ADRS_OFFSET / REG_PCIE_X2_PCIE_PCI_IDS_63_32_ADRS_OFFSET*/
+#define PCIE_PCI_IDS_63_32_CLASS_CODE_SET(dst, val) BIT_SET_VAL(31, 8, dst, val)
+#define PCIE_PCI_IDS_31_0_VENDOR_ID_SET(dst, val) BIT_SET_VAL(15, 0, dst, val)
+#define PCIE_PCI_IDS_31_0_DEVICE_ID_SET(dst, val) BIT_SET_VAL(31, 16, dst, val)
+
 #define PCIE_PERST_PULLUP_SET (0x1 << 22)
 
 /* ---- Root-port bring-up timing / windows (added) ---- */
@@ -33,7 +48,19 @@
  */
 #define AXIADO_PCIE_DMA_PCI_BASE    0x80000000ULL
 #define AXIADO_PCIE_DMA_AXI_BASE    0x80000000ULL
-#define AXIADO_PCIE_DMA_SIZE        0x40000000ULL /* 1 GiB */
+#define AXIADO_PCIE_DMA_SIZE        SZ_1G /* 1 GiB */
+
+#define AXI_FUNC_ADDR 0x000003a0
+/* AXI_FUNC_ADDR */
+#define PCIE_XPA_AXI_FUNC_WRITE_VF_GET(val) BIT_GET_VAL(8, 0, val)
+#define PCIE_XPA_AXI_FUNC_WRITE_PF_GET(val) BIT_GET_VAL(14, 9, val)
+#define PCIE_XPA_AXI_FUNC_READ_VF_GET(val) BIT_GET_VAL(24, 16, val)
+#define PCIE_XPA_AXI_FUNC_READ_PF_GET(val) BIT_GET_VAL(30, 25, val)
+
+#define PCIE_XPA_AXI_FUNC_WRITE_VF_SET(dst, val) BIT_SET_VAL(8, 0, dst, val)
+#define PCIE_XPA_AXI_FUNC_WRITE_PF_SET(dst, val) BIT_SET_VAL(14, 9, dst, val)
+#define PCIE_XPA_AXI_FUNC_READ_VF_SET(dst, val) BIT_SET_VAL(24, 16, dst, val)
+#define PCIE_XPA_AXI_FUNC_READ_PF_SET(dst, val) BIT_SET_VAL(30, 25, dst, val)
 
 #define PCIE_PHY_GEN1 (0x1 << 12)
 #define PCIE_PHY_GEN2 (0x3 << 12)
@@ -99,19 +126,16 @@
 #define PCIE_BAR_23_OFFSET		0xEC
 #define PCIE_BAR_45_OFFSET		0xF4
 
+#define REG_PCIE_SRIOV_31_0_ADRS_OFFSET 0x0000 + 0x0120
+#define REG_PCIE_SRIOV_63_32_ADRS_OFFSET 0x0000 + 0x0124
+#define REG_PCIE_SRIOV_95_64_ADRS_OFFSET 0x0000 + 0x0128
+#define REG_PCIE_PEX_DEV2_ADRS_OFFSET 0x0000 + 0x00C4
+
 #define MAX_DMA_LIST (16)
 #define PCIE_INTF 0x00000000
 #define AXI4_M0   0x00000004
 #define AX_PCIE_DMA_VDM_TRSF_PARAM              (4)
 #define EP_LINK_POLL_MS 1000
-
-#define BIT_SET_VAL(end_bit, start_bit, dst, set_val)                                                            \
-    (~(((u32)(0x1 << start_bit) - 1) ^ ((u32)(0x1 << (end_bit + 1)) - 1)) & (u32)dst) | \
-        ((((u32)(0x1 << start_bit) - 1) ^ ((u32)(0x1 << (end_bit + 1)) - 1)) &               \
-         ((u32)set_val << start_bit))
-
-#define BIT_GET_VAL(end_bit, start_bit, dst) \
-    ((((u32)(0x1 << start_bit) - 1) ^ ((u32)(0x1 << (end_bit + 1)) - 1)) & dst) >> start_bit
 
 #define REG_PCIE_X1_RESET_CTRL_ADRS_OFFSET 0x15c
 #define REG_PCIE_X2_RESET_CTRL_ADRS_OFFSET 0x1cc
@@ -145,6 +169,7 @@
 #define REG_PCIE_EQ_TUNING_63_32_ADRS_OFFSET (0x0300 + 0x0060)
 #define REG_PCIE_EQ_PRESET_8G_31_0_ADRS_OFFSET (0x0000 + 0x0100)
 #define REG_PCIE_EQ_PRESET_16G_31_0_ADRS_OFFSET (0x0000 + 0x0150)
+#define REG_PCIE_PCI_IDS_31_0_ADRS_OFFSET (0x0000 + 0x0098)
 #define REG_PCIE_PCI_IDS_63_32_ADRS_OFFSET (0x0000 + 0x009C)
 
 #define PCIE_PHY_CONF_CTRL_LTSSM 0xFFFFFFFB
@@ -152,9 +177,6 @@
 
 #define REG_PCIE_BASIC_STATUS_ADRS_OFFSET (0x0000 + 0x0018)
 #define LINK_STATUS_LOW_POWER_ADDR 0x000003dc
-#define PCIE_ATR_TRSLID_PCIE_MEMORY 0x0
-#define PCIE_ATR_TRSLID_PCIE_CFG 0x1
-#define PCIE_ATR_TRSLID_AXI4_MASTER_0 0x4
 #define PCIE_ATR_TRSL_DIR BIT(22)
 #define PCIE_ATR_AXI4_SLV0 0x800
 #define PCIE_ATR_MAX_TABLE_NUM 8
@@ -169,8 +191,6 @@
 #define PCIE_ATR_TRSL_MASK_OFFSET 0x18
 #define PCIE_ATR_TABLE_OFFSET 0x20
 #define ATR_TRSL_MASK_SET(dst, val) (((uint32_t)dst & ~0xFFFFFFFF) | ((uint32_t)val & 0xFFFFFFFF))
-#define REG_PCIE_PCIE_SRIOV_31_0_ADRS_OFFSET 0x0120
-#define REG_PCIE_PCIE_SRIOV_63_32_ADRS_OFFSET 0x0124
 #define REG_PCIE_AXI_MST0_VF_APER_LO_LSBS_N3_ADRS_OFFSET 0x064
 #define REG_PCIE_AXI_MST0_VF_APER_LO_MSBS_N3_ADRS_OFFSET 0x070
 #define REG_PCIE_AXI_MST0_VF_APER_HI_LSBS_N3_ADRS_OFFSET 0x07c
@@ -322,6 +342,27 @@
 #define EXT_MSG_INTR_MASK_SOP_SET(dst, val) BIT_SET_VAL(0, 0, dst, val)
 #define EXT_MSG_INTR_MASK_THRES_SET(dst, val) BIT_SET_VAL(1, 1, dst, val)
 #define EXT_MSG_INTR_MASK_END_ADDR_SET(dst, val) BIT_SET_VAL(2, 2, dst, val)
+
+/* REG_PCIE_X2_PF0_VF_ALLOC_ADRS_OFFSET */
+#define EXT_PF_VF_ALLOC_BASE_SET(dst, val) BIT_SET_VAL(9, 0, dst, val)
+#define EXT_PF_VF_ALLOC_TOP_SET(dst, val) BIT_SET_VAL(19, 10, dst, val)
+
+/* REG_PCIE_X2_WR_MON_CTRL_STS_ADRS_OFFSET */
+#define EXT_WR_MON_CTRL_EN_GET(val) BIT_GET_VAL(7, 0, val)
+#define EXT_WR_MON_CTRL_MASK_GET(val) BIT_GET_VAL(15, 8, val)
+#define EXT_WR_MON_CTRL_STS_GET(val) BIT_GET_VAL(23, 16, val)
+#define EXT_WR_MON_CTRL_STS_MP_MASK_GET(val) BIT_GET_VAL(24, 24, val)
+#define EXT_WR_MON_CTRL_STS_MP_STS_GET(val) BIT_GET_VAL(25, 25, val)
+#define EXT_WR_MON_CTRL_STS_MV_MASK_GET(val) BIT_GET_VAL(26, 26, val)
+#define EXT_WR_MON_CTRL_STS_MV_STS_GET(val) BIT_GET_VAL(27, 27, val)
+
+#define EXT_WR_MON_CTRL_EN_SET(dst, val) BIT_SET_VAL(7, 0, dst, val)
+#define EXT_WR_MON_CTRL_MASK_SET(dst, val) BIT_SET_VAL(15, 8, dst, val)
+#define EXT_WR_MON_CTRL_STS_SET(dst, val) BIT_SET_VAL(23, 16, dst, val)
+#define EXT_WR_MON_CTRL_STS_MP_MASK_SET(dst, val) BIT_SET_VAL(24, 24, dst, val)
+#define EXT_WR_MON_CTRL_STS_MP_STS_SET(dst, val) BIT_SET_VAL(25, 25, dst, val)
+#define EXT_WR_MON_CTRL_STS_MV_MASK_SET(dst, val) BIT_SET_VAL(26, 26, dst, val)
+#define EXT_WR_MON_CTRL_STS_MV_STS_SET(dst, val) BIT_SET_VAL(27, 27, dst, val)
 
 /* -------------------------------------------------- */
 /* ------------ PCIE XpressRich Internal ------------ */
@@ -569,6 +610,61 @@
 #define INT_PCIE_PCI_MSIX_79_48_PBA_BIR_SET(dst, val) BIT_SET_VAL(2, 0, dst, val)
 #define INT_PCIE_PCI_MSIX_79_48_PBA_OFFSET_SET(dst, val) BIT_SET_VAL(31, 3, dst, val)
 
+enum PCIE_MSI_INTR_NUM { MSI_0 = 0, MSI_1, MSI_2, MSI_3, MSI_4, MSI_5, MSI_6, MSI_7, MAX_MSI_ID };
+
+enum PCIE_MSI_MULTI_MSG_CAPABLE {
+    MSI_1_VEC_REQ = 0,
+    MSI_2_VEC_REQ,
+    MSI_4_VEC_REQ,
+    MSI_8_VEC_REQ,
+    MSI_16_VEC_REQ,
+    MSI_32_VEC_REQ,
+    INVALID_MSI_VEC_REQ
+};
+
+enum PCIE_MSI_MULTI_MSG_ENABLE {
+    MSI_1_VEC_ALLOC = 0,
+    MSI_2_VEC_ALLOC,
+    MSI_4_VEC_ALLOC,
+    MSI_8_VEC_ALLOC,
+    MSI_16_VEC_ALLOC,
+    MSI_32_VEC_ALLOC,
+    INVALID_MSI_VEC_ALLOC
+};
+
+enum PCIE_MSI_X_TABLE_BIR_BAR_NUM {
+    MSI_X_BIR_BAR_0 = 0,
+    MSI_X_BIR_BAR_1,
+    MSI_X_BIR_BAR_2,
+    MSI_X_BIR_BAR_3,
+    MSI_X_BIR_BAR_4,
+    MSI_X_BIR_BAR_5,
+    MAX_MSI_X_BIR_BAR
+};
+#define PCIE_MSI_DEFAULT_WRITE_DATA (0xA)
+
+// System software reads this field to determine the number of requested vectors.
+#define PCIE_MSI_SINGLE_PF_MSI_VEC_REQ (MSI_32_VEC_REQ)
+// software writes to this field to indicate the number of allocated vectors (equal to or less than the number of
+// requested vectors).
+#define PCIE_MSI_SINGLE_PF_MSI_VEC_ALLOC (MSI_16_VEC_ALLOC)
+#define PCIE_MSI_SINGLE_PF_MSI_DATA_SIZE_BYTE (sizeof(uint32_t))
+#define PCIE_MSI_DEFAULT_PF_MSI_BASE_DATA_REG(pf_num) (pf_num << PCIE_MSI_SINGLE_PF_MSI_VEC_ALLOC)
+#define PCIE_MSI_DATA_REGISTER_VALID_DATA_MASK (uint32_t)(0xFFFFFFFF - (MAX_MSI_ID - 1))
+
+#define PCIE_MSIX_PER_FUNCTION_DEFAULT_TABLE_SIZE (8)
+#define PCIE_MSIX_MBX_X2_PER_PF_PBA_OFFSET 0x200
+#define PCIE_MSIX_MBX_X2_PER_PF_TABLE_OFFSET 0x300
+#define PCIE_MSIX_TABLE_ENTRY_SIZE (4 * sizeof(uint32_t))
+
+#define REG_PCIE_X2_MSIX_KW_ADRS_ADRS_OFFSET    0x5C4
+#define REG_PCIE_X2_WR_MON_CTRL_STS_ADRS_OFFSET 0x7C8
+#define REG_PCIE_X2_MSIX_PIN_INTR_MASK_ADRS_OFFSET 0x894
+
+#define REG_PCIE_X2_PCIE_PCI_IRQ_PASID_MSIX_15_0_ADRS_OFFSET 0x0000 + 0x00A8
+#define REG_PCIE_X2_PCIE_PCI_MSIX_47_16_ADRS_OFFSET 0x0000 + 0x00AC
+#define REG_PCIE_X2_PCIE_PCI_MSIX_79_48_ADRS_OFFSET 0x0000 + 0x00B0
+
 enum PCIE_CONTROLLER_MODE { PCIE_EP = 0, PCIE_RP, PCIE_INVALID };
 
 enum PCIE_PAYLOAD_SIZE {
@@ -661,11 +757,10 @@ enum PCIE_PRESET_NUM {
                (((g4_rx_pre << 4) | g4_tx_pre) << 16) | (((g4_rx_pre << 4) | g4_tx_pre) << 24))
 #define PCIE_GEN4_RX_TX_PRESET PCIE_GEN4_RX_TX_PRESET_GET(PCIE_GEN4_RX_PRESET, PCIE_GEN4_TX_PRESET)
 
-struct axiado_pcie_atr {
-	void __iomem *base;
-	unsigned int size;
-	unsigned int flags;
-};
+/* PCIE port number */
+enum axiado_pcie_port_num { PCIE_X1, PCIE_X2 };
+/* PCIE BAR numbers */
+enum axiado_pcie_bars { BAR_01 = 0, BAR_23 = 2, BAR_45 = 4 };
 
 struct axiado_pcie {
 	bool pcie_x1; /* Used for executing PCIe X1 specific task */
@@ -684,9 +779,9 @@ struct axiado_pcie {
 
 	void __iomem *ecam; /* ECAM base address */
 
-    struct axiado_pcie_atr atr[2];
+    struct ax_pci_region atr[2];
 
-    struct axiado_pcie_atr bar[3];
+    struct ax_pci_region bar[3];
 };
 
 enum PCIE_XPRESS_LTSSM {
@@ -736,12 +831,101 @@ enum TRSF_ID_ENUM {
     ID_INVALID
 };
 
-enum axiado_pcie_bars { BAR_01 = 0, BAR_23 = 2, BAR_45 = 4 };
-
 enum ATR_PCIE_WIN { PCIE_WIN_0 = 0, PCIE_WIN_1 };
 
 enum ATR_AXI4_SLV_NUM { AXI4_SLV_0 = 0, AXI4_SLV_1, AXI4_SLV_2, AXI4_SLV_3 };
 
 enum ATR_TABLE_NUM { TABLE_0 = 0, TABLE_1, TABLE_2, TABLE_3, TABLE_4, TABLE_5, TABLE_6, TABLE_7 , TABLE_MAX };
+
+enum PCIE_PF_NUM { PCIE_PF_NUM_0 = 0, PCIE_PF_NUM_1, PCIE_PF_NUM_2, PCIE_PF_NUM_3, PCIE_PF_NUM_4, PCIE_MAX_PF_NUM };
+
+int axiado_pcie_bar_init(struct axiado_pcie *pcie,
+        enum axiado_pcie_bars bar_num, u64 base_address,
+        u32 aperture_size);
+
+#define MAX_DMA_LIST (16)
+#define MAX_PF (1)
+#define MAX_VF (64)
+#define MAX_PF_MBX (4)
+#define MAX_MBX (64)
+#define MAX_PORT 2
+
+struct axiado_pcie_func_info {
+	enum axiado_pcie_port_num port;
+	u8 pf_num;
+	u8 vf_num;
+};
+
+/* PCIE DMA Channel numbers */
+enum axiado_pcie_dma_channel {
+	DMA_CHANNEL_0,
+	DMA_CHANNEL_1,
+	DMA_CHANNEL_2,
+	DMA_CHANNEL_3,
+	DMA_CHANNEL_4,
+	DMA_CHANNEL_5,
+	DMA_CHANNEL_6,
+	DMA_CHANNEL_7
+};
+
+/* PCIE DMA modes */
+enum axiado_pcie_dma_mode {
+	DIRECT_MODE,
+	SCATTER_GATHER_00,
+	SCATTER_GATHER_01,
+	SCATTER_GATHER_10,
+	SCATTER_GATHER_11,
+};
+
+enum ax_pcie_dma_dir {
+	AX_EP_MEMORY_HOST_TO_PDEV, /** On EP, host memory read, host -> phy.func. */
+	AX_EP_MEMORY_PDEV_TO_HOST, /** On EP, host memory write, phy.func. -> host */
+	AX_RC_VDM_HOST_TO_PDEV, /** On RC, VDM transmit, host -> phy.func. */
+	AX_EP_VDM_PDEV_TO_HOST, /** On EP, VDM transmit, phy.func. -> host */
+};
+
+/* PCIE DMA request structure */
+struct axiado_pcie_dma_request {
+	enum axiado_pcie_dma_channel chan_num;
+	enum axiado_pcie_dma_mode dma_mode;
+	enum ax_pcie_dma_dir dma_dir;
+	u8 source_list_size;
+	u8 dest_list_size;
+	u32 dma_size;
+	u64 dma_source_ptr[MAX_DMA_LIST];
+	u64 dma_dest_ptr[MAX_DMA_LIST];
+	u64 dma_source_size[MAX_DMA_LIST];
+	u64 dma_dest_size[MAX_DMA_LIST];
+};
+
+struct dma_cfg {
+	u32 src_inf;
+	u32 dest_inf;
+	u32 src_addr_31_0;
+	u32 src_addr_63_32;
+	u32 dest_addr_31_0;
+	u32 dest_addr_63_32;
+	u32 length;
+	u32 se_cond; // start and end conditions
+	u32 irq; // interrupt enable
+};
+
+u64 axiado_pcie_get_bar(struct platform_device *pdev,
+			struct axiado_pcie_func_info func_info,
+			enum axiado_pcie_bars bar_num, u32 *bar_size);
+int axiado_pcie_is_dma_busy(struct platform_device *pdev,
+			    enum axiado_pcie_port_num port,
+			    enum axiado_pcie_dma_channel chan_num);
+int axiado_pcie_dma_xfer(struct platform_device *pdev,
+			 enum axiado_pcie_port_num port,
+			 struct axiado_pcie_dma_request *dma_request);
+int axiado_pcie_trigger_msi(struct platform_device *pdev,
+			    struct axiado_pcie_func_info func_info,
+			    u8 vector_no);
+unsigned int axiado_pcie_msgbox_read(struct platform_device *pdev, u32 offset);
+void axiado_pcie_msgbox_write(struct platform_device *pdev, u32 offset,
+				      u32 val);
+unsigned int axiado_pcie_ocm_csr_read(struct platform_device *pdev);
+void axiado_pcie_ocm_csr_write(struct platform_device *pdev, u32 val);
 
 #endif /* __AXIADO_PCIE_H */

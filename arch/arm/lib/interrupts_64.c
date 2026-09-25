@@ -21,6 +21,9 @@
 
 DECLARE_GLOBAL_DATA_PTR;
 
+extern const char *symbol_lookup(unsigned long addr,
+				 unsigned long *caddr);
+
 #define MAX_IRQS    320
 #define GIC_SPURIOUS_INTID      1023
 
@@ -239,16 +242,35 @@ void do_bad_error(struct pt_regs *pt_regs)
  */
 void do_sync(struct pt_regs *pt_regs)
 {
-	if (CONFIG_IS_ENABLED(SEMIHOSTING_FALLBACK) &&
-	    smh_emulate_trap(pt_regs))
-		return;
-	efi_restore_gd();
-	printf("\"Synchronous Abort\" handler, esr 0x%08lx", pt_regs->esr);
-	dump_far(pt_regs->esr);
-	printf("\n");
-	show_regs(pt_regs);
-	show_efi_loaded_images(pt_regs);
-	panic("Resetting CPU ...\n");
+    unsigned long sym_addr;
+    unsigned long addr;
+    const char *sym;
+
+    if (CONFIG_IS_ENABLED(SEMIHOSTING_FALLBACK) &&
+            smh_emulate_trap(pt_regs))
+        return;
+
+    efi_restore_gd();
+
+    printf("\"Synchronous Abort\" handler, esr 0x%08lx",
+            pt_regs->esr);
+    dump_far(pt_regs->esr);
+    printf("\n");
+
+    show_regs(pt_regs);
+    show_efi_loaded_images(pt_regs);
+
+    addr = pt_regs->elr - gd->reloc_off;
+
+    sym = symbol_lookup(addr, &sym_addr);
+
+    if (sym)
+        printf("Abort at: %s+0x%lx\n",
+                sym, addr - sym_addr);
+    else
+        printf("Abort at: <unknown> 0x%lx\n", addr);
+
+    panic("Resetting CPU ...\n");
 }
 
 /*
@@ -275,11 +297,11 @@ void do_irq(struct pt_regs *pt_regs)
         return;
 
     if (irq < MAX_IRQS &&
-        irq_table[irq].handler) {
+            irq_table[irq].handler) {
 
         irq_table[irq].handler(
-            irq_table[irq].arg
-        );
+                irq_table[irq].arg
+                );
 
     } else {
 
@@ -332,163 +354,163 @@ void irq_install_handler(int irq, interrupt_handler_t *handler, void *arg)
 {
     uint32_t vec;
     uint32_t trigger;
-	struct udevice *dev;
-	fdt_addr_t gicd, gicr;
+    struct udevice *dev;
+    fdt_addr_t gicd, gicr;
     u32 reg, shift, val;
     int ret;
 
     vec = IRQ_VEC_ID(irq);
     trigger = IRQ_VEC_TRIGGER(irq);
 
-	if ((vec < 0) || (vec >= MAX_IRQS)) {
-		return;
-	}
+    if ((vec < 0) || (vec >= MAX_IRQS)) {
+        return;
+    }
 
-	ret = uclass_get_device_by_driver(UCLASS_IRQ,
-					  DM_DRIVER_GET(arm_gic_v3), &dev);
-	if (ret) {
-		pr_err("%s: failed to get %s irq device\n", __func__,
-		       DM_DRIVER_GET(arm_gic_v3)->name);
-		return;
-	}
+    ret = uclass_get_device_by_driver(UCLASS_IRQ,
+            DM_DRIVER_GET(arm_gic_v3), &dev);
+    if (ret) {
+        pr_err("%s: failed to get %s irq device\n", __func__,
+                DM_DRIVER_GET(arm_gic_v3)->name);
+        return;
+    }
 
-	gicd = dev_read_addr_index(dev, 0);
-	if (gicd == FDT_ADDR_T_NONE) {
-		pr_err("%s: failed to get GICD address\n", __func__);
-		return;
-	}
+    gicd = dev_read_addr_index(dev, 0);
+    if (gicd == FDT_ADDR_T_NONE) {
+        pr_err("%s: failed to get GICD address\n", __func__);
+        return;
+    }
 
-	gicr = dev_read_addr_index(dev, 1);
-	if (gicr == FDT_ADDR_T_NONE) {
-		pr_err("%s: failed to get GICR address\n", __func__);
-		return;
-	}
+    gicr = dev_read_addr_index(dev, 1);
+    if (gicr == FDT_ADDR_T_NONE) {
+        pr_err("%s: failed to get GICR address\n", __func__);
+        return;
+    }
 
-	/*
-	 * Save handler first.
-	 */
+    /*
+     * Save handler first.
+     */
     irq_table[vec].handler = handler;
     irq_table[vec].arg = arg;
 
-	/*
-	 * SGI/PPI
-	 *
-	 * IRQ 0-31 belongs to GICR.
-	 */
-	if (vec < 32) {
-		/*
-		 * SGI/PPI Group 1.
-		 */
-		setbits_le32(
-			(void *)(gicr + GICR_IGROUPRn),
-			BIT(vec)
-		);
+    /*
+     * SGI/PPI
+     *
+     * IRQ 0-31 belongs to GICR.
+     */
+    if (vec < 32) {
+        /*
+         * SGI/PPI Group 1.
+         */
+        setbits_le32(
+                (void *)(gicr + GICR_IGROUPRn),
+                BIT(vec)
+                );
 
-		/*
-		 * Clear pending.
-		 */
-		writel(BIT(vec),
-		       gicr + GICR_ICPENDRn);
+        /*
+         * Clear pending.
+         */
+        writel(BIT(vec),
+                gicr + GICR_ICPENDRn);
 
-		/*
-		 * Enable.
-		 */
-		writel(BIT(vec),
-		       gicr + GICR_ISENABLERn);
+        /*
+         * Enable.
+         */
+        writel(BIT(vec),
+                gicr + GICR_ISENABLERn);
 
-		return;
-	}
+        return;
+    }
 
-	/*
-	 * SPI
-	 *
-	 * IRQ >= 32 belongs to GICD.
-	 */
+    /*
+     * SPI
+     *
+     * IRQ >= 32 belongs to GICD.
+     */
 
-	/*
-	 * Disable before configuration.
-	 */
-	writel(BIT(vec % 32),
-	       gicd +
-	       GICD_ICENABLERn +
-	       (vec / 32) * 4);
+    /*
+     * Disable before configuration.
+     */
+    writel(BIT(vec % 32),
+            gicd +
+            GICD_ICENABLERn +
+            (vec / 32) * 4);
 
-	/*
-	 * Clear pending.
-	 */
-	writel(BIT(vec % 32),
-	       gicd +
-	       GICD_ICPENDRn +
-	       (vec / 32) * 4);
+    /*
+     * Clear pending.
+     */
+    writel(BIT(vec % 32),
+            gicd +
+            GICD_ICPENDRn +
+            (vec / 32) * 4);
 
-	/*
-	 * Configure Group 1.
-	 */
-	setbits_le32(
-		(void *)(gicd +
-			 GICD_IGROUPRn +
-			 (vec / 32) * 4),
-		BIT(vec % 32)
-	);
+    /*
+     * Configure Group 1.
+     */
+    setbits_le32(
+            (void *)(gicd +
+                GICD_IGROUPRn +
+                (vec / 32) * 4),
+            BIT(vec % 32)
+            );
 
-	/*
-	 * Configure trigger type.
-	 *
-	 * Default: level triggered.
-	 */
-	reg = vec / 16;
-	shift = (vec % 16) * 2;
+    /*
+     * Configure trigger type.
+     *
+     * Default: level triggered.
+     */
+    reg = vec / 16;
+    shift = (vec % 16) * 2;
 
-	val = readl(gicd +
-		    GICD_ICFGR +
-		    reg * 4);
+    val = readl(gicd +
+            GICD_ICFGR +
+            reg * 4);
 
-	/*
-	 * Level triggered = bit[1:0] = 0b00
+    /*
+     * Level triggered = bit[1:0] = 0b00
      * Edge triggered = bit[1:0] = 0b10
-	 */
-    
+     */
+
     trigger = trigger << 1; 
-	val &= ~(0x3 << shift);
+    val &= ~(0x3 << shift);
     val |= (trigger << shift);
 
-	writel(val,
-	       gicd +
-	       GICD_ICFGR +
-	       reg * 4);
+    writel(val,
+            gicd +
+            GICD_ICFGR +
+            reg * 4);
 
-	/*
-	 * Priority.
-	 *
-	 * Default priority = 0x80.
-	 */
-	writeb(0x80,
-	       (void *)(gicd +
-			GICD_IPRIORITYRn +
-			vec));
+    /*
+     * Priority.
+     *
+     * Default priority = 0x80.
+     */
+    writeb(0x80,
+            (void *)(gicd +
+                GICD_IPRIORITYRn +
+                vec));
 
-	/*
-	 * Route to CPU0.
-	 *
-	 * Only valid for SPI.
-	 */
-	writeq(0x0,
-	       (void *)(gicd +
-			GICD_IROUTERn +
-			(vec - 32) * 8));
+    /*
+     * Route to CPU0.
+     *
+     * Only valid for SPI.
+     */
+    writeq(0x0,
+            (void *)(gicd +
+                GICD_IROUTERn +
+                (vec - 32) * 8));
 
-	/*
-	 * Memory barrier before enable.
-	 */
-	asm volatile("dsb sy" : : : "memory");
+    /*
+     * Memory barrier before enable.
+     */
+    asm volatile("dsb sy" : : : "memory");
 
-	/*
-	 * Enable interrupt.
-	 */
-	writel(BIT(vec % 32),
-	       gicd +
-	       GICD_ISENABLERn +
-	       (vec / 32) * 4);
+    /*
+     * Enable interrupt.
+     */
+    writel(BIT(vec % 32),
+            gicd +
+            GICD_ISENABLERn +
+            (vec / 32) * 4);
 }
 
 void irq_free_handler(int vec)
@@ -519,13 +541,13 @@ void irq_free_handler(int vec)
 
         /* Disable */
         writel(BIT(vec % 32),
-               gicd + GICD_ICENABLERn +
-               (vec / 32) * 4);
+                gicd + GICD_ICENABLERn +
+                (vec / 32) * 4);
 
         /* Clear pending */
         writel(BIT(vec % 32),
-               gicd + GICD_ICPENDRn +
-               (vec / 32) * 4);
+                gicd + GICD_ICPENDRn +
+                (vec / 32) * 4);
     }
 
     irq_table[vec].handler = NULL;
