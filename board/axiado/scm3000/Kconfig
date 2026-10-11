@@ -1,0 +1,15 @@
+if TARGET_SCM3000
+
+config SYS_BOARD
+	string
+	default "scm3000"
+
+config SYS_VENDOR
+	string
+	default "axiado"
+
+config SYS_CONFIG_NAME
+	string
+	default "ax3000-scm3000"
+
+endif

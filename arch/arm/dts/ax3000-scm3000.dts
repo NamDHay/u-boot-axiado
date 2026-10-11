@@ -1,0 +1,30 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * Copyright (c) 2021-2026 Axiado Corporation (or its affiliates).
+ */
+
+/dts-v1/;
+
+#include "ax3000.dtsi"
+
+/ {
+	/* model = "Axiado AX3000 SCM3000"; */
+	model = "Axiado AX3000 NamDHay Version";
+	compatible = "axiado,ax3000-scm3000", "axiado,ax3000";
+    interrupt-parent = <&gic500>;
+	#address-cells = <2>;
+	#size-cells = <2>;
+
+	chosen {
+		stdout-path = "serial3:115200";
+	};
+
+	memory@80000000 {
+		device_type = "memory";
+		reg = <0x00 0x3C000000 0x00 0x44000000>;
+	};
+};
+
+&uart3 {
+	status = "okay";
+};

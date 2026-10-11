@@ -1,0 +1,11 @@
+if AXIADO_AX3000
+
+config TARGET_SCM3000
+	bool "Support Axiado AX3000 SCM3000"
+	help
+	  Support for the Axiado AX3000 SCM3000 board.
+	  Based on the Axiado AX3000 quad-core ARMv8 Cortex-A53 SoC.
+
+source "board/axiado/scm3000/Kconfig"
+
+endif

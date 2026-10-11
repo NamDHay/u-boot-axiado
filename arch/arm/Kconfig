@@ -2154,7 +2154,10 @@ config ARCH_ASPEED
 
 config ARCH_AXIADO
 	bool "Support Axiado SoCs"
-	select AXIADO_AX3005
+	select ARM64
+	help
+	  Support for axiado SOC.
+	  It has 2GB dram, uart and pcie.
 
 config TARGET_DURIAN
 	bool "Support Phytium Durian Platform"

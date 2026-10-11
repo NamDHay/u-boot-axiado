@@ -50,11 +50,13 @@ config CMD_AX_I2C
 	bool "ax_i2c - Axiado I2C diagnostics"
 	depends on ARCH_AXIADO
 	depends on CMD_AX_DIAG
+	depends on AXIADO_AX3005
 	help
 	  This command provides access to I2C board diagnostic tests.
 
 config CDNS_I2C
 	bool "Cadence I2C support"
+	depends on AXIADO_AX3005
 	help
 	  This config support for Cadence I2C.
 
@@ -98,11 +100,15 @@ config CMD_AX_MBX
 	bool "ax_mbx - Axiado Hardware Mailbox diagnostics"
 	depends on ARCH_AXIADO
 	depends on CMD_AX_DIAG
+	depends on AXIADO_AX3005
 	help
 	  This command provides access to Hardware Mailbox board diagnostic tests.
 
 config AXIADO_MBOX
 	bool "Axiado SoCs Mailbox support"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
+	depends on AXIADO_AX3005
 	help
 	  This config support for Axiado SoCs Mailbox.
 
@@ -122,6 +128,8 @@ config CMD_AX_PCIE
 
 config INNO_PCIE
 	bool "Innosilicon PCIe support"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
 	help
 	  This config support for Innosilicon PCIe.
 
@@ -189,6 +197,7 @@ config CMD_AX_SPI
 
 config DWC_SPI
 	bool "Designware Master SPI support"
+	depends on AXIADO_AX3005
 	help
 	  This config support for Designware Master SPI.
 

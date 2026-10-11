@@ -6,15 +6,40 @@ config SYS_ARCH
 config SYS_SOC
 	default "axiado"
 
-config AXIADO_AX3005
-	bool
+choice
+	prompt "Axiado SoC select"
+	depends on ARCH_AXIADO
+	default AXIADO_AX3005
+
+config AXIADO_AX3000
+	bool "Support Axiado AX3000 SoC"
 	select ARM64
 	select ARMV8_SWITCH_TO_EL1
 	select DM
 	select DM_SERIAL
 	select GICV3
 	select ZYNQ_SERIAL
+	help
+	  The Axiado AX3000 SCM3000 is a ARM-based SoC with A53 CPU.
+	  It is used as Board Management Controller on many server boards,
+	  which is enabled by support of LPC and eSPI peripherals.
 
+config AXIADO_AX3005
+	bool "Support Axiado AX3005 SoC"
+	select ARM64
+	select ARMV8_SWITCH_TO_EL1
+	select DM
+	select DM_SERIAL
+	select GICV3
+	select ZYNQ_SERIAL
+	help
+	  The Axiado AX3005 SCM3005 is a ARM-based SoC with A53 CPU.
+	  It is used as Board Management Controller on many server boards,
+	  which is enabled by support of LPC and eSPI peripherals.
+
+endchoice
+
+source "arch/arm/mach-axiado/scm3000/Kconfig"
 source "arch/arm/mach-axiado/scm3005/Kconfig"
 
 endif

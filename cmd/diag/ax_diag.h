@@ -7,15 +7,15 @@
 #ifndef __DIAG_H
 #define __DIAG_H
 
-#ifdef CONFIG_TARGET_SCM3005
+#ifdef CONFIG_AXIADO_AX3005
 #include "hal/base/Ultra/ax3000_base_adrs.h"
 #include "hal/base/Ultra/ax3000_slo_base_adrs.h"
 #define CONFIG_NR_CPUS  4
-#elif CONFIG_TARGET_SCM3000
+#elif CONFIG_AXIADO_AX3000
 #include "hal/base/A0/ax3000_base_adrs.h"
 #include "hal/base/A0/ax3000_slo_base_adrs.h"
 #define CONFIG_NR_CPUS  4
-#elif CONFIG_TARGET_SCM1100
+#elif CONFIG_AXIADO_AX1100
 #include "hal/base/mK/ax3000_base_adrs.h"
 #include "hal/base/mK/ax3000_slo_base_adrs.h"
 #define CONFIG_NR_CPUS  1
