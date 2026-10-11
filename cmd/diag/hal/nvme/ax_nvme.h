@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
  * (C) Copyright 2026
- * Nguyen Nam Huy namhuyngn03@gmail.com
+ * Nguyen Nam Huy hnnguyen@axiado.com
  */
 
 #ifndef __NVME_H
@@ -162,6 +162,7 @@ struct ax_nvme_queue {
 
     u16 qid;
     u8 cq_phase;
+    bool irq_enabled;          /* CQ requests an interrupt on completion */
 
     u16 cmd_id;
 };
@@ -172,15 +173,15 @@ struct ax_nvme_queue {
 struct ax_nvme_dev {
     u8 pcie_port;
 
+    /* PCIe MSI state; ISR only sets msi_pending. */
+    volatile bool msi_pending;
+    bool msi_enabled;
+    struct ax_pcie_msi msi;
+
     u8 bus;
     u8 dev;
     u8 func;
 
-    /*
-     * PCI BAR0 address.
-     *
-     * Đây là PCIe address được trả về từ BAR.
-     */
     u64 bar0;
 
     /*

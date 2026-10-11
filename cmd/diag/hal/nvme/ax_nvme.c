@@ -31,7 +31,7 @@
  * stack, relocated code) lives in this range.
  */
 #ifndef NVME_DMA_BASE
-#define NVME_DMA_BASE            0x90000000ULL   /* override: -DNVME_DMA_BASE=0x89000000ULL */
+#define NVME_DMA_BASE            0x92000000ULL   /* override: -DNVME_DMA_BASE=0x89000000ULL */
 #endif
 #define NVME_ADMIN_SQ_ADDR       (NVME_DMA_BASE + 0x0000)
 #define NVME_ADMIN_CQ_ADDR       (NVME_DMA_BASE + 0x1000)
@@ -111,6 +111,49 @@ static void ax_nvme_dump_state(struct ax_nvme_dev *ndev)
     printf("NVMe state: CC=0x%08x CSTS=0x%08x\n", cc, csts);
 }
 
+static void ax_nvme_msi_handler(void *arg)
+{
+    struct ax_nvme_dev *ndev = arg;
+
+    ndev->msi_pending = true;
+    printf("%s - Receive MSI%d: \n\taddr = 0x%llx, \n\tdata = 0x%x\n", 
+            __func__, ndev->msi.vector, ndev->msi.address, ndev->msi.data);
+}
+
+static int ax_nvme_enable_msi(struct ax_nvme_dev *ndev)
+{
+    int ret;
+
+    if (!ndev)
+        return -EINVAL;
+
+    ndev->msi.handler = ax_nvme_msi_handler;
+    ndev->msi.arg = (void *)ndev;
+    ndev->msi.nr_vectors = 1;
+
+    ret = ax_pcie_ep_disable_msi(ndev->pcie_port,
+            ndev->bus, ndev->dev, ndev->func);
+
+    ret = ax_pcie_ep_program_msi(ndev->pcie_port,
+            ndev->bus, ndev->dev, ndev->func, &ndev->msi);
+    if (ret) {
+        printf("Failed to program MSI: %d\n", ret);
+        return ret;
+    }
+
+    ret = ax_pcie_ep_enable_msi(ndev->pcie_port,
+            ndev->bus, ndev->dev, ndev->func);
+    if (ret) {
+        printf("Failed to enable MSI: %d\n", ret);
+        return ret;
+    }
+
+    ndev->msi_pending = false;
+    ndev->msi_enabled = true;
+
+    return 0;
+}
+
 /*
  * Command/Status, Secondary Status and AER Status are RW1C: writing back
  * what you read clears any bit that was set and leaves the rest alone.
@@ -128,7 +171,7 @@ static void ax_nvme_clear_pcie_errors(struct ax_nvme_dev *ndev)
     if (!ax_pcie_cfg_read(ndev->pcie_port, 0, 0, 0, 0x1c, &v))
         ax_pcie_cfg_write(ndev->pcie_port, 0, 0, 0, 0x1c, v);
 
-    cap = ax_pcie_check_cap(ndev->pcie_port, 0, 0, 0, 1, PCI_EXT_CAP_ID_AER);
+    cap = ax_pcie_find_cap(ndev->pcie_port, 0, 0, 0, 1, PCI_EXT_CAP_ID_AER);
     if (cap > 0) {
         if (!ax_pcie_cfg_read(ndev->pcie_port, 0, 0, 0, cap + PCI_AER_UNCORR_STATUS, &v))
             ax_pcie_cfg_write(ndev->pcie_port, 0, 0, 0, cap + PCI_AER_UNCORR_STATUS, v);
@@ -138,26 +181,26 @@ static void ax_nvme_clear_pcie_errors(struct ax_nvme_dev *ndev)
 
     /* EP: same, on the drive's own function */
     if (!ax_pcie_cfg_read(ndev->pcie_port, ndev->bus, ndev->dev, ndev->func,
-                          PCI_CFG_COMMAND, &v))
+                PCI_CFG_COMMAND, &v))
         ax_pcie_cfg_write(ndev->pcie_port, ndev->bus, ndev->dev, ndev->func,
-                          PCI_CFG_COMMAND, v);
+                PCI_CFG_COMMAND, v);
 
-    cap = ax_pcie_check_cap(ndev->pcie_port, ndev->bus, ndev->dev, ndev->func,
-                            1, PCI_EXT_CAP_ID_AER);
+    cap = ax_pcie_find_cap(ndev->pcie_port, ndev->bus, ndev->dev, ndev->func,
+            1, PCI_EXT_CAP_ID_AER);
     if (cap > 0) {
         if (!ax_pcie_cfg_read(ndev->pcie_port, ndev->bus, ndev->dev, ndev->func,
-                              cap + PCI_AER_UNCORR_STATUS, &v))
+                    cap + PCI_AER_UNCORR_STATUS, &v))
             ax_pcie_cfg_write(ndev->pcie_port, ndev->bus, ndev->dev, ndev->func,
-                              cap + PCI_AER_UNCORR_STATUS, v);
+                    cap + PCI_AER_UNCORR_STATUS, v);
         if (!ax_pcie_cfg_read(ndev->pcie_port, ndev->bus, ndev->dev, ndev->func,
-                              cap + PCI_AER_CORR_STATUS, &v))
+                    cap + PCI_AER_CORR_STATUS, &v))
             ax_pcie_cfg_write(ndev->pcie_port, ndev->bus, ndev->dev, ndev->func,
-                              cap + PCI_AER_CORR_STATUS, v);
+                    cap + PCI_AER_CORR_STATUS, v);
     }
 }
 
 static void ax_nvme_dump_errors_one(u8 port, u8 bus, u8 dev, u8 func,
-                                    const char *name)
+        const char *name)
 {
     u32 v;
     int cap;
@@ -167,13 +210,13 @@ static void ax_nvme_dump_errors_one(u8 port, u8 bus, u8 dev, u8 func,
     /* [15:0] command, [31:16] status (bit13 RxMasterAbort, 12 RxTargetAbort, 11 SigTargetAbort) */
     printf("  %s cmd/status    = 0x%08x\n", name, v);
 
-    cap = ax_pcie_check_cap(port, bus, dev, func, 0, PCI_CAP_ID_PCIE);
+    cap = ax_pcie_find_cap(port, bus, dev, func, 0, PCI_CAP_ID_PCIE);
     if (cap > 0 && !ax_pcie_cfg_read(port, bus, dev, func,
-                                     cap + PCI_EXP_DEVCTL, &v))
+                cap + PCI_EXP_DEVCTL, &v))
         /* DevSta [31:16]: bit0 CorrErr, 1 NonFatal, 2 Fatal, 3 UnsupReq */
         printf("  %s devctl/devsta = 0x%08x\n", name, v);
 
-    cap = ax_pcie_check_cap(port, bus, dev, func, 1, PCI_EXT_CAP_ID_AER);
+    cap = ax_pcie_find_cap(port, bus, dev, func, 1, PCI_EXT_CAP_ID_AER);
     if (cap > 0) {
         u32 unc = 0, cor = 0;
 
@@ -193,11 +236,11 @@ static void ax_nvme_dump_pcie_errors(struct ax_nvme_dev *ndev)
     if (!ax_pcie_cfg_read(ndev->pcie_port, 0, 0, 0, 0x1c, &v))
         printf("  RP secondary status = 0x%08x\n", v >> 16);
     ax_nvme_dump_errors_one(ndev->pcie_port, ndev->bus, ndev->dev,
-                            ndev->func, "EP");
+            ndev->func, "EP");
 }
 
 static int ax_nvme_wait_ready(struct ax_nvme_dev *ndev,
-                              bool enabled)
+        bool enabled)
 {
     u32 csts;
     u32 timeout_ms;
@@ -228,10 +271,8 @@ static int ax_nvme_wait_ready(struct ax_nvme_dev *ndev,
             return -EIO;
         }
 
-        if (!!(csts & NVME_CSTS_RDY) == enabled) {
-            printf("NVMe Status ready\n");
+        if (!!(csts & NVME_CSTS_RDY) == enabled)
             return 0;
-        }
 
         udelay(100);
     }
@@ -252,7 +293,7 @@ static int ax_nvme_enable_pcie(struct ax_nvme_dev *ndev)
     int ret;
 
     ret = ax_pcie_cfg_read(ndev->pcie_port, ndev->bus, ndev->dev,
-                           ndev->func, PCI_CFG_COMMAND, &val);
+            ndev->func, PCI_CFG_COMMAND, &val);
     if (ret)
         return ret;
 
@@ -263,13 +304,13 @@ static int ax_nvme_enable_pcie(struct ax_nvme_dev *ndev)
     val &= ~PCI_COMMAND_INTX_DISABLE;
 
     ret = ax_pcie_cfg_write(ndev->pcie_port, ndev->bus, ndev->dev,
-                            ndev->func, PCI_CFG_COMMAND, val);
+            ndev->func, PCI_CFG_COMMAND, val);
     if (ret)
         return ret;
 
     /* read back to be sure the write really reached the endpoint */
     ret = ax_pcie_cfg_read(ndev->pcie_port, ndev->bus, ndev->dev,
-                           ndev->func, PCI_CFG_COMMAND, &val);
+            ndev->func, PCI_CFG_COMMAND, &val);
     if (ret)
         return ret;
 
@@ -291,7 +332,7 @@ static int ax_nvme_get_bar0(struct ax_nvme_dev *ndev)
     int ret;
 
     ret = ax_pcie_cfg_read(ndev->pcie_port, ndev->bus, ndev->dev,
-                           ndev->func, PCI_CFG_BAR0, &bar_lo);
+            ndev->func, PCI_CFG_BAR0, &bar_lo);
     if (ret)
         return ret;
 
@@ -307,12 +348,16 @@ static int ax_nvme_get_bar0(struct ax_nvme_dev *ndev)
     /* 64-bit BAR */
     if ((bar_lo & PCI_BAR_MEM_TYPE_MASK) == PCI_BAR_MEM_TYPE_64) {
         ret = ax_pcie_cfg_read(ndev->pcie_port, ndev->bus, ndev->dev,
-                               ndev->func, PCI_CFG_BAR1, &bar_hi);
+                ndev->func, PCI_CFG_BAR1, &bar_hi);
         if (ret)
             return ret;
 
         bar |= ((u64)bar_hi << 32);
     }
+
+    /* not assigned by ax_pcie_init_ep_bars() yet */
+    if (!bar)
+        return -ENOENT;
 
     ndev->bar0 = bar;
 
@@ -374,16 +419,16 @@ static u64 ax_nvme_cq_db_offset(struct ax_nvme_dev *ndev, u16 qid)
 static int ax_nvme_ring_sq(struct ax_nvme_dev *ndev, struct ax_nvme_queue *q)
 {
     ax_nvme_dbg("Ring SQ%u DB: off=0x%llx val=%u\n", q->qid,
-                ax_nvme_sq_db_offset(ndev, q->qid), q->sq_tail);
+            ax_nvme_sq_db_offset(ndev, q->qid), q->sq_tail);
 
     return ax_nvme_write32(ndev, ax_nvme_sq_db_offset(ndev, q->qid),
-                           q->sq_tail);
+            q->sq_tail);
 }
 
 static int ax_nvme_ring_cq(struct ax_nvme_dev *ndev, struct ax_nvme_queue *q)
 {
     return ax_nvme_write32(ndev, ax_nvme_cq_db_offset(ndev, q->qid),
-                           q->cq_head);
+            q->cq_head);
 }
 
 /* ------------------------------------------------------------------------
@@ -391,7 +436,7 @@ static int ax_nvme_ring_cq(struct ax_nvme_dev *ndev, struct ax_nvme_queue *q)
  * ------------------------------------------------------------------------ */
 
 static void ax_nvme_init_queue(struct ax_nvme_queue *q, u16 qid, u16 depth,
-                               u64 sq_addr, u64 cq_addr)
+        u64 sq_addr, u64 cq_addr)
 {
     memset((void *)(ulong)sq_addr, 0, 4096);
     memset((void *)(ulong)cq_addr, 0, 4096);
@@ -433,7 +478,7 @@ static int ax_nvme_configure_admin_queue(struct ax_nvme_dev *ndev)
     ndev->ctrl_config |= NVME_CC_IOCQES;
 
     ax_nvme_init_queue(q, NVME_ADMIN_QID, ndev->q_depth,
-                       NVME_ADMIN_SQ_ADDR, NVME_ADMIN_CQ_ADDR);
+            NVME_ADMIN_SQ_ADDR, NVME_ADMIN_CQ_ADDR);
 
     aqa = NVME_AQA_ASQS(q->q_depth);
     aqa |= NVME_AQA_ACQS(q->q_depth);
@@ -451,7 +496,7 @@ static int ax_nvme_configure_admin_queue(struct ax_nvme_dev *ndev)
         return ret;
 
     printf("AQA = 0x%08x ASQ = 0x%016llx ACQ = 0x%016llx\n",
-           aqa, q->sq_dma, q->cq_dma);
+            aqa, q->sq_dma, q->cq_dma);
 
     {
         u32 aqa_rb = 0;
@@ -462,7 +507,7 @@ static int ax_nvme_configure_admin_queue(struct ax_nvme_dev *ndev)
         ax_nvme_read64(ndev, NVME_REG_ACQ, &acq_rb);
         if (aqa_rb != aqa || asq_rb != q->sq_dma || acq_rb != q->cq_dma)
             printf("Admin queue regs read back differently: AQA=0x%08x ASQ=0x%016llx ACQ=0x%016llx\n",
-                   aqa_rb, asq_rb, acq_rb);
+                    aqa_rb, asq_rb, acq_rb);
     }
 
     return ax_nvme_enable_ctrl(ndev);
@@ -473,9 +518,9 @@ static int ax_nvme_configure_admin_queue(struct ax_nvme_dev *ndev)
  * ------------------------------------------------------------------------ */
 
 static int ax_nvme_submit_cmd(struct ax_nvme_dev *ndev,
-                              struct ax_nvme_queue *q,
-                              struct nvme_command *cmd,
-                              u32 *result)
+        struct ax_nvme_queue *q,
+        struct nvme_command *cmd,
+        u32 *result)
 {
     struct nvme_completion *cqe;
     struct nvme_command *sqe;
@@ -492,7 +537,7 @@ static int ax_nvme_submit_cmd(struct ax_nvme_dev *ndev,
     sqe = &q->sq_cmds[q->sq_tail];
 
     ax_nvme_dbg("NVMe submit: q%u slot %u cid %u opc 0x%02x\n",
-                q->qid, q->sq_tail, cmdid, cmd->opcode);
+            q->qid, q->sq_tail, cmdid, cmd->opcode);
 
     memcpy(sqe, cmd, sizeof(*cmd));
     ax_nvme_cache_flush(sqe, sizeof(*sqe));
@@ -523,14 +568,14 @@ static int ax_nvme_submit_cmd(struct ax_nvme_dev *ndev,
         u32 *w = (u32 *)sqe;
 
         printf("NVMe command timeout (q%u opc 0x%02x)\n", q->qid,
-               cmd->opcode);
+                cmd->opcode);
         ax_nvme_dump_state(ndev);
         printf("  SQE[%u] @%p: %08x %08x %08x %08x\n", (q->sq_tail + q->q_depth - 1) % q->q_depth,
-               sqe, w[0], w[1], w[6], w[7]);
+                sqe, w[0], w[1], w[6], w[7]);
         ax_nvme_cache_inv(cqe, sizeof(*cqe));
         w = (u32 *)cqe;
         printf("  CQE[%u] @%p: %08x %08x %08x %08x (still zero => SSD never wrote it)\n",
-               q->cq_head, cqe, w[0], w[1], w[2], w[3]);
+                q->cq_head, cqe, w[0], w[1], w[2], w[3]);
         ax_nvme_dump_pcie_errors(ndev);
         ax_pcie_debug_print(ndev->pcie_port);   /* ATR + RP window dump */
         return -ETIMEDOUT;
@@ -562,7 +607,7 @@ static int ax_nvme_submit_cmd(struct ax_nvme_dev *ndev,
 
     if ((status >> 1) != 0) {
         printf("NVMe command failed: opc=0x%02x SCT=%u SC=0x%02x (status=0x%04x)\n",
-               cmd->opcode, (status >> 9) & 0x7, (status >> 1) & 0xff, status);
+                cmd->opcode, (status >> 9) & 0x7, (status >> 1) & 0xff, status);
         return -EIO;
     }
 
@@ -582,7 +627,7 @@ static void ax_nvme_trim(char *s)
 }
 
 int ax_nvme_identify_controller(struct ax_nvme_dev *ndev,
-                                void *buf, u64 dma_addr)
+        void *buf, u64 dma_addr)
 {
     struct nvme_command cmd;
     int ret;
@@ -605,7 +650,7 @@ int ax_nvme_identify_controller(struct ax_nvme_dev *ndev,
 }
 
 int ax_nvme_identify_namespace(struct ax_nvme_dev *ndev, u32 nsid,
-                               void *buf, u64 dma_addr)
+        void *buf, u64 dma_addr)
 {
     struct nvme_command cmd;
     int ret;
@@ -654,17 +699,17 @@ static int ax_nvme_identify(struct ax_nvme_dev *ndev)
 
     mdts = id[77];
     ndev->max_xfer_bytes = mdts ? (ndev->page_size << mdts) :
-                                  NVME_MAX_XFER_BYTES;
+        NVME_MAX_XFER_BYTES;
     if (ndev->max_xfer_bytes > NVME_MAX_XFER_BYTES)
         ndev->max_xfer_bytes = NVME_MAX_XFER_BYTES;
 
     printf("NVMe: model '%s' serial '%s' fw '%s' max xfer %u KiB\n",
-           ndev->mn, ndev->sn, ndev->fr, ndev->max_xfer_bytes / 1024);
+            ndev->mn, ndev->sn, ndev->fr, ndev->max_xfer_bytes / 1024);
 
     /* ---- namespace 1 ---- */
     ndev->nsid = 1;
     ret = ax_nvme_identify_namespace(ndev, ndev->nsid, id,
-                                     NVME_IDENTIFY_BUF_ADDR);
+            NVME_IDENTIFY_BUF_ADDR);
     if (ret) {
         printf("Identify Namespace %u failed: %d\n", ndev->nsid, ret);
         return ret;
@@ -683,7 +728,7 @@ static int ax_nvme_identify(struct ax_nvme_dev *ndev)
     }
 
     printf("NVMe: ns %u = %llu blocks of %u bytes\n", ndev->nsid,
-           ndev->nsze, 1U << ndev->lba_shift);
+            ndev->nsze, 1U << ndev->lba_shift);
 
     return 0;
 }
@@ -740,7 +785,7 @@ static int ax_nvme_create_io_queues(struct ax_nvme_dev *ndev)
     cmd.prp1 = cpu_to_le64(q->sq_dma);
     cmd.cdw10 = cpu_to_le32(((u32)(depth - 1) << 16) | q->qid);
     cmd.cdw11 = cpu_to_le32(((u32)q->qid << 16) |
-                            NVME_QUEUE_PHYS_CONTIG | NVME_SQ_PRIO_MEDIUM);
+            NVME_QUEUE_PHYS_CONTIG | NVME_SQ_PRIO_MEDIUM);
 
     ret = ax_nvme_submit_cmd(ndev, &ndev->adminq, &cmd, NULL);
     if (ret) {
@@ -758,7 +803,7 @@ static int ax_nvme_create_io_queues(struct ax_nvme_dev *ndev)
  * ------------------------------------------------------------------------ */
 
 static int ax_nvme_rw(struct ax_nvme_dev *ndev, u8 opcode, u32 nsid, u64 lba,
-                      u32 blocks, void *buf, u64 dma_addr)
+        u32 blocks, void *buf, u64 dma_addr)
 {
     u32 bsize = 1U << ndev->lba_shift;
     u32 max_blocks = ndev->max_xfer_bytes >> ndev->lba_shift;
@@ -837,16 +882,16 @@ static int ax_nvme_rw(struct ax_nvme_dev *ndev, u8 opcode, u32 nsid, u64 lba,
 }
 
 int ax_nvme_read(struct ax_nvme_dev *ndev, u32 nsid, u64 lba, u32 blocks,
-                 void *buf, u64 dma_addr)
+        void *buf, u64 dma_addr)
 {
     return ax_nvme_rw(ndev, NVME_CMD_READ, nsid, lba, blocks, buf, dma_addr);
 }
 
 int ax_nvme_write(struct ax_nvme_dev *ndev, u32 nsid, u64 lba, u32 blocks,
-                  const void *buf, u64 dma_addr)
+        const void *buf, u64 dma_addr)
 {
     return ax_nvme_rw(ndev, NVME_CMD_WRITE, nsid, lba, blocks,
-                      (void *)buf, dma_addr);
+            (void *)buf, dma_addr);
 }
 
 /* ------------------------------------------------------------------------
@@ -854,7 +899,7 @@ int ax_nvme_write(struct ax_nvme_dev *ndev, u32 nsid, u64 lba, u32 blocks,
  * ------------------------------------------------------------------------ */
 
 int ax_nvme_probe(struct ax_nvme_dev *ndev,
-                  u8 pcie_port, u8 bus, u8 dev, u8 func)
+        u8 pcie_port, u8 bus, u8 dev, u8 func)
 {
     u32 class_rev;
     u32 csts;
@@ -877,7 +922,7 @@ int ax_nvme_probe(struct ax_nvme_dev *ndev,
     ax_nvme_clear_pcie_errors(ndev);
 
     ret = ax_pcie_cfg_read(pcie_port, bus, dev, func,
-                           PCI_CFG_REVISION_ID, &class_rev);
+            PCI_CFG_REVISION_ID, &class_rev);
     if (ret)
         return ret;
 
@@ -886,7 +931,7 @@ int ax_nvme_probe(struct ax_nvme_dev *ndev,
     /* 0x010802 = Mass storage / NVM / NVMe */
     if ((class_rev >> 8) != 0x010802)
         printf("Warning: class 0x%06x is not NVMe (0x010802)\n",
-               class_rev >> 8);
+                class_rev >> 8);
 
     /* Make sure BAR0 has an address (programs all BARs if not) */
     ret = ax_nvme_get_bar0(ndev);
@@ -942,6 +987,10 @@ int ax_nvme_probe(struct ax_nvme_dev *ndev,
     ndev->q_depth = min_t(u32, max_q_entries, NVME_ADMIN_Q_DEPTH);
     if (ndev->q_depth < 2)
         return -EINVAL;
+
+    ret = ax_nvme_enable_msi(ndev);
+    if (ret)
+        return ret;
 
     /* Controller must be disabled before programming AQA/ASQ/ACQ */
     ret = ax_nvme_disable_ctrl(ndev);
