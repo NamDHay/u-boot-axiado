@@ -27,11 +27,17 @@ int diag_info(char *name);
 int diag_run(char *name, unsigned long testid);
 int diag_log(char *fmt, ...);
 
+struct testcase {
+    const char *cmd;
+    int timeout;
+    int status;
+};
+
 struct diag_test {
     const char *name;
-    const char *cmd;
     const char *desc;
-    const char *testcase[DIAG_MAX_TEST];
+    int test_num;
+    struct testcase test[DIAG_MAX_TEST];
 };
 
 #endif /* __DIAG_H */
