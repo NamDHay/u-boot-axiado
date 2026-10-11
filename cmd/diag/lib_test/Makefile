@@ -18,12 +18,15 @@ obj-$(CONFIG_CMD_AX_VSENS) 	+= ina_sensor/ina_cli.o
 
 obj-$(CONFIG_CMD_AX_JTAG) 	+= jtag/jtag_cli.o
 
+obj-$(CONFIG_CMD_AX_LTPI) 	+= ltpi/ltpi_cli.o
+
 obj-$(CONFIG_CMD_AX_MBX) 	+= mailbox/mbox_cli.o
 
 obj-$(CONFIG_CMD_AX_MEM) 	+= mem/mem_cli.o
 
 obj-$(CONFIG_CMD_AX_PCIE) 	+= pcie/pcie_cli.o pcie/pcie_ep_cli.o
 obj-$(CONFIG_CMD_AX_NVME) 	+= nvme/nvme_cli.o
+obj-$(CONFIG_CMD_AX_E1000) 	+= e1000/e1000_cli.o
 
 obj-$(CONFIG_CMD_AX_PWM) 	+= pwm/pwm_cli.o
 

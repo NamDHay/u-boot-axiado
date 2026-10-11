@@ -41,5 +41,4 @@ obj-$(CONFIG_CDNS_UART) 	+= uart/cdns_uart.o
 obj-$(CONFIG_CDNS_WDT) 		+= wdt/cdns_wdt.o
 obj-$(CONFIG_AXIADO_WDT) 	+= wdt/axiado_wdt.o
 
-obj-$(CONFIG_AXIADO_USB) 	+= usb/ax_usb.o
-obj-$(CONFIG_CRG_XHCI) 		+= usb/xhci/xhci.o usb/xhci/xhci_msc.o usb/xhci/xhci_ring.o
+obj-$(CONFIG_AXIADO_USB) 	+= usb/ax_xhci_pci.o usb/ax_usb.o usb/xhci.o usb/xhci_ring.o usb/xhci_msc.o usb/xhci_hw.o

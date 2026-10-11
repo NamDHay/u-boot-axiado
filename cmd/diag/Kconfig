@@ -132,6 +132,13 @@ config CMD_AX_NVME
 	help
 	  This command provides access to NVME board diagnostic tests.
 
+config CMD_AX_E1000
+	bool "ax_nvme - Axiado E1000 diagnostics"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
+	help
+	  This command provides access to E1000 board diagnostic tests.
+
 config AXIADO_PINMUX
 	bool "Axiado pinmuxing support"
 	help
