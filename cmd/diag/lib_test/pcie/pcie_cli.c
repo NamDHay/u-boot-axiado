@@ -10,6 +10,7 @@
 #include <linux/string.h>
 #include <linux/types.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <malloc.h>
 #include <display_options.h>
 
@@ -18,6 +19,8 @@
 
 #define AX_PCIE_MODE_EP		0
 #define AX_PCIE_MODE_RC		1
+
+static struct ax_pcie_msi msi;
 
 static int ax_pcie_parse_bdf(const char *str, u8 *bus, u8 *dev, u8 *func)
 {
@@ -60,6 +63,13 @@ static int ax_pcie_parse_bdf(const char *str, u8 *bus, u8 *dev, u8 *func)
     return 0;
 }
 
+static void pcie_cli_msi_handle(void *arg)
+{
+    struct ax_pcie_msi *msi = arg;
+    printf("%s - Receive MSI%d: \n\taddr = 0x%llx, \n\tdata = 0x%x\n", 
+            __func__, msi->vector, msi->address, msi->data);
+}
+
 /*
  * ax_pcie init <port> <speed>
  */
@@ -70,6 +80,7 @@ static int ax_pcie_cmd_init(struct cmd_tbl *cmdtp, int flag,
     unsigned int port;
     unsigned int mode;
     unsigned int speed;
+    u8 dev, func;
     char *endp;
 
     if (argc < 3)
@@ -87,13 +98,25 @@ static int ax_pcie_cmd_init(struct cmd_tbl *cmdtp, int flag,
 
     printf("PCIe_x%d init successed\n", port);
 
-    ret = ax_pcie_init_ep_bars(port, 1, 0, 0);
-    if (ret) {
-        printf("Failed to initialize endpoint BARs: %d\n", ret);
-        return CMD_RET_FAILURE;
-    }
+    for (dev = 0; dev < PCI_MAX_PCI_DEVICES; dev++) {
+        for (func = 0; func < PCI_MAX_PCI_FUNCTIONS; func++) {
+            ret = ax_pcie_init_ep_bars(port, 1, dev, func);
+            if (ret)
+                break;
 
-    ax_pcie_print_header(port, 1, 0, 0);
+            ret = ax_pcie_ep_enable_aer(port, 1, dev, func);
+            if (ret) {
+                printf("Failed to enable AER: %d\n", ret);
+                return CMD_RET_FAILURE;
+            }
+            printf("AER enable\n");
+
+            ax_pcie_print_header(port, 1, dev, func);
+
+            printf("\nPCIe BAR initialization for %02x:%02x.%x\n",
+                    1, dev, func);
+        }
+    }
 
     return CMD_RET_SUCCESS;
 }
@@ -286,7 +309,7 @@ static int ax_pcie_cmd_mem_write(struct cmd_tbl *cmdtp, int flag,
     ret = ax_pcie_mem_write(port, offset, buf, len);
     if (ret) {
         printf("PCIe%d mem_write offset 0x%llx len 0x%zx "
-               "value 0x%llx failed: %d\n",
+                "value 0x%llx failed: %d\n",
                 port, offset, len, value, ret);
         free(buf);
         return CMD_RET_FAILURE;
@@ -354,7 +377,7 @@ static int ax_pcie_cmd_cap(struct cmd_tbl *cmdtp, int flag,
 }
 
 /*
- * ax_pcie debug <port>
+ * ax_pcie debug [-v|-vv] <port> <bus>.<dev>.<num>
  */
 static int ax_pcie_cmd_debug(struct cmd_tbl *cmdtp, int flag,
         int argc, char *const argv[])
@@ -363,22 +386,109 @@ static int ax_pcie_cmd_debug(struct cmd_tbl *cmdtp, int flag,
     u8 bus, dev, func;
     int ret;
 
-    if (argc != 2)
+    if (argc != 4)
         return CMD_RET_USAGE;
 
-    port = simple_strtoul(argv[1], NULL, 0);
+    port = simple_strtoul(argv[2], NULL, 0);
+    ret = ax_pcie_parse_bdf(argv[3], &bus, &dev, &func);
 
     ax_pcie_debug_print(port);
-    
-    if(argc > 2) {
-        if(!strcmp(argv[2], "-v"))
-            ax_pcie_print_header(port, 1, 0, 0);
 
-        if(!strcmp(argv[2], "-vv"))
-            ax_pcie_print_capabilities(port, 1, 0, 0);
+    if(argc > 2) {
+        if(!strcmp(argv[1], "-v"))
+            ax_pcie_print_header(port, bus, dev, func);
+
+        if(!strcmp(argv[1], "-vv")) {
+            ax_pcie_print_header(port, bus, dev, func);
+            ax_pcie_print_capabilities(port, bus, dev, func);
+        }
     }
 
     return CMD_RET_SUCCESS;
+}
+
+/*
+ * ax_pcie msi [enable|disable|status] <port> <bus>.<dev>.<func>
+ */
+static int ax_pcie_cmd_msi(struct cmd_tbl *cmdtp, int flag,
+        int argc, char *const argv[])
+{
+    int port;
+    u8 bus, dev, func;
+    int ret;
+
+    if (argc != 4)
+        return CMD_RET_USAGE;
+
+    port = simple_strtoul(argv[2], NULL, 0);
+    ret = ax_pcie_parse_bdf(argv[3], &bus, &dev, &func);
+    if (ret) {
+        printf("Invalid BDF: %s\n", argv[3]);
+        return CMD_RET_USAGE;
+    }
+
+    if (!strncmp(argv[1], "s", 1)) {
+        ret = ax_pcie_ep_msi_status(port, bus, dev, func);
+        if (ret)
+            return CMD_RET_FAILURE;
+
+        return CMD_RET_SUCCESS;
+    }
+
+    if (!strncmp(argv[1], "e", 1)) {
+        printf("PCIe MSI enable: %02x:%02x.%x\n",
+                bus, dev, func);
+
+        ret = ax_pcie_ep_disable_msi(port, bus, dev, func);
+        if (ret) {
+            printf("Failed to disable MSI: %d\n", ret);
+            return CMD_RET_FAILURE;
+        }
+
+        printf("MSI disabled before program address and data\n");
+
+        /*
+         * Program MSI Message Address/Data.
+         */
+        msi.handler = pcie_cli_msi_handle;
+        msi.arg = &msi;
+        msi.nr_vectors = 16;
+        ret = ax_pcie_ep_program_msi(port, 1, dev, func, &msi);
+        if (ret) {
+            printf("Failed to program MSI: %d\n", ret);
+            return CMD_RET_FAILURE;
+        }
+
+        /*
+         * Enable MSI.
+         */
+        ret = ax_pcie_ep_enable_msi(port, bus, dev, func);
+        if (ret) {
+            printf("Failed to enable MSI: %d\n", ret);
+            return CMD_RET_FAILURE;
+        }
+
+        printf("MSI enable\n");
+
+        return CMD_RET_SUCCESS;
+    }
+
+    if (!strncmp(argv[1], "d", 1)) {
+        printf("PCIe MSI disable: %02x:%02x.%x\n",
+                bus, dev, func);
+
+        ret = ax_pcie_ep_disable_msi(port, bus, dev, func);
+        if (ret) {
+            printf("Failed to disable MSI: %d\n", ret);
+            return CMD_RET_FAILURE;
+        }
+
+        printf("MSI disabled\n");
+
+        return CMD_RET_SUCCESS;
+    }
+
+    return CMD_RET_USAGE;
 }
 
 U_BOOT_LONGHELP(ax_pcie,
@@ -402,12 +512,15 @@ U_BOOT_LONGHELP(ax_pcie,
         "\n"
         "mem_read <port> <addr> <len>\n"
         " - Read PCIe memory\n"
-        "\n"
-        "mem_write <port> <addr> <value> <len>\n"
-        " - Write PCIe memory"
-        "\n"
-        "debug <port>\n"
-        " - Print PCIe config"
+"\n"
+"mem_write <port> <addr> <value> <len>\n"
+" - Write PCIe memory"
+"\n"
+"msi <enable|disable|status> <port> <bus>.<dev>.<func>\n"
+" - Config EP MSI"
+"\n"
+"debug [-v|-vv] <port> <bus>.<dev>.<num>\n"
+" - Print PCIe config"
 );
 
 U_BOOT_CMD_WITH_SUBCMDS(ax_pcie, "Axiado bare-metal PCIe diagnostics test", ax_pcie_help_text,
@@ -419,4 +532,6 @@ U_BOOT_CMD_WITH_SUBCMDS(ax_pcie, "Axiado bare-metal PCIe diagnostics test", ax_p
         U_BOOT_SUBCMD_MKENT(cfg_write, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_cfg_write),
         U_BOOT_SUBCMD_MKENT(mem_read, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_mem_read),
         U_BOOT_SUBCMD_MKENT(mem_write, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_mem_write),
+        U_BOOT_SUBCMD_MKENT(mem_write, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_mem_write),
+        U_BOOT_SUBCMD_MKENT(msi, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_msi),
         U_BOOT_SUBCMD_MKENT(debug, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_debug));
