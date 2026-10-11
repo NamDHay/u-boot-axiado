@@ -99,7 +99,7 @@ extern "C" {
 
 /** <Start and End Addresses for USB2P_0 */
 #define AX3000_CSR_BASE_ADRS_USB2P0_0 0x41000000
-#define AX3000_CSR_END_ADRS_USB2P0_0	 0x410FFFFF
+#define AX3000_CSR_END_ADRS_USB2P0_0  0x410FFFFF
 
 /** <Start and End Addresses for USB2P_1 */
 #define AX3000_CSR_BASE_ADRS_USB2P0_1 0x41100000
