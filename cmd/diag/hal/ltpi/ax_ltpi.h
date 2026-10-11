@@ -7,6 +7,8 @@
 #ifndef __LTPI_H
 #define __LTPI_H
 
+#include "ax_gpio.h"
+
 struct ax_ltpi_data_req {
 	uint64_t addr;
 	uint32_t len;
@@ -20,7 +22,7 @@ struct ax_ltpi_ops {
     int (*check_link)(u32 timeout);
 
     /* GPIO */
-	int (*gpio_request)(u32 port);
+    struct ax_gpio_ops gpio;
 
     /* I2C */
     int (*i2c_request)(u32 port);
@@ -57,10 +59,18 @@ static inline int ax_ltpi_check_link(u32 timeout) {
     return ltpi.check_link(timeout); 
 }
 
-static inline int ax_ltpi_gpio_request(u32 port) {  
-    if (ltpi.gpio_request == NULL) return -ENOSYS;
+static inline int ax_ltpi_gpio_set_value(unsigned pin, unsigned value)
+{
+    if (ltpi.gpio.set_value == NULL) return -ENOSYS;
 
-    return ltpi.gpio_request(port); 
+    return ltpi.gpio.set_value(pin, value);
+}
+
+static inline int ax_ltpi_gpio_get_value(unsigned pin)
+{
+    if (ltpi.gpio.get_value == NULL) return -ENOSYS;
+
+    return ltpi.gpio.get_value(pin);
 }
 
 static inline int ax_ltpi_i2c_request(u32 port) {  

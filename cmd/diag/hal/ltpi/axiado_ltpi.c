@@ -33,26 +33,58 @@
 #define FREQ_800MHZ  	 0x800
 #define FREQ_1GHZ  	 0x1000
 
-#define REG_UART_LTPI_SELECT_REG_ADRS_OFFSET 0x118
+#define NL_MAX_GPIO_PINS    128
+#define LL_MAX_GPIO_PINS    32
+#define PINS_PER_GPIO_BANK  32
+#define GET_BANK(a) ((a) / 32)
+#define GET_POS(a) ({ \
+	typeof(a) _a = (a); \
+	_a - (32 * GET_BANK(_a)); \
+})
+#define POS_TO_ID(pos, bank) ((pos) + (32 * (bank)))
+
+#define BANK_SZ 32
 
 #define LTPI_TIMEOUT 0x100
 #define LTPI_CONFIG_USE_PLL 1
 
-struct ax_ltpi_ctrl_t {
-	void __iomem *csr;                /**< LTPI DSUB  base address */
-	void __iomem *ctrl_base;          /**< LTPI controller base address */
+enum gpio_type {
+    NL_GPIO = 0,
+    LL_GPIO = 1
+};
+
+struct axiado_ltpi;
+struct ltpi_gpio {
+    enum gpio_type type;
+    u32 ngpios;
+    int lines;
+    int num_banks;
+    u32 *inputs_cache;
+    u32 *outputs_cache;
+    u32 *mask; /* 1 - Mask & 0 - Unmask */
+    struct ax_ltpi *core;
+};
+
+struct axiado_ltpi {
+    void __iomem *csr;                /**< LTPI DSUB  base address */
+    void __iomem *ctrl_base;          /**< LTPI controller base address */
     void __iomem *tx_phy_base;        /**< LTPI TX PHY base address */
     void __iomem *rx_phy_base;        /**< LTPI RX PHY base address */
-    void __iomem *spi_fpga_base;      /**< SPIx fpga wrapper base address */
+    u32 total_lines; /* max (nl lines + ll lines) */
+    u32 total_banks; /* total_lines/32 */
+    struct ltpi_gpio nl;
+    struct ltpi_gpio ll;
+    void __iomem *i2c_base;           /**< I2Cx wrapper base address */
+    void __iomem *spi_base;           /**< SPIx wrapper base address */
     void __iomem *uart0_base;         /**< LTPI_UART0 channel base address (Note: Not TCU_UART0) */
     void __iomem *uart1_base;         /**< LTPI_UART1 channel base address (Note: Not TCU_UART1) */
 };
 
-static struct ax_ltpi_ctrl_t ltpi_base = {
-	.csr = (void __iomem *)AX3000_CSR_BASE_ADRS_DSUB_LTPI,
-	.ctrl_base = (void __iomem *)AX3000_CSR_OFFSET_ADRS_LTPI_CNTRL,
-	.tx_phy_base = (void __iomem *)AX3000_CSR_OFFSET_ADRS_LTPI_TX_PHY,
-	.rx_phy_base = (void __iomem *)AX3000_CSR_OFFSET_ADRS_LTPI_RX_PHY,
+static struct axiado_ltpi ltpi_base = {
+    .csr = (void __iomem *)AX3000_CSR_BASE_ADRS_DSUB_LTPI,
+    .ctrl_base = (void __iomem *)AX3000_CSR_OFFSET_ADRS_LTPI_CNTRL,
+    .tx_phy_base = (void __iomem *)AX3000_CSR_OFFSET_ADRS_LTPI_TX_PHY,
+    .rx_phy_base = (void __iomem *)AX3000_CSR_OFFSET_ADRS_LTPI_RX_PHY,
 };
 
 static inline void axiado_ltpi_write32(void __iomem *base, u32 offset, u32 val)
@@ -65,7 +97,50 @@ static inline u32 axiado_ltpi_read32(void __iomem *base, u32 offset)
     return readl((void __iomem *)(base + offset));
 }
 
-static int ltpi_clear_error_flag(struct ax_ltpi_ctrl_t *ltpi)
+static int ltpi_gpio_set_value(unsigned pin, unsigned value) 
+{
+    struct axiado_ltpi *ltpi = &ltpi_base;
+    u32 bank_val;
+    int lines;
+
+    lines = ltpi->nl.lines;
+    /* bank_val = ltpi->nl.outputs_cache[GET_BANK(offset)]; */
+
+	if (pin >= lines)
+		return -EINVAL;
+
+    if (value)
+        bank_val |= BIT(GET_POS(pin));
+    else
+        bank_val &= ~BIT(GET_POS(pin));
+
+    /* update_bank(ltpi->nl.outputs_cache, GET_BANK(offset), bank_val); */
+    axiado_ltpi_write32(ltpi->csr, VAL_LTPI_NL_GPIO_OUT_REG(GET_BANK(pin)),
+            bank_val);
+
+    return 0;
+}
+
+static int ltpi_gpio_get_value(unsigned pin)
+{
+    struct axiado_ltpi *ltpi = &ltpi_base;
+    unsigned int rel_offset;
+    u32 bank_val;
+    int lines;
+
+    lines = ltpi->nl.lines;
+    rel_offset = pin - ltpi->nl.lines;
+
+    if (pin < lines)
+        return -EINVAL;
+
+    bank_val = axiado_ltpi_read32(ltpi->csr,
+            VAL_LTPI_NL_GPIO_IN_REG(GET_BANK(rel_offset)));
+
+    return !!(bank_val & BIT(GET_POS(rel_offset)));
+}
+
+static int ltpi_clear_error_flag(struct axiado_ltpi *ltpi)
 {
     uint32_t reg;
 
@@ -91,19 +166,18 @@ static int ltpi_clear_error_flag(struct ax_ltpi_ctrl_t *ltpi)
     return -ETIMEDOUT;
 }
 
-static int ltpi_tx_phy_init(struct ax_ltpi_ctrl_t *ltpi)
+static int ltpi_tx_phy_init(struct axiado_ltpi *ltpi)
 {
     uint32_t offset, reg_val;
-    printf("Check Tx base = 0x%8p\r\n", ltpi->tx_phy_base);
 
     /*
-    Step1: Power up.
-    Step2: Send 0xf8 to reg08[31:24] to enable internal PLL and lanes.
-    Step3: Send 0x12 to reg00[15:8] to disable internal logic.
-    Step4: Wait some intervals for PLL lock.
-    Step5: Send 0x92 to reg00[15:8] to enable internal logic.
-    Step6: Wait a period before normal transmission.
-    */
+Step1: Power up.
+Step2: Send 0xf8 to reg08[31:24] to enable internal PLL and lanes.
+Step3: Send 0x12 to reg00[15:8] to disable internal logic.
+Step4: Wait some intervals for PLL lock.
+Step5: Send 0x92 to reg00[15:8] to enable internal logic.
+Step6: Wait a period before normal transmission.
+*/
 
     /* Send 0xf8 to reg08[31:24] to enable internal PLL and lanes. */
     offset = 0x08;
@@ -120,19 +194,19 @@ static int ltpi_tx_phy_init(struct ax_ltpi_ctrl_t *ltpi)
     axiado_ltpi_write32(ltpi->tx_phy_base, offset, reg_val);
 
     /* Wait some intervals for PLL lock. */
-    printf("Polling for TX PLL locked...\r\n");
+    printf("Polling for TX PLL locked... ");
     uint32_t timeout = LTPI_TIMEOUT;
     offset = 0x78;
     do {
         reg_val = axiado_ltpi_read32(ltpi->ctrl_base, offset);
         if (reg_val & (1U << 0x0)) {
-            printf("TX PLL LOCKED\r\n");
+            printf("LOCKED\r\n");
             break;
         }
         mdelay(10);
     } while (--timeout);
     if (timeout <= 0) {
-        printf("[Time out]: TX PLL lock timeout!\r\n");
+        printf("TIMEOUT!\r\n");
         return -ETIMEDOUT;
     }
 
@@ -158,9 +232,8 @@ static inline uint32_t ltpi_get_rx_phy_offset(uint32_t offset_first,
     return (offset_first << 5) | offset_second;
 }
 
-static int ltpi_rx_phy_init(struct ax_ltpi_ctrl_t *ltpi)
+static int ltpi_rx_phy_init(struct axiado_ltpi *ltpi)
 {
-    printf("Check Rx base = 0x%8p\r\n", ltpi->rx_phy_base);
 
 #ifdef LTPI_CONFIG_USE_PLL
     /* Using PLL */
@@ -182,44 +255,40 @@ static int ltpi_rx_phy_init(struct ax_ltpi_ctrl_t *ltpi)
     axiado_ltpi_write32(ltpi->rx_phy_base, 0x40, 0xFC76100C); //external alignment, lsb
 #endif
 
-    printf("Polling for RX PLL locked...\r\n");
+    printf("Polling for RX PLL locked... ");
     uint32_t timeout = LTPI_TIMEOUT;
     uint32_t reg_val;
     do {
         reg_val = axiado_ltpi_read32(ltpi->ctrl_base, 0x78);
         if (reg_val & (1U << 14)) {
-            printf("RX PLL LOCKED\r\n");
+            printf("LOCKED\r\n");
             return 0;
         }
         mdelay(10);
     } while (--timeout);
     if (timeout <= 0) {
-        printf("[Time out]: RX PLL lock timeout!\r\n");
+        printf("TIMEOUT!\r\n");
     }
     return -ETIMEDOUT;
 }
 
-static int ltpi_phy_init(struct ax_ltpi_ctrl_t *ltpi)
+static int ltpi_phy_init(struct axiado_ltpi *ltpi)
 {
     int ret;
     ret = ltpi_tx_phy_init(ltpi);
     if (ret) {
-        printf("LTPI TX PHY init failed\r\n");
         return ret;
     }
-    printf("LTPI TX PHY init completed\r\n");
 
     ret = ltpi_rx_phy_init(ltpi);
     if (ret) {
-        printf("LTPI RX PHY init failed\r\n");
         return ret;
     }
-    printf("LTPI RX PHY init completed\r\n");
 
     return 0;
 }
 
-static int ltpi_controller_init(struct ax_ltpi_ctrl_t *ltpi)
+static int ltpi_controller_init(struct axiado_ltpi *ltpi)
 {
     uint32_t reg_val;
 
@@ -236,21 +305,20 @@ static int ltpi_controller_init(struct ax_ltpi_ctrl_t *ltpi)
     /* debug: remove data channel feature to reach Operational */
     axiado_ltpi_write32(ltpi->ctrl_base, 0x14, 0x7F020007);
 
-    printf("LTPI Controller init completed\r\n");
     return 0;
 }
 
 static int ltpi_init(void)
 {
-    struct ax_ltpi_ctrl_t *ltpi = &ltpi_base;
+    struct axiado_ltpi *ltpi = &ltpi_base;
     int ret;
-    
+
     ret = ltpi_phy_init(ltpi);
     if (ret) {
-        printf("LTPI PHY init failed\r\n");
+        printf("LTPI Phy init failed\r\n");
         return ret;
     }
-    printf("LTPI TX RX PHY init completed\r\n");
+    printf("LTPI Phy init completed\r\n");
 
     mdelay(1000);
 
@@ -259,13 +327,24 @@ static int ltpi_init(void)
         printf("LTPI Controller init failed\r\n");
         return ret;
     }
+    printf("LTPI Controller init completed\r\n");
 
     mdelay(3000);
+
+    ltpi->nl.type = NL_GPIO;
+    ltpi->ll.type = LL_GPIO;
+    ltpi->nl.lines = NL_MAX_GPIO_PINS;
+    ltpi->ll.lines = LL_MAX_GPIO_PINS;
+    ltpi->nl.num_banks = (ltpi->nl.lines + PINS_PER_GPIO_BANK - 1) / PINS_PER_GPIO_BANK;
+    ltpi->ll.num_banks = (ltpi->ll.lines + PINS_PER_GPIO_BANK - 1) / PINS_PER_GPIO_BANK;
+
+    printf("Total normal latency gpios %d, banks %d\n", ltpi->nl.lines, ltpi->nl.num_banks);
+    printf("Total low latency gpios %d, banks %d\n", ltpi->ll.lines, ltpi->ll.num_banks);
 
     return 0;
 }
 
-static void ltpi_link_speed(struct ax_ltpi_ctrl_t *ltpi, uint32_t clk_frq)
+static void ltpi_link_speed(struct axiado_ltpi *ltpi, uint32_t clk_frq)
 {
     uint32_t temp;
 
@@ -326,7 +405,7 @@ static void ltpi_link_speed(struct ax_ltpi_ctrl_t *ltpi, uint32_t clk_frq)
             temp); // Configure clk frequency
 }
 
-static void clk_freq_change(struct ax_ltpi_ctrl_t *ltpi, uint32_t clk_frq)
+static void clk_freq_change(struct axiado_ltpi *ltpi, uint32_t clk_frq)
 {
     uint32_t freq;
     uint32_t temp;
@@ -484,7 +563,7 @@ static void clk_freq_change(struct ax_ltpi_ctrl_t *ltpi, uint32_t clk_frq)
 
 static void ltpi_reset(void)
 {
-    struct ax_ltpi_ctrl_t *ltpi = &ltpi_base;
+    struct axiado_ltpi *ltpi = &ltpi_base;
     uint32_t reg;
 
     /* Trigger LTPI reset software */
@@ -512,7 +591,7 @@ static void ltpi_reset(void)
     axiado_ltpi_write32(ltpi->ctrl_base, 0x64, reg);
 }
 
-static int ltpi_wait_for_linkup(struct ax_ltpi_ctrl_t *ltpi, uint32_t timeout)
+static int ltpi_wait_for_linkup(struct axiado_ltpi *ltpi, uint32_t timeout)
 {
     uint32_t local_rd, remote_rd;
     uint32_t local_st, remote_st;
@@ -547,16 +626,18 @@ static int ltpi_wait_for_linkup(struct ax_ltpi_ctrl_t *ltpi, uint32_t timeout)
                 return ret;
             }
 
+            printf("LTPI link up\n");
             return 0;
         }
 
         mdelay(1);
     }
 
+    printf("LTPI link down\n");
     return -ETIMEDOUT;
 }
 
-static int ltpi_wait_for_link_aligned(struct ax_ltpi_ctrl_t *ltpi, uint32_t timeout)
+static int ltpi_wait_for_link_aligned(struct axiado_ltpi *ltpi, uint32_t timeout)
 {
     uint32_t reg;
     uint32_t cnt = timeout;
@@ -565,14 +646,14 @@ static int ltpi_wait_for_link_aligned(struct ax_ltpi_ctrl_t *ltpi, uint32_t time
         reg = axiado_ltpi_read32(ltpi->ctrl_base, 0x0);
 
         if (reg & 0x1) {
-            printf("Link is aligned\n");
+            printf("LTPI link is aligned\n");
             return 0;
         }
 
         mdelay(1);
     }
     if (cnt == 0) {
-        printf("Link align timeout\n");
+        printf("LTPI link align timeout\n");
     }
 
     return -ETIMEDOUT;
@@ -581,22 +662,18 @@ static int ltpi_wait_for_link_aligned(struct ax_ltpi_ctrl_t *ltpi, uint32_t time
 static int ltpi_link_up(u32 timeout)
 {
     int ret;
-    struct ax_ltpi_ctrl_t *ltpi = &ltpi_base;
+    struct axiado_ltpi *ltpi = &ltpi_base;
 
     ret = ltpi_wait_for_link_aligned(ltpi, timeout);
     if (ret) {
-        printf("LTPI link aligned timeout\r\n");
         return ret;
     }
-    printf("LTPI link aligned completed\r\n");
 
     /* Wait for link up */
     ret = ltpi_wait_for_linkup(&ltpi_base, timeout);
     if (ret) {
-        printf("LTPI link up timeout\r\n");
         return ret;
     }
-    printf("LTPI link up completed\r\n");
 
     /* Clear error flags */
     ret = ltpi_clear_error_flag(&ltpi_base);
@@ -612,4 +689,8 @@ struct ax_ltpi_ops ltpi = {
     .init = ltpi_init,
     .reset = ltpi_reset,
     .check_link = ltpi_link_up,
+    .gpio = {
+        .set_value = ltpi_gpio_set_value,
+        .get_value = ltpi_gpio_get_value,
+    },
 };
