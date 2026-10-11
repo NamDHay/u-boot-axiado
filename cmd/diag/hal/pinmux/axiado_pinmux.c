@@ -13,9 +13,10 @@
 #include "ax_pinmux.h"
 
 #define UNUSED_PINMUX (-1)
-#define I2C_SPI_MUX_OFFSET    0x108
-#define SPI_TPM_MUX_OFFSET    0x11C
-#define I3C_I2C_MUX_OFFSET    0x1B4
+#define I2C_SPI_MUX_OFFSET      0x108
+#define UART_LTPI_MUX_OFFSET    0x118
+#define SPI_TPM_MUX_OFFSET      0x11C
+#define I3C_I2C_MUX_OFFSET      0x1B4
 
 struct axiado_group_config {
     char *group_name;
