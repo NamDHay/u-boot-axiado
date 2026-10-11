@@ -11,6 +11,25 @@
 #include <linux/bitops.h>
 #include <pci.h>
 
+#define PCI_MAX_PCI_DEVICES	32
+#define PCI_MAX_PCI_FUNCTIONS	8
+#define PCI_NUM_INTX	4
+
+enum pci_interrupt_pin {
+	PCI_INTERRUPT_UNKNOWN,
+	PCI_INTERRUPT_INTA,
+	PCI_INTERRUPT_INTB,
+	PCI_INTERRUPT_INTC,
+	PCI_INTERRUPT_INTD,
+};
+
+enum pci_ep_irq_type {
+	PCI_EP_IRQ_UNKNOWN,
+	PCI_EP_IRQ_LEGACY,
+	PCI_EP_IRQ_MSI,
+	PCI_EP_IRQ_MSIX,
+};
+
 /*
  * PCI Configuration Space
  */
@@ -140,7 +159,9 @@
 
 #define PCI_MSI_CTRL_ENABLE            BIT(0)
 #define PCI_MSI_CTRL_MMC_MASK          0x000e
+#define PCI_MSI_FLAGS_MMC_SHIFT        1
 #define PCI_MSI_CTRL_MME_MASK          0x0070
+#define PCI_MSI_FLAGS_MME_SHIFT        4
 #define PCI_MSI_CTRL_64BIT             BIT(7)
 #define PCI_MSI_CTRL_PER_VECTOR_MASK   BIT(8)
 
@@ -486,7 +507,7 @@
 int ax_pcie_wait_device_ready(int port, u8 bus, u8 dev, u8 func,
                               u32 timeout_ms);
 
-int ax_pcie_check_cap(u8 port, u8 bus, u8 dev, u8 func,
+int ax_pcie_find_cap(u8 port, u8 bus, u8 dev, u8 func,
                           int cap_type, u16 cap_id);
 
 int ax_pcie_init_ep_bars(int port, u8 bus, u8 dev, u8 func);
@@ -515,6 +536,19 @@ void ax_pcie_print_pm_cap(int port,
 				 u8 bus, u8 dev, u8 func,
 				 u16 offset);
 
-void ax_pcie_enable_aer(int port, u8 bus, u8 dev, u8 func);
+int ax_pcie_ep_enable_aer(int port, u8 bus, u8 dev, u8 func);
+
+int ax_pcie_ep_program_msi(int port,
+			   u8 bus, u8 dev, u8 func,
+               struct ax_pcie_msi *msi);
+
+int ax_pcie_ep_enable_msi(int port,
+			  u8 bus, u8 dev, u8 func);
+
+int ax_pcie_ep_disable_msi(int port,
+			   u8 bus, u8 dev, u8 func);
+
+int ax_pcie_ep_msi_status(int port,
+				 u8 bus, u8 dev, u8 func);
 
 #endif /* __PCIE_CONF_H */

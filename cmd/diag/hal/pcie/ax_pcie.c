@@ -1,11 +1,12 @@
 /* SPDX-License-Identifier: GPL-2.0+ */
 /*
  * (C) Copyright 2026
- * Nguyen Nam Huy namhuyngn03@gmail.com
+ * Nguyen Nam Huy hnnguyen@axiado.com
  */
 
 #include <dm.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <linux/printk.h>
 #include <time.h>
 #include <linux/delay.h>
@@ -158,51 +159,6 @@ static int ax_pcie_alloc_bar(u64 size, bool addr_32bit, u64 *addr)
 	return 0;
 }
 
-/*
- * ---------------------------------------------------------------------------
- * Configuration space access helpers
- * ---------------------------------------------------------------------------
- */
-
-static int ax_pcie_cfg_read8(int port, u8 bus, u8 dev, u8 func,
-			     u16 offset, u8 *val)
-{
-	u32 data;
-	int ret;
-
-	ret = ax_pcie_cfg_read(port, bus, dev, func,
-			       offset & ~0x3, &data);
-	if (ret)
-		return ret;
-
-	*val = (data >> ((offset & 0x3) * 8)) & 0xff;
-
-	return 0;
-}
-
-static int ax_pcie_cfg_read16(int port, u8 bus, u8 dev, u8 func,
-			      u16 offset, u16 *val)
-{
-	u32 data;
-	int ret;
-
-	ret = ax_pcie_cfg_read(port, bus, dev, func,
-			       offset & ~0x3, &data);
-	if (ret)
-		return ret;
-
-	*val = (data >> ((offset & 0x2) * 8)) & 0xffff;
-
-	return 0;
-}
-
-static int ax_pcie_cfg_read32(int port, u8 bus, u8 dev, u8 func,
-			      u16 offset, u32 *val)
-{
-	return ax_pcie_cfg_read(port, bus, dev, func,
-				offset, val);
-}
-
 int ax_pcie_wait_device_ready(int port, u8 bus, u8 dev, u8 func,
 			      u32 timeout_ms)
 {
@@ -229,7 +185,7 @@ int ax_pcie_wait_device_ready(int port, u8 bus, u8 dev, u8 func,
 	return -ETIMEDOUT;
 }
 
-int ax_pcie_check_cap(u8 port, u8 bus, u8 dev, u8 func,
+int ax_pcie_find_cap(u8 port, u8 bus, u8 dev, u8 func,
                           int cap_type, u16 cap_id)
 {
     u32 val;
@@ -694,9 +650,6 @@ int ax_pcie_init_ep_bars(int port, u8 bus, u8 dev, u8 func)
 	int i;
 	int ret;
 
-	printf("\nPCIe BAR initialization for %02x:%02x.%x\n",
-	       bus, dev, func);
-
 	/*
 	 * Type 0 (endpoint) has six BARs.  Type 1 (bridge / root port) only
 	 * has two: the registers after them hold bus numbers and forwarding
@@ -715,8 +668,6 @@ int ax_pcie_init_ep_bars(int port, u8 bus, u8 dev, u8 func)
 		nbars = 2;
 		break;
 	default:
-		printf("Unsupported header type 0x%02x\n",
-		       header_type & PCI_HEADER_TYPE_MASK);
 		return -EINVAL;
 	}
 
@@ -798,6 +749,7 @@ int ax_pcie_init_ep_bars(int port, u8 bus, u8 dev, u8 func)
 	 */
 	command |= PCI_COMMAND_MEMORY;
 	command |= PCI_COMMAND_MASTER;
+    command &= ~(PCI_COMMAND_INTX_DISABLE);
 
 	ret = ax_pcie_cfg_write(port, bus, dev, func,
 				PCI_CFG_COMMAND, command);
@@ -1020,10 +972,10 @@ void ax_pcie_print_msi_cap(int port,
 	       is_64bit ? "yes" : "no");
 
 	printf("\t\t\tMultiple Message Capable: %u\n",
-	       1U << ((ctrl & PCI_MSI_CTRL_MMC_MASK) >> 1));
+	       1U << ((ctrl & PCI_MSI_CTRL_MMC_MASK) >> PCI_MSI_FLAGS_MMC_SHIFT));
 
 	printf("\t\t\tMultiple Message Enable: %u\n",
-	       1U << ((ctrl & PCI_MSI_CTRL_MME_MASK) >> 4));
+	       1U << ((ctrl & PCI_MSI_CTRL_MME_MASK) >> PCI_MSI_FLAGS_MME_SHIFT));
 
 	if (is_64bit)
 		printf("\t\t\tMessage Address: 0x%08x%08x\n",
@@ -1655,15 +1607,18 @@ void ax_pcie_print_header(int port, u8 bus, u8 dev, u8 func)
 #define AX_EXP_DEVCTL_ERR_ALL	(PCI_EXP_DEVCTL_CERE | PCI_EXP_DEVCTL_NFERE | \
 				 PCI_EXP_DEVCTL_FERE | PCI_EXP_DEVCTL_URRE)
 
-void ax_pcie_enable_aer(int port, u8 bus, u8 dev, u8 func)
+int ax_pcie_ep_enable_aer(int port, u8 bus, u8 dev, u8 func)
 {
 	u32 val;
 	int cap;
 
 	/* Root Error Command lives in the AER extended capability */
-	cap = ax_pcie_check_cap(port, bus, dev, func, 1, PCI_EXT_CAP_ID_AER);
+	cap = ax_pcie_find_cap(port, bus, dev, func, 1, PCI_EXT_CAP_ID_AER);
+    if (!cap)
+        return -ENODEV;
+
 	if (cap > 0 &&
-	    !ax_pcie_cfg_read(port, bus, dev, func,
+	    !ax_pcie_cfg_read32(port, bus, dev, func,
 			      cap + PCI_AER_ROOT_ERR_CMD, &val)) {
 		val |= AX_AER_ROOT_ERR_CMD_ALL;
 		ax_pcie_cfg_write(port, bus, dev, func,
@@ -1676,7 +1631,7 @@ void ax_pcie_enable_aer(int port, u8 bus, u8 dev, u8 func)
 	 * the status bits are write-1-to-clear, so drop the status half
 	 * before writing back or pending errors would be wiped.
 	 */
-	cap = ax_pcie_check_cap(port, bus, dev, func, 0, PCI_CAP_ID_PCIE);
+	cap = ax_pcie_find_cap(port, bus, dev, func, 0, PCI_CAP_ID_PCIE);
 	if (cap > 0 &&
 	    !ax_pcie_cfg_read(port, bus, dev, func,
 			      cap + PCI_EXP_DEVCTL, &val)) {
@@ -1685,4 +1640,333 @@ void ax_pcie_enable_aer(int port, u8 bus, u8 dev, u8 func)
 		ax_pcie_cfg_write(port, bus, dev, func,
 				  cap + PCI_EXP_DEVCTL, val);
 	}
+}
+
+static int ax_pcie_msi_calc_mme(u8 nr_vectors, u8 mmc,
+                                u8 *mme)
+{
+    u8 log2 = 0;
+    u8 n;
+
+    if (!mme || !nr_vectors)
+        return -EINVAL;
+
+    /* MSI message count must be a power of two. */
+    if (nr_vectors & (nr_vectors - 1))
+        return -EINVAL;
+
+    n = nr_vectors;
+    while (n > 1) {
+        n >>= 1;
+        log2++;
+    }
+
+    if (log2 > mmc)
+        return -EINVAL;
+
+    *mme = log2;
+    return 0;
+}
+
+int ax_pcie_ep_program_msi(int port, u8 bus, u8 dev, u8 func, 
+        struct ax_pcie_msi *msi)
+{
+    struct ax_pcie_msi *ep_msi;
+    u16 msi_cap;
+    u16 ctrl;
+    u64 address;
+    u8 mmc;
+    u8 mme;
+    u8 nr_vectors;
+    int ret;
+
+    if (!msi)
+        return -EINVAL;
+
+    /* Find MSI capability */
+    ret = ax_pcie_find_cap(port, bus, dev, func,
+            0, PCI_CAP_ID_MSI);
+    if (ret < 0)
+        return ret;
+
+    msi_cap = (u16)ret;
+
+    /* Read MSI Message Control */
+    ret = ax_pcie_cfg_read16(port, bus, dev, func,
+            msi_cap + PCI_MSI_FLAGS,
+            &ctrl);
+    if (ret)
+        return ret;
+
+    printf("MSI capability @ 0x%02x\n", msi_cap);
+    printf("MSI Control = 0x%04x\n", ctrl);
+
+    /*
+     * Reject programming while MSI is enabled.
+     * Disable MSI before changing Message Address/Data.
+     */
+    if (ctrl & PCI_MSI_FLAGS_ENABLE) {
+        printf("Error: MSI is enabled; disable it first\n");
+        return -EBUSY;
+    }
+
+    /*
+     * A 32-bit MSI capability cannot represent an address
+     * above 4 GiB.
+     */
+    if (!(ctrl & PCI_MSI_FLAGS_64BIT) &&
+            upper_32_bits(msi->address)) {
+        printf("Error: MSI address 0x%016llx exceeds 32-bit range\n",
+                (unsigned long long)msi->address);
+        return -ERANGE;
+    }
+
+    /* Extract MMC: Maximum Message Count encoding. */
+    mmc = (ctrl & PCI_MSI_CTRL_MMC_MASK) >>
+        PCI_MSI_FLAGS_MMC_SHIFT;
+
+    nr_vectors = msi->nr_vectors;
+
+    ret = ax_pcie_msi_calc_mme(nr_vectors, mmc, &mme);
+    if (ret) {
+        printf("Invalid MSI vector count: requested=%u, MMC=%u\n",
+                nr_vectors, 1U << mmc);
+        return ret;
+    }
+
+    ep_msi = ax_pcie_request_msi_handle(port,
+            msi->handler,
+            msi->arg,
+            nr_vectors);
+    if (!ep_msi)
+        return -ENOSPC;
+
+    msi->address = ep_msi->address;
+    msi->data = ep_msi->data;
+    msi->vector = ep_msi->vector;
+    msi->mme = mme;
+    msi->nr_vectors = nr_vectors;
+    msi->enabled = ep_msi->enabled;
+
+    /*
+     * Set MME while preserving MMC and other control bits.
+     * MSI must remain disabled during programming.
+     */
+    ctrl &= ~PCI_MSI_CTRL_MME_MASK;
+    ctrl |= ((u16)mme << PCI_MSI_FLAGS_MME_SHIFT) &
+        PCI_MSI_CTRL_MME_MASK;
+
+    ret = ax_pcie_cfg_write16(port, bus, dev, func,
+            msi_cap + PCI_MSI_FLAGS, ctrl);
+    if (ret)
+        return ret;
+
+    /* Program Message Address Low */
+    ret = ax_pcie_cfg_write32(port, bus, dev, func,
+            msi_cap + PCI_MSI_ADDRESS_LO,
+            lower_32_bits(msi->address));
+    if (ret)
+        return ret;
+
+    if (ctrl & PCI_MSI_FLAGS_64BIT) {
+        /* Program Message Address High */
+        ret = ax_pcie_cfg_write32(port, bus, dev, func,
+                msi_cap + PCI_MSI_ADDRESS_HI,
+                upper_32_bits(msi->address));
+        if (ret)
+            return ret;
+
+        /* Program Message Data for 64-bit MSI */
+        ret = ax_pcie_cfg_write16(port, bus, dev, func,
+                msi_cap + PCI_MSI_DATA_64,
+                msi->data);
+        if (ret)
+            return ret;
+    } else {
+        /* Program Message Data for 32-bit MSI */
+        ret = ax_pcie_cfg_write16(port, bus, dev, func,
+                msi_cap + PCI_MSI_DATA_32,
+                msi->data);
+        if (ret)
+            return ret;
+    }
+
+    printf("PCIe MSI programmed:\n");
+    printf("  BDF    = %02x:%02x.%x\n", bus, dev, func);
+    printf("  cap    = 0x%02x\n", msi_cap);
+    printf("  addr   = 0x%016llx\n", (u64)msi->address);
+    printf("  data   = 0x%04x\n", msi->data);
+    printf("  vector = %u\n", msi->vector);
+
+    return 0;
+}
+
+int ax_pcie_ep_enable_msi(int port,
+        u8 bus, u8 dev, u8 func)
+{
+    u16 msi_cap;
+    u16 ctrl;
+    int ret;
+
+    /* Find MSI capability */
+    ret = ax_pcie_find_cap(port, bus, dev, func,
+            0, PCI_CAP_ID_MSI);
+    if (ret < 0)
+        return ret;
+
+    msi_cap = (u16)ret;
+
+    /* Read MSI Message Control */
+    ret = ax_pcie_cfg_read16(port, bus, dev, func,
+            msi_cap + PCI_MSI_FLAGS,
+            &ctrl);
+    if (ret)
+        return ret;
+
+    printf("MSI capability @ 0x%02x\n", msi_cap);
+    printf("MSI Control before enable = 0x%04x\n", ctrl);
+
+    if (ctrl & PCI_MSI_FLAGS_ENABLE) {
+        printf("MSI already enabled\n");
+        return 0;
+    }
+
+    /* Preserve MMC, MME and capability flags */
+    ctrl |= PCI_MSI_FLAGS_ENABLE;
+
+    ret = ax_pcie_cfg_write16(port, bus, dev, func,
+            msi_cap + PCI_MSI_FLAGS,
+            ctrl);
+    if (ret)
+        return ret;
+
+    printf("MSI enabled, control = 0x%04x\n", ctrl);
+
+    return 0;
+}
+
+int ax_pcie_ep_disable_msi(int port,
+        u8 bus, u8 dev, u8 func)
+{
+    u16 msi_cap;
+    u16 ctrl;
+    int ret;
+
+    /* Find MSI capability */
+    ret = ax_pcie_find_cap(port, bus, dev, func,
+            0, PCI_CAP_ID_MSI);
+    if (ret < 0)
+        return ret;
+
+    msi_cap = (u16)ret;
+
+    /* Read MSI Message Control */
+    ret = ax_pcie_cfg_read16(port, bus, dev, func,
+            msi_cap + PCI_MSI_FLAGS,
+            &ctrl);
+    if (ret)
+        return ret;
+
+    printf("MSI capability @ 0x%02x\n", msi_cap);
+    printf("MSI Control before disable = 0x%04x\n", ctrl);
+
+    if (!(ctrl & PCI_MSI_FLAGS_ENABLE)) {
+        printf("MSI already disabled\n");
+        return 0;
+    }
+
+    /* Clear only MSI Enable */
+    ctrl &= ~PCI_MSI_FLAGS_ENABLE;
+
+    ret = ax_pcie_cfg_write16(port, bus, dev, func,
+            msi_cap + PCI_MSI_FLAGS,
+            ctrl);
+    if (ret)
+        return ret;
+
+    printf("MSI disabled, control = 0x%04x\n", ctrl);
+
+    return 0;
+}
+
+int ax_pcie_ep_msi_status(int port,
+        u8 bus, u8 dev, u8 func)
+{
+    u16 msi_cap;
+    u16 ctrl;
+    u32 addr_lo;
+    u32 addr_hi = 0;
+    u16 data = 0;
+    u64 address;
+    u8 mmc, mme;
+    int ret;
+
+    /* Find MSI capability */
+    ret = ax_pcie_find_cap(port, bus, dev, func,
+            0, PCI_CAP_ID_MSI);
+    if (ret < 0) {
+        printf("MSI capability not found\n");
+        return ret;
+    }
+
+    msi_cap = (u16)ret;
+
+    /* Read MSI Message Control */
+    ret = ax_pcie_cfg_read16(port, bus, dev, func,
+            msi_cap + PCI_MSI_FLAGS,
+            &ctrl);
+    if (ret)
+        return ret;
+
+    /* Read Message Address Low */
+    ret = ax_pcie_cfg_read32(port, bus, dev, func,
+            msi_cap + PCI_MSI_ADDRESS_LO,
+            &addr_lo);
+    if (ret)
+        return ret;
+
+    if (ctrl & PCI_MSI_FLAGS_64BIT) {
+        /* Read Message Address High */
+        ret = ax_pcie_cfg_read32(port, bus, dev, func,
+                msi_cap + PCI_MSI_ADDRESS_HI,
+                &addr_hi);
+        if (ret)
+            return ret;
+
+        /* Read Message Data for 64-bit MSI */
+        ret = ax_pcie_cfg_read16(port, bus, dev, func,
+                msi_cap + PCI_MSI_DATA_64,
+                &data);
+    } else {
+        /* Read Message Data for 32-bit MSI */
+        ret = ax_pcie_cfg_read16(port, bus, dev, func,
+                msi_cap + PCI_MSI_DATA_32,
+                &data);
+    }
+
+    if (ret)
+        return ret;
+
+    address = ((u64)addr_hi << 32) | addr_lo;
+    mmc = (ctrl & PCI_MSI_CTRL_MMC_MASK) >>
+        PCI_MSI_FLAGS_MMC_SHIFT;
+    mme = (ctrl & PCI_MSI_CTRL_MME_MASK) >>
+        PCI_MSI_FLAGS_MME_SHIFT;
+
+    printf("PCIe MSI status: %02x:%02x.%x\n",
+            bus, dev, func);
+
+    printf("  MSI cap  : 0x%02x\n", msi_cap);
+    printf("  Control  : 0x%04x\n", ctrl);
+    printf("  Enable   : %s\n",
+            (ctrl & PCI_MSI_FLAGS_ENABLE) ? "yes" : "no");
+    printf("  64-bit   : %s\n",
+            (ctrl & PCI_MSI_FLAGS_64BIT) ? "yes" : "no");
+    printf("  MMC      : %u\n", 1U << mmc);
+    printf("  MME      : %u\n", 1U << mme);
+    printf("  Address  : 0x%016llx\n",
+            (unsigned long long)address);
+    printf("  Data     : 0x%04x\n", data);
+
+    return 0;
 }
