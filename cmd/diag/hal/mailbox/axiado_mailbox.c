@@ -49,7 +49,6 @@ struct axiado_mbox {
 	u8 num_chans;
 };
 
-#ifdef CONFIG_TARGET_SCM3005
 #define SP1_A53_INTID_MB_TO_A53_INTR_0				 274 /**< HW IPC Mailbox interrupt 0 */
 #define SP1_A53_INTID_MB_TO_A53_INTR_1				 275 /**< HW IPC Mailbox interrupt 1 */
 #define SP1_A53_INTID_MB_TO_A53_INTR_2				 276 /**< HW IPC Mailbox interrupt 2 */
@@ -82,7 +81,6 @@ static struct axiado_mbox mbox_dev = {
     .msg_size = 0x100,
     .num_chans = 12,
 };
-#endif
 
 static struct axiado_channel_data *ch_data;
 

@@ -23,10 +23,8 @@
 #define A53_CORE2_WDT_IRQ       225 
 #define A53_CORE3_WDT_IRQ       226 
 
-#ifdef CONFIG_TARGET_SCM3005
 #define CONFIG_WDT_CLK          100000000
 #define TIME_PER_TICK 10 /* 10ns */
-#endif
 
 #define AX_WDT_ENA_REG          0x0
 #define AX_WDT_SEED_REG	        0x4

@@ -29,6 +29,9 @@
 #define LTSSM_MAX_NUM_STATE 27
 
 #define MAX_STACK_SIZE 10  // Define the maximum size of your stack
+#define PCIE_BRIDGE_OFFSET 0x2000
+#define PCIE_CFG_OFFSET 0x3000
+#define PCIE_ECAM_OFFSET 0xE0000000
 
 #define PCIE_X1_INTX_MSI_AER_PM_SYSERR_INTR        65
 
@@ -84,24 +87,24 @@ static struct axiado_pcie pcie_x1 = {
 
     .lanes = 1,
 
-    .csr = (void __iomem *)0x45200000,
-    .phy = (void __iomem *)0x45300000,
-    .cfg = (void __iomem *)0x45203000,
-    .bridge = (void __iomem *)0x45202000,
-    .mbx = (void __iomem *)0x45280000,
-    .ext = (void __iomem *)0x45240000,
-    .ecam = (void __iomem *)0x7E0000000,
+    .csr = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_X1,
+    .phy = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_PHY_X1,
+    .cfg = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_X1 + PCIE_CFG_OFFSET,
+    .bridge = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_X1 + PCIE_BRIDGE_OFFSET,
+    .mbx = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_MBX_X1,
+    .ext = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_EXT_X1,
+    .ecam = (void __iomem *)AX3000_MEM_BASE_ADRS_PCIE_X1 + PCIE_ECAM_OFFSET,
 
     .atr = {
         { 
             .bus_start = (void __iomem *)0x00000000, 
-            .phys_start = (void __iomem *)0x700000000, 
+            .phys_start = (void __iomem *)AX3000_MEM_BASE_ADRS_PCIE_X1, 
             .size = SZ_1G, 
             .flags = PCI_BAR_MEM_TYPE_64 
         } ,
         { 
             .bus_start = (void __iomem *)0x00000000 + SZ_1G, 
-            .phys_start = (void __iomem *)0x700000000 + SZ_1G, 
+            .phys_start = (void __iomem *)AX3000_MEM_BASE_ADRS_PCIE_X1 + SZ_1G, 
             .size = SZ_1G, 
             .flags = PCI_BAR_MEM_TYPE_64 
         } ,
@@ -115,15 +118,14 @@ static struct axiado_pcie pcie_x1 = {
             .flags = PCI_BAR_MEM_TYPE_64 
         } , /* OCM Base */
         { 
-            .bus_start = (void __iomem *)AX3000_CSR_BASE_USB_SMMU, 
-            .phys_start = (void __iomem *)AX3000_CSR_BASE_USB_SMMU, 
+            .bus_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_64M, 
+            .phys_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_64M, 
             .size = 0x0, 
-            /* .size = SZ_64M, */ 
             .flags = PCI_BAR_PREFETCH | PCI_BAR_MEM_TYPE_64 
         } , /* DDR Base */
         { 
-            .bus_start = (void __iomem *)0x45280000, 
-            .phys_start = (void __iomem *)0x45280000, 
+            .bus_start = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_MBX_X1, 
+            .phys_start = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_MBX_X1, 
             .size = 0x0, 
             /* .size = SZ_256K, */ 
             .flags = PCI_BAR_MEM_TYPE_64 
@@ -146,24 +148,24 @@ static struct axiado_pcie pcie_x2 = {
 
     .lanes = 2,
 
-    .csr = (void __iomem *)0x45000000,
-    .phy = (void __iomem *)0x45100000,
-    .cfg = (void __iomem *)0x45003000,
-    .bridge = (void __iomem *)0x45002000,
-    .mbx = (void __iomem *)0x45080000,
-    .ext = (void __iomem *)0x45040000,
-    .ecam = (void __iomem *)0x5E0000000,
+    .csr = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_X2,
+    .phy = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_PHY_X2,
+    .cfg = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_X2 + PCIE_CFG_OFFSET,
+    .bridge = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_X2 + PCIE_BRIDGE_OFFSET,
+    .mbx = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_MBX_X2,
+    .ext = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_EXT_X2,
+    .ecam = (void __iomem *)AX3000_MEM_BASE_ADRS_PCIE_X2 + PCIE_ECAM_OFFSET,
 
     .atr = {
         { 
             .bus_start = (void __iomem *)0x00000000, 
-            .phys_start = (void __iomem *)0x500000000, 
+            .phys_start = (void __iomem *)AX3000_MEM_BASE_ADRS_PCIE_X2, 
             .size = SZ_1G, 
             .flags = PCI_BAR_MEM_TYPE_64 
         } ,
         { 
             .bus_start = (void __iomem *)0x00000000 + SZ_1G, 
-            .phys_start = (void __iomem *)0x500000000 + SZ_1G, 
+            .phys_start = (void __iomem *)AX3000_MEM_BASE_ADRS_PCIE_X2 + SZ_1G, 
             .size = SZ_1G, 
             .flags = PCI_BAR_PREFETCH | PCI_BAR_MEM_TYPE_64 
         },
@@ -171,20 +173,20 @@ static struct axiado_pcie pcie_x2 = {
 
     .bar = {
         { 
-            .bus_start = (void __iomem *)0x40200000, 
-            .phys_start = (void __iomem *)0x40200000, 
+            .bus_start = (void __iomem *)AX3000_MEM_BASE_ADRS_SRAM, 
+            .phys_start = (void __iomem *)AX3000_MEM_BASE_ADRS_SRAM, 
             .size = SZ_1M, 
             .flags = PCI_BAR_MEM_TYPE_64 
         } , /* OCM Base */
         { 
-            .bus_start = (void __iomem *)0x90000000, 
-            .phys_start = (void __iomem *)0x90000000, 
+            .bus_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_64M, 
+            .phys_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_64M, 
             .size = SZ_64M, 
             .flags = PCI_BAR_PREFETCH | PCI_BAR_MEM_TYPE_64 
         } , /* DDR Base */
         { 
-            .bus_start = (void __iomem *)0x45080000, 
-            .phys_start = (void __iomem *)0x45080000, 
+            .bus_start = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_MBX_X2, 
+            .phys_start = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_MBX_X2, 
             .size = SZ_256K, 
             .flags = PCI_BAR_MEM_TYPE_64 
         } , /* MBX/MSIX Base */

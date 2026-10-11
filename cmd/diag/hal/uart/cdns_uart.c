@@ -65,7 +65,6 @@
 #define UART_CHANNEL_MODE_2	  BIT(9) /**< Local loopback mode */
 #define UART_CHANNEL_MODE_3	  (BIT(9) | BIT(8)) /**< Remote loopback mode */
 
-#define CONFIG_MAX_UART 9
 #define CONFIG_UART_CLK 125000000
 
 struct cdns_uart {
@@ -73,6 +72,8 @@ struct cdns_uart {
     int irq;
 };
 
+#ifdef CONFIG_TARGET_SCM3005
+#define CONFIG_MAX_UART 9
 static struct cdns_uart uart_dev[CONFIG_MAX_UART] = {
     { .base = (void __iomem *)AX3000_CSR_BASE_ADRS_UART_0, .irq = 144 },
     { .base = (void __iomem *)AX3000_CSR_BASE_ADRS_UART_1, .irq = 145 },
@@ -84,6 +85,15 @@ static struct cdns_uart uart_dev[CONFIG_MAX_UART] = {
     { .base = (void __iomem *)AX3000_CSR_BASE_ADRS_UART_7, .irq = 243 },
     { .base = (void __iomem *)AX3000_CSR_BASE_ADRS_UART_8, .irq = 244 },
 };
+#elif CONFIG_TARGET_SCM3000
+#define CONFIG_MAX_UART 4
+static struct cdns_uart uart_dev[CONFIG_MAX_UART] = {
+    { .base = (void __iomem *)AX3000_CSR_BASE_ADRS_UART_0, .irq = 144 },
+    { .base = (void __iomem *)AX3000_CSR_BASE_ADRS_UART_1, .irq = 145 },
+    { .base = (void __iomem *)AX3000_CSR_BASE_ADRS_UART_2, .irq = 146 },
+    { .base = (void __iomem *)AX3000_CSR_BASE_ADRS_UART,   .irq = 146 },
+};
+#endif
 
 void cdns_uart_interrupt_handler(void *arg)
 {
