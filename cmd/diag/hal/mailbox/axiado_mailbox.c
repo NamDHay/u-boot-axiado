@@ -106,11 +106,6 @@ static void axiado_rx_thread(void *arg)
 
         *word_data = readl(data_reg);
 
-        printf("rx_thread ch%d data[%ld] = 0x%08x\n",
-                priv->channel_num,
-                priv->chan_msg_size / sizeof(u32) - num_words - 1,
-                *word_data);
-
         word_data++;
     }
 }
