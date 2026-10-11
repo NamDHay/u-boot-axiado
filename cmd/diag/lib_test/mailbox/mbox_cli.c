@@ -65,4 +65,3 @@ U_BOOT_CMD(ax_mbx, CONFIG_SYS_MAXARGS, 0, do_ax_mailbox,
         "send <channel> - send mailbox from 0xA0000000\n"
         "recv <channel> - receive mailbox to 0x90000000\n"
 );
-
