@@ -21,19 +21,41 @@
 DECLARE_GLOBAL_DATA_PTR;
 
 static struct mm_region axiado_ax3000_mem_map[] = {
+	{ .virt = 0x00000000UL,
+	  .phys = 0x00000000UL,
+	  .size = 0x80000000UL,
+	  .attrs = PTE_BLOCK_MEMTYPE(MT_NORMAL) | PTE_BLOCK_INNER_SHARE },
+	{ /* Peripherals including UART */
+	  .virt = 0x80000000UL,
+	  .phys = 0x80000000UL,
+	  .size = 0x80000000UL, /* 0 to 0x4A000000: peripherals */
+	  .attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) | PTE_BLOCK_NON_SHARE |
+		   PTE_BLOCK_PXN | PTE_BLOCK_UXN },
 	{
-		.virt = 0x3C000000UL,
-		.phys = 0x3C000000UL,
-		.size = SZ_1G,
-		.attrs = PTE_BLOCK_MEMTYPE(MT_NORMAL) |
-		PTE_BLOCK_INNER_SHARE
-	}, {
-		.virt = 0x400000000UL,
-		.phys = 0x400000000UL,
-		.size = SZ_1G,
-		.attrs = PTE_BLOCK_MEMTYPE(MT_NORMAL) |
-		PTE_BLOCK_INNER_SHARE
-	}, {
+	  .virt = 0x200000000UL,
+	  .phys = 0x200000000UL,
+	  .size = SZ_2G, /* 0x2_0000_0000 to 0x2_7FFF_FFFF: peripherals */
+	  .attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) | PTE_BLOCK_NON_SHARE |
+		   PTE_BLOCK_PXN | PTE_BLOCK_UXN },
+    {
+	  .virt = 0x280000000UL,
+	  .phys = 0x280000000UL,
+	  .size = SZ_2G, /* 0x2_8000_0000 to 0x2_FFFF_FFFF: PCIe ECAM + mem window */
+	  .attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) | PTE_BLOCK_NON_SHARE |
+		   PTE_BLOCK_PXN | PTE_BLOCK_UXN },
+	{
+	  .virt = 0x300000000UL,
+	  .phys = 0x300000000UL,
+	  .size = SZ_2G, /* 0x3_0000_0000 to 0x3_7FFF_FFFF: peripherals */
+	  .attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) | PTE_BLOCK_NON_SHARE |
+		   PTE_BLOCK_PXN | PTE_BLOCK_UXN },
+    {
+	  .virt = 0x380000000UL,
+	  .phys = 0x380000000UL,
+	  .size = SZ_2G, /* 0x3_8000_0000 to 0x3_FFFF_FFFF: PCIe ECAM + mem window */
+	  .attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) | PTE_BLOCK_NON_SHARE |
+		   PTE_BLOCK_PXN | PTE_BLOCK_UXN },
+	{
 		0,
 	}
 };
@@ -201,7 +223,7 @@ void reset_cpu(void)
 
 void enable_caches(void)
 {
-    /* icache_enable(); */
-    /* dcache_enable(); */
+    icache_enable();
+    dcache_enable();
 }
 

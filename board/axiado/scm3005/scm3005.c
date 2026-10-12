@@ -34,8 +34,38 @@ static struct mm_region axiado_ax3005_mem_map[] = {
 	{
 	  .virt = 0x500000000UL,
 	  .phys = 0x500000000UL,
-	  .size = 0x280000000UL, /* 0x5_0000_0000 to 0x7_8000_0000: peripherals */
-	  .attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRE) | PTE_BLOCK_NON_SHARE |
+	  .size = SZ_2G, /* 0x5_0000_0000 to 0x5_7FFF_FFFF: peripherals */
+	  .attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) | PTE_BLOCK_NON_SHARE |
+		   PTE_BLOCK_PXN | PTE_BLOCK_UXN },
+    {
+	  .virt = 0x580000000UL,
+	  .phys = 0x580000000UL,
+	  .size = SZ_2G, /* 0x5_8000_0000 to 0x5_FFFF_FFFF: PCIe ECAM + mem window */
+	  .attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) | PTE_BLOCK_NON_SHARE |
+		   PTE_BLOCK_PXN | PTE_BLOCK_UXN },
+	{
+	  .virt = 0x600000000UL,
+	  .phys = 0x600000000UL,
+	  .size = SZ_2G, /* 0x6_0000_0000 to 0x6_7FFF_FFFF: peripherals */
+	  .attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) | PTE_BLOCK_NON_SHARE |
+		   PTE_BLOCK_PXN | PTE_BLOCK_UXN },
+    {
+	  .virt = 0x680000000UL,
+	  .phys = 0x680000000UL,
+	  .size = SZ_2G, /* 0x6_8000_0000 to 0x6_FFFF_FFFF: PCIe ECAM + mem window */
+	  .attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) | PTE_BLOCK_NON_SHARE |
+		   PTE_BLOCK_PXN | PTE_BLOCK_UXN },
+	{
+	  .virt = 0x700000000UL,
+	  .phys = 0x700000000UL,
+	  .size = SZ_2G, /* 0x7_0000_0000 to 0x7_7FFF_FFFF: peripherals */
+	  .attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) | PTE_BLOCK_NON_SHARE |
+		   PTE_BLOCK_PXN | PTE_BLOCK_UXN },
+    {
+	  .virt = 0x780000000UL,
+	  .phys = 0x780000000UL,
+	  .size = SZ_2G, /* 0x7_8000_0000 to 0x7_FFFF_FFFF: PCIe ECAM + mem window */
+	  .attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) | PTE_BLOCK_NON_SHARE |
 		   PTE_BLOCK_PXN | PTE_BLOCK_UXN },
     {
         0,
@@ -172,13 +202,17 @@ int board_init(void)
     return 0;
 }
 
+#define AX3000_CSR_BASE_ADRS_CLKRST 0x40000000
 void reset_cpu(void)
 {
+    writel(0xFFFFFF00, AX3000_CSR_BASE_ADRS_CLKRST + 0x4C);
+
+    writel(0xFFFFFF03, AX3000_CSR_BASE_ADRS_CLKRST + 0x4C);
 }
 
 void enable_caches(void)
 {
-    /* icache_enable(); */
-    /* dcache_enable(); */
+    icache_enable();
+    dcache_enable();
 }
 
