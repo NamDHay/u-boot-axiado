@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
  * (C) Copyright 2026
- * Nguyen Nam Huy namhuyngn03@gmail.com
+ * Nguyen Nam Huy hnnguyen@axiado.com
  */
 
 #include <dm.h>
@@ -14,6 +14,8 @@
 #include "ax_diag.h"
 #include "ax_hdmi.h"
 #include "inno_hdmi.h"
+
+#define HDMI_BIST_TIMEOUT 20
 
 static int inno_hdmi_reset(void)
 {
@@ -37,14 +39,15 @@ static int inno_hdmi_vbist(void)
     writel(RX_SENSE_DET_YES, base_addr + HDMI_RX_SENSE);
 
     /* wait for RX sense detection result */
-    timeout = 20;
+    timeout = HDMI_BIST_TIMEOUT;
     printf("Polling detect RX sense ");
-    while (!readl(base_addr + HDMI_RX_SENSE_STATUS)) {
+    while (readl(base_addr + HDMI_RX_SENSE_STATUS) == 0) {
         printf(".");
         timeout--;
-        if (!timeout) {
-            pr_err(" timeout\n");
-            pr_err("Please check the HDMI/DP cable and connector\r\n");
+        if (timeout == 0) {
+            printf(" timeout\n");
+            printf("RX sense = 0x%08x\r\n", readl(base_addr + HDMI_RX_SENSE_STATUS));
+            printf("Please check the HDMI/DP cable and connector\r\n");
             return -ETIMEDOUT;
         }
         mdelay(500); // Polling until detection is successful
@@ -55,12 +58,12 @@ static int inno_hdmi_vbist(void)
     clrbits_le32(base_addr + PLL_PRE_REG, BIT(0));
     clrbits_le32(base_addr + PLL_POST_REG, BIT(0));
 
-    timeout = 20;
+    timeout = HDMI_BIST_TIMEOUT;
     printf("Polling check Pre-PLL status ");
     while (!readl(base_addr + PLL_PRE_LOCK_STAT_REG)) {
         printf(".");
         timeout--;
-        if (!timeout) {
+        if (timeout == 0) {
             printf(" timeout. Status is 0x%08x\n",
                     readl(base_addr + PLL_PRE_LOCK_STAT_REG));
             return -ETIMEDOUT;
@@ -69,12 +72,12 @@ static int inno_hdmi_vbist(void)
     }
     printf(" success\n");
 
-    timeout = 20;
+    timeout = HDMI_BIST_TIMEOUT;
     printf("Polling check Post-PLL status ");
     while (!readl(base_addr + PLL_POST_LOCK_STAT_REG)) {
         printf(".");
         timeout--;
-        if (!timeout) {
+        if (timeout == 0) {
             printf(" timeout. status is 0x%08x\n",
                     readl(base_addr + PLL_POST_LOCK_STAT_REG));
             return -ETIMEDOUT;
@@ -85,25 +88,33 @@ static int inno_hdmi_vbist(void)
 
     /* turn on LDO */
     writel(0x7, base_addr + HDMI_LDO);
+    mdelay(100);
 
     /* turn on serializer */
     writel(0x71, base_addr + HDMI_SERIAL);
+    mdelay(100);
 
     /* enable BIST test */
     writel(0x0, base_addr + HDMI_VBIST);
+    mdelay(100);
 
     /* Send initialization command */
     writel(0x63, base_addr + HDMI_SYS_CTRL);
+    mdelay(100);
 
     /* power on  */
     writel(0x61, base_addr + HDMI_SYS_CTRL);
+    mdelay(100);
 
     /* Synchronization enable */
     writel(0x0, base_addr + HDMI_SYNC_REG);
+    mdelay(100);
     writel(0x1, base_addr + HDMI_SYNC_REG);
+    mdelay(100);
 
     /* turn on TMDS driver */
     writel(0x8f, base_addr + HDMI_TMDS_SYS_CTL);
+    mdelay(100);
 
     return 0;
 }
@@ -113,6 +124,13 @@ static int inno_hdmi_bist(void)
     void __iomem *base_addr = AX3000_CSR_BASE_ADRS_DSUB_LOCAL;
     u32 reg = 0;
     u32 timeout = 0;
+    u32 val;
+
+    printf("Check register before execute BIST\n");
+    val = readl(base_addr + 0x40);
+    printf("Reg 0x40 ==> 0x%08x\r\n", val);
+    val = readl(base_addr + 0x44);
+    printf("Reg 0x44 ==> 0x%08x\r\n", val);
 
     /* Disable BIST */
     writel(0x0, base_addr + 0x40);
@@ -136,25 +154,35 @@ static int inno_hdmi_bist(void)
     writel(0x1, base_addr + 0x40);
 
     /* Wait for DONE or timeout */
-    timeout = 3;
-    while (!(reg & (1 << 4)) && (!timeout)) { // cover 132k Tclk
+    timeout = HDMI_BIST_TIMEOUT;
+    printf("Polling BIST status: ");
+    while (!(reg & (1 << 4))) { // cover 132k Tclk
         reg = readl(base_addr + 0x40);
+        printf(".");
         timeout--;
-        mdelay(1000);
+        if (timeout == 0) {
+            printf(" timeout\n");
+            return -ETIMEDOUT;
+        }
+        mdelay(500);
     }
-    if (timeout == 0) {
-        printf("HDMI BIST test failed\r\n");
-        return -ETIMEDOUT;
-    }
+    printf ("\n");
 
-    /* Check PASS */
-    if (!((reg & (1 << 4)) && (reg & (1 << 5))))
-        return -EAGAIN;
+
+    printf("Check register after execute BIST\n");
+    val = readl(base_addr + 0x40);
+    printf("Reg 0x40 ==> 0x%08x\r\n", val);
+    val = readl(base_addr + 0x44);
+    printf("Reg 0x44 ==> 0x%08x\r\n", val);
 
     /* Exit BIST mode */
     writel(0x0, base_addr + 0x40);
 
-    return 0;
+    /* Check PASS */
+    if ((reg & (1 << 4)) && (reg & (1 << 5)))
+        return 0;
+
+    return -EAGAIN;
 }
 
 struct ax_hdmi_ops hdmi = {

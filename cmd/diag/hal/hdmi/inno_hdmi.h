@@ -4,7 +4,7 @@
 #define AX3000_CSR_BASE_ADRS_DSUB_LOCAL  (void __iomem *)AX3000_CSR_BASE_ADRS_DSUB + 0x1C00llu
 #define AX3000_CSR_BASE_ADRS_DSUB_DPHY   (void __iomem *)AX3000_CSR_BASE_ADRS_DSUB + 0x1800llu
 #define AX3000_CSR_BASE_ADRS_DSUB_HDMI   (void __iomem *)AX3000_CSR_BASE_ADRS_DSUB + 0x1000llu
-#define AX3000_CSR_BASE_ADRS_DSUB_DSI2   (void __iomem *)AX3000_CSR_BASE_ADRS_DSUB
+#define AX3000_CSR_BASE_ADRS_DSUB_DSI2   (void __iomem *)AX3000_CSR_BASE_ADRS_DSUB + 0x0000llu
 
 #define FORMAT16
  
@@ -161,7 +161,7 @@
 #define BIAS_CKT    (0x6c0) /**< HDMI turn on bias circuit Registers */
  
 /* Current Bias register values */
-#define TURN_ON_BIAS_CKT  0x0c /**< turning on bias ckt */
+#define TURN_ON_BIAS_CKT  0x04 /**< turning on bias ckt */
 #define TURN_OFF_BIAS_CKT 0x00 /**< turning off bias ckt */
  
 /**< HDMI Video Input Configuration register values */
