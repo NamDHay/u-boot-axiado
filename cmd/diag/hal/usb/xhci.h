@@ -27,7 +27,7 @@
  * overlap any buffer used with "ax_usb read/write" nor U-Boot itself.
  */
 #ifndef AX_XHCI_DMA_POOL_BASE
-#define AX_XHCI_DMA_POOL_BASE	(AX3000_MEM_BASE_ADRS_DDR_LO + 0x10000000UL)
+#define AX_XHCI_DMA_POOL_BASE	(AX3000_MEM_BASE_ADRS_DDR_LO + 0x40000000UL)
 #endif
 
 /* DMA alignment: at least 64 (xHCI) and at least the cache line */

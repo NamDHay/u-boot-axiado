@@ -10,14 +10,6 @@
 #include <irq_func.h>
 #include <linux/bitfield.h>
 
-// #define BIT_SET_VAL(end_bit, start_bit, dst, set_val)                                                            \
-//     (~(((u32)(0x1 << start_bit) - 1) ^ ((u32)(0x1 << (end_bit + 1)) - 1)) & (u32)dst) | \
-//         ((((u32)(0x1 << start_bit) - 1) ^ ((u32)(0x1 << (end_bit + 1)) - 1)) &               \
-//          ((u32)set_val << start_bit))
-
-// #define BIT_GET_VAL(end_bit, start_bit, dst) \
-//     ((((u32)(0x1 << start_bit) - 1) ^ ((u32)(0x1 << (end_bit + 1)) - 1)) & dst) >> start_bit
-
 #define BIT_SET_VAL(end_bit, start_bit, dst, set_val)             \
     ((((u32)(dst)) &                                              \
       ~((~0U >> (31U - ((end_bit) - (start_bit)))) << (start_bit))) | \
@@ -46,6 +38,8 @@
 #define PCIE_PCI_IDS_31_0_VENDOR_ID_SET(dst, val) BIT_SET_VAL(15, 0, dst, val)
 #define PCIE_PCI_IDS_31_0_DEVICE_ID_SET(dst, val) BIT_SET_VAL(31, 16, dst, val)
 
+#define REG_PAD_CFG_REG_25_ADRS_OFFSET 0x070
+#define REG_PAD_CFG_REG_26_ADRS_OFFSET 0x074
 #define PCIE_PERST_PULLUP_SET (0x1 << 22)
 
 /* ---- Root-port bring-up timing / windows (added) ---- */
@@ -143,8 +137,13 @@
 #define AX_PCIE_DMA_VDM_TRSF_PARAM              (4)
 #define EP_LINK_POLL_MS 1000
 
+#ifdef CONFIG_AXIADO_AX3005
 #define REG_PCIE_X1_RESET_CTRL_ADRS_OFFSET 0x15c
 #define REG_PCIE_X2_RESET_CTRL_ADRS_OFFSET 0x1cc
+#elif CONFIG_AXIADO_AX3000
+#define REG_PCIE_X1_RESET_CTRL_ADRS_OFFSET 0x09C
+#define REG_PCIE_X2_RESET_CTRL_ADRS_OFFSET 0x0FC
+#endif
 
 /* REG_PCIE_X1_RESET_CTRL_ADRS_OFFSET / REG_PCIE_X2_RESET_CTRL_ADRS_OFFSET*/
 #define REG_PCIE_RESET_CTRL_PCIE_RSTN_GET(val) ((uint32_t)val & 0x1)
@@ -807,6 +806,7 @@ struct axiado_pcie {
     void __iomem *bridge; /* INT bridge registers */
     void __iomem *mbx; /* mailbox memory region */
     void __iomem *ext; /* EXT memory region */
+    void __iomem *ioctl; /* EXT memory region */
 
     void __iomem *ecam; /* ECAM base address */
 

@@ -93,6 +93,7 @@ static struct axiado_pcie pcie_x1 = {
     .bridge = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_X1 + PCIE_BRIDGE_OFFSET,
     .mbx = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_MBX_X1,
     .ext = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_EXT_X1,
+    .ioctl = (void __iomem *)AX3000_CSR_BASE_ADRS_IOCTL_2,
     .ecam = (void __iomem *)AX3000_MEM_BASE_ADRS_PCIE_X1 + PCIE_ECAM_OFFSET,
 
     .atr = {
@@ -154,6 +155,7 @@ static struct axiado_pcie pcie_x2 = {
     .bridge = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_X2 + PCIE_BRIDGE_OFFSET,
     .mbx = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_MBX_X2,
     .ext = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_EXT_X2,
+    .ioctl = (void __iomem *)AX3000_CSR_BASE_ADRS_IOCTL_2,
     .ecam = (void __iomem *)AX3000_MEM_BASE_ADRS_PCIE_X2 + PCIE_ECAM_OFFSET,
 
     .atr = {
@@ -427,7 +429,6 @@ uint8_t axiado_pcie_get_max_pf_num(struct axiado_pcie *pcie)
     }
 }
 
-
 static int axiado_pcie_cfg_read(int port, u8 bus, u8 dev, u8 func,
         u16 offset, u32 *val)
 {
@@ -441,7 +442,6 @@ static int axiado_pcie_cfg_read(int port, u8 bus, u8 dev, u8 func,
 
     err = axiado_pcie_map_bus(pcie, bus, dev, func, offset, &address);
     if (err < 0) {
-        /* PCI convention for "no device": all ones (was: *val untouched) */
         *val = 0xffffffff;
         return 0;
     }
@@ -555,6 +555,7 @@ static int axiado_pcie_mem_write(u8 port, u64 offset,
 static int axiado_pcie_release_reset(struct axiado_pcie *pcie)
 {
     u32 value;
+    u32 offset;
 
     printf("%s - x%d\n", __func__, pcie->lanes);
 
@@ -1044,15 +1045,14 @@ static void axiado_pcie_setup_windows(struct axiado_pcie *pcie)
                     pcie->atr[table].size,
                     PCIE_TX_TX_INF);
         }
-        /* Inbound P2A for Host DDR DMA (e.g. 0x80000000, 1GB -> AXI MST0) */
         axiado_pcie_setup_p2a_atr(pcie, 0,
-                0x80000000ULL,
-                0x80000000ULL,
+                AX3000_MEM_BASE_ADRS_DDR_LO,
+                AX3000_MEM_BASE_ADRS_DDR_LO,
                 SZ_1G,
                 AXI4_MSTR_NUM_0);
         axiado_pcie_setup_p2a_atr(pcie, 1,
-                0x80000000ULL + SZ_1G,
-                0x80000000ULL + SZ_1G,
+                AX3000_MEM_BASE_ADRS_DDR_LO + SZ_1G,
+                AX3000_MEM_BASE_ADRS_DDR_LO + SZ_1G,
                 SZ_1G,
                 AXI4_MSTR_NUM_0);
     }
@@ -1246,6 +1246,7 @@ static int axiado_pcie_init(u8 port, u8 controller_mode, u8 speed)
 {
     struct axiado_pcie *pcie;
     int ret;
+    u32 offset;
     u32 val;
 
     pcie = axiado_pcie_get_port(port);
@@ -1313,7 +1314,7 @@ static int axiado_pcie_init(u8 port, u8 controller_mode, u8 speed)
     /* release PIPE_RST_N for PCIe */
     if (pcie->pcie_x1)
         writel(0x5, pcie->ext + REG_PCIE_X1_RESET_CTRL_ADRS_OFFSET);
-    else if (pcie->pcie_x2)
+    else if (pcie->pcie_x2) 
         writel(0x5, pcie->ext + REG_PCIE_X2_RESET_CTRL_ADRS_OFFSET);
 
     mdelay(100);
