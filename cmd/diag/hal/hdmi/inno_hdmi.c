@@ -40,7 +40,7 @@ static int inno_hdmi_vbist(void)
 
     /* wait for RX sense detection result */
     timeout = HDMI_BIST_TIMEOUT;
-    printf("Polling detect RX sense ");
+    printf("Polling detect RX sense: ");
     while (readl(base_addr + HDMI_RX_SENSE_STATUS) == 0) {
         printf(".");
         timeout--;
@@ -59,7 +59,7 @@ static int inno_hdmi_vbist(void)
     clrbits_le32(base_addr + PLL_POST_REG, BIT(0));
 
     timeout = HDMI_BIST_TIMEOUT;
-    printf("Polling check Pre-PLL status ");
+    printf("Polling check Pre-PLL status: ");
     while (!readl(base_addr + PLL_PRE_LOCK_STAT_REG)) {
         printf(".");
         timeout--;
@@ -70,10 +70,10 @@ static int inno_hdmi_vbist(void)
         }
         mdelay(500);
     }
-    printf(" success\n");
+    printf(" LOCK\n");
 
     timeout = HDMI_BIST_TIMEOUT;
-    printf("Polling check Post-PLL status ");
+    printf("Polling check Post-PLL status: ");
     while (!readl(base_addr + PLL_POST_LOCK_STAT_REG)) {
         printf(".");
         timeout--;
@@ -84,7 +84,7 @@ static int inno_hdmi_vbist(void)
         }
         mdelay(500);
     }
-    printf(" success\n");
+    printf(" LOCK\n");
 
     /* turn on LDO */
     writel(0x7, base_addr + HDMI_LDO);
@@ -124,13 +124,12 @@ static int inno_hdmi_bist(void)
     void __iomem *base_addr = AX3000_CSR_BASE_ADRS_DSUB_LOCAL;
     u32 reg = 0;
     u32 timeout = 0;
-    u32 val;
 
-    printf("Check register before execute BIST\n");
-    val = readl(base_addr + 0x40);
-    printf("Reg 0x40 ==> 0x%08x\r\n", val);
-    val = readl(base_addr + 0x44);
-    printf("Reg 0x44 ==> 0x%08x\r\n", val);
+    /* printf("Check register before execute BIST\n"); */
+    /* val = readl(base_addr + 0x40); */
+    /* printf("Reg 0x40 ==> 0x%08x\r\n", val); */
+    /* val = readl(base_addr + 0x44); */
+    /* printf("Reg 0x44 ==> 0x%08x\r\n", val); */
 
     /* Disable BIST */
     writel(0x0, base_addr + 0x40);
@@ -169,11 +168,11 @@ static int inno_hdmi_bist(void)
     printf ("\n");
 
 
-    printf("Check register after execute BIST\n");
-    val = readl(base_addr + 0x40);
-    printf("Reg 0x40 ==> 0x%08x\r\n", val);
-    val = readl(base_addr + 0x44);
-    printf("Reg 0x44 ==> 0x%08x\r\n", val);
+    /* printf("Check register after execute BIST\n"); */
+    /* val = readl(base_addr + 0x40); */
+    /* printf("Reg 0x40 ==> 0x%08x\r\n", val); */
+    /* val = readl(base_addr + 0x44); */
+    /* printf("Reg 0x44 ==> 0x%08x\r\n", val); */
 
     /* Exit BIST mode */
     writel(0x0, base_addr + 0x40);

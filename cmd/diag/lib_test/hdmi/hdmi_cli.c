@@ -17,19 +17,18 @@ static int ax_hdmi_cmd_bist(struct cmd_tbl *cmdtp, int flag,
         int argc, char *const argv[])
 {
     int ret;
+#ifdef CONFIG_AXIADO_AX3005
     printf("Start HDMI BIST test\n");
     ret = ax_hdmi_bist();
-    if (ret) 
-        printf("FAILED\n");
-    else
-        printf("PASSED\n");
+    if (ret)
+        return CMD_RET_FAILURE;
+#endif
 
     printf("Start HDMI VIDEO BIST test\n");
     ret = ax_hdmi_vbist();
-    if (ret) 
-        printf("FAILED\n");
-    else
-        printf("PASSED\n");
+    if (ret)
+        return CMD_RET_FAILURE;
+
     return CMD_RET_SUCCESS;
 }
 
