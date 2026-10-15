@@ -5,6 +5,12 @@ obj-$(CONFIG_INNO_ADC) 		+= adc/inno_saradc.o
 
 obj-$(CONFIG_ARASAN_SDHCI) 	+= emmc/arasan_sdhci.o emmc/arasan_sdhci_hs.o
 
+obj-$(CONFIG_AXIADO_HCP_ETH) 	+= ethernet/hcp/hcp_main.o \
+				   ethernet/hcp/eth_common_api/eth_common_api.o \
+				   ethernet/hcp/mac/eth_mac.o \
+				   ethernet/hcp/mdio/eth_mdio.o \
+				   ethernet/hcp/net/eth_net.o
+
 obj-$(CONFIG_CDNS_GPIO) 	+= gpio/cdns_gpio.o
 
 obj-$(CONFIG_INNO_HDMI) 	+= hdmi/inno_hdmi.o

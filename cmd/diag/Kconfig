@@ -22,6 +22,18 @@ config ARASAN_SDHCI
 	help
 	  This config support for Arasan SDHCI.
 
+config CMD_AX_ETH
+	bool "ax_eth - Axiado Ethernet diagnostics"
+	depends on ARCH_AXIADO
+	depends on CMD_AX_DIAG
+	help
+	  This command provides access to Ethernet (SGMII/RMII) diagnostic tests.
+
+config AXIADO_HCP_ETH
+	bool "Axiado HCP Ethernet support"
+	help
+	  This config support for the Axiado HCP Ethernet MAC/MDIO (diag HAL).
+
 config CMD_AX_GPIO
 	bool "ax_gpio - Axiado GPIO diagnostics"
 	depends on ARCH_AXIADO
