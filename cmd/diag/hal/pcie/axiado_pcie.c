@@ -113,15 +113,17 @@ static struct axiado_pcie pcie_x1 = {
 
     .bar = {
         { 
-            .bus_start = (void __iomem *)AX3000_CSR_BASE_ADRS_USB2P0_0, 
-            .phys_start = (void __iomem *)AX3000_CSR_BASE_ADRS_USB2P0_0, 
+            /* .bus_start = (void __iomem *)AX3000_CSR_BASE_ADRS_USB2P0_0, */ 
+            /* .phys_start = (void __iomem *)AX3000_CSR_BASE_ADRS_USB2P0_0, */ 
+            .bus_start = (void __iomem *)AX3000_MEM_BASE_ADRS_SRAM, 
+            .phys_start = (void __iomem *)AX3000_MEM_BASE_ADRS_SRAM, 
             .size = SZ_1M, 
             .flags = PCI_BAR_MEM_TYPE_64 
         } , /* OCM Base */
         { 
             .bus_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_64M, 
             .phys_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_64M, 
-            .size = 0x0, 
+            .size = SZ_64M, 
             .flags = PCI_BAR_PREFETCH | PCI_BAR_MEM_TYPE_64 
         } , /* DDR Base */
         { 
@@ -259,13 +261,13 @@ static int axiado_pcie_map_bus(struct axiado_pcie *pcie, u8 bus, u8 dev, u8 func
     if (!pcie->is_root_port)
         return -ENOTSUPP;
 
-    if (bus == 0) {
-        if (dev || func)
-            return -ENODEV;
+    /* if (bus == 0) { */
+    /*     if (dev || func) */
+    /*         return -ENODEV; */
 
-        *address = pcie->cfg + (where & (SZ_4K - 1) & ~3);
-        return 0;
-    }
+    /*     *address = pcie->cfg + (where & (SZ_4K - 1) & ~3); */
+    /*     return 0; */
+    /* } */
 
     if (bus > 2)
         return -ENODEV;
@@ -559,6 +561,20 @@ static int axiado_pcie_release_reset(struct axiado_pcie *pcie)
 
     printf("%s - x%d\n", __func__, pcie->lanes);
 
+	/*
+	 * TBD: Reset the PCIe controller, only in x1 case. Both x1 and x2
+	 * are having the same region for IOCTL. The same address cannot
+	 * be accessed by both x1 and x2 at the same time.
+	 **/
+	if (pcie->pcie_x1)
+		offset = REG_PAD_CFG_REG_25_ADRS_OFFSET;
+	else if (pcie->pcie_x2)
+		offset = REG_PAD_CFG_REG_26_ADRS_OFFSET;
+
+	value = readl(pcie->ioctl + offset);
+	value = value | PCIE_PERST_PULLUP_SET;
+	writel(value, pcie->ioctl + offset);
+
     if (pcie->pcie_x1) {
         value = readl(pcie->ext + REG_PCIE_X1_RESET_CTRL_ADRS_OFFSET);
     } else {
@@ -635,13 +651,15 @@ static int axiado_pcie_configure_controller(struct axiado_pcie *pcie)
         val = PCIE_K_SET_LANE_REVERSAL_EN_SET(val, 0x1);
     }
 
-    val = PCIE_K_SET_EXT_INTR_MODE_SET(val, 0x0);
+    val = PCIE_K_SET_EXT_INTR_MODE_SET(val, 0x1);
     writel(val, pcie->bridge + reg_pcie_gen_settings_off);
 
     /* Setting max payload size */
     val = readl(pcie->bridge + csr_pcie_pex_dev_adrs_off);
     val = PCIE_PEX_DEV_MAX_PAYLOAD_SET(val, PAYLOAD_256_BYTE);
     writel(val, pcie->bridge + csr_pcie_pex_dev_adrs_off);
+
+    writel(0xFFFFFFFF, pcie->bridge + REG_PCIE_IMASK_LOCAL_ADRS_OFFSET);
 
     val = readl(pcie->bridge + REG_PCIE_X2_PCIE_LMR_31_0_ADRS_OFFSET);
     val = BIT_SET_VAL(0, 0, val, 1);     // Voltage margining supported at 16GT
@@ -691,6 +709,16 @@ static int axiado_pcie_config_eq_tunning(struct axiado_pcie *pcie)
         return -EINVAL;
     }
 
+#ifdef CONFIG_AXIADO_AX3000
+    if (IS_PCIE_DEV_BAD) {
+        writel(0x80360000, pcie->bridge + REG_PCIE_PIPE_31_0_ADRS_OFFSET);
+        writel(0x27000301, pcie->bridge + REG_PCIE_PIPE_63_32_ADRS_OFFSET);
+    } else {
+        writel(0x0, pcie->bridge + REG_PCIE_PIPE_31_0_ADRS_OFFSET);
+        writel(0x02000003, pcie->bridge + REG_PCIE_PIPE_63_32_ADRS_OFFSET);
+    }
+#endif
+
     // enable EQ PH2,3
     val = readl(pcie->bridge + csr_base_int_phymac_offset);
     val = PCIE_PHYMAC_CFG_PER_EQ_PHASE_2_3_SET(val, 0x1);
@@ -704,13 +732,17 @@ static int axiado_pcie_config_eq_tunning(struct axiado_pcie *pcie)
 
     if (IS_COMMON_SLOT_CLOCK_SET) {
         val = readl(pcie->bridge + csr_base_int_pcie_pex_spc);
-        val = PCIE_PEX_SPC_SLOT_REG_IMPL_SET(val, 0x1);
-        val = PCIE_PEX_SPC_SLOT_CLK_CONFIG_SET(val,
-                0x1);  // Slot clock configuration
-                       // (0:independent, 1:refclk)
+#ifdef CONFIG_AXIADO_AX3005
+        val = PCIE_PEX_SPC_SLOT_REG_IMPL_SET(val, 0x1);    // Slot clock configuration                    
+        val = PCIE_PEX_SPC_SLOT_CLK_CONFIG_SET(val, 0x1);  // (0:independent, 1:refclk)
+#elif CONFIG_AXIADO_AX3000
+        val = (val & ~0x2000) | ((0x0 << 13) & 0x2000);  // Slot clock configuration (0:independent, 1:refclk)
+        val = (val & ~0x1000) | ((0x0 << 12) & 0x1000);  // Slot register implemented
+#endif
         writel(val, pcie->bridge + csr_base_int_pcie_pex_spc);
     }
 
+#ifdef CONFIG_AXIADO_AX3005
     //  set preset value and max fine tuning attempts
     val1 = readl(pcie->bridge + REG_PCIE_EQ_TUNING_31_0_ADRS_OFFSET);
     val2 = readl(pcie->bridge + REG_PCIE_EQ_TUNING_63_32_ADRS_OFFSET);
@@ -748,6 +780,7 @@ static int axiado_pcie_config_eq_tunning(struct axiado_pcie *pcie)
     val = readl(pcie->bridge + REG_PCIE_PEX_SPC_ADRS_OFFSET);
     val = val | 0x3000; 
     writel(val, pcie->bridge + REG_PCIE_PEX_SPC_ADRS_OFFSET);
+#endif
 
     return 0;
 }
@@ -1045,12 +1078,12 @@ static void axiado_pcie_setup_windows(struct axiado_pcie *pcie)
                     pcie->atr[table].size,
                     PCIE_TX_TX_INF);
         }
+        /* axiado_pcie_setup_p2a_atr(pcie, 0, */
+        /*         AX3000_MEM_BASE_ADRS_DDR_LO, */
+        /*         AX3000_MEM_BASE_ADRS_DDR_LO, */
+        /*         SZ_1G, */
+        /*         AXI4_MSTR_NUM_0); */
         axiado_pcie_setup_p2a_atr(pcie, 0,
-                AX3000_MEM_BASE_ADRS_DDR_LO,
-                AX3000_MEM_BASE_ADRS_DDR_LO,
-                SZ_1G,
-                AXI4_MSTR_NUM_0);
-        axiado_pcie_setup_p2a_atr(pcie, 1,
                 AX3000_MEM_BASE_ADRS_DDR_LO + SZ_1G,
                 AX3000_MEM_BASE_ADRS_DDR_LO + SZ_1G,
                 SZ_1G,
@@ -1312,16 +1345,31 @@ static int axiado_pcie_init(u8 port, u8 controller_mode, u8 speed)
     }
 
     /* release PIPE_RST_N for PCIe */
-    if (pcie->pcie_x1)
-        writel(0x5, pcie->ext + REG_PCIE_X1_RESET_CTRL_ADRS_OFFSET);
-    else if (pcie->pcie_x2) 
-        writel(0x5, pcie->ext + REG_PCIE_X2_RESET_CTRL_ADRS_OFFSET);
+    if (pcie->pcie_x1) {
+        val = readl(pcie->ext + REG_PCIE_X1_RESET_CTRL_ADRS_OFFSET);
+    } else {
+        val = readl(pcie->ext + REG_PCIE_X2_RESET_CTRL_ADRS_OFFSET);
+    }    
+
+    val = REG_PCIE_RESET_CTRL_HOLD_PIPE_RST_SET(val, 0x0);
+
+    if (pcie->pcie_x1) {
+        writel(val, pcie->ext + REG_PCIE_X1_RESET_CTRL_ADRS_OFFSET);
+    } else {
+        writel(val, pcie->ext + REG_PCIE_X2_RESET_CTRL_ADRS_OFFSET);
+    }    
+
+    /* if (pcie->pcie_x1) */
+    /*     writel(0x5, pcie->ext + REG_PCIE_X1_RESET_CTRL_ADRS_OFFSET); */
+    /* else if (pcie->pcie_x2) */
+    /*     writel(0x5, pcie->ext + REG_PCIE_X2_RESET_CTRL_ADRS_OFFSET); */
 
     mdelay(100);
 
     axiado_pcie_enable_ltssm(pcie);
 
     if (pcie->is_root_port){
+
         /*
          * PERST# must be held asserted for >= 100us (we use 100 ms) and only
          * then released.  
@@ -1362,22 +1410,6 @@ static int axiado_pcie_init(u8 port, u8 controller_mode, u8 speed)
         }
         ax_pcie_irq_init(pcie);
     } else {
-        if (pcie->is_usb) {
-            irq_install_handler(IRQ_VEC(49, IRQ_TRIGGER_LEVEL), axiado_pcie_pf_irq_handle, pcie);
-            printf("Handle IRQ 49\n");
-            irq_install_handler(IRQ_VEC(50, IRQ_TRIGGER_LEVEL), axiado_pcie_pf_irq_handle, pcie);
-            printf("Handle IRQ 50\n");
-            irq_install_handler(IRQ_VEC(51, IRQ_TRIGGER_LEVEL), axiado_pcie_pf_irq_handle, pcie);
-            printf("Handle IRQ 51\n");
-            irq_install_handler(IRQ_VEC(52, IRQ_TRIGGER_LEVEL), axiado_pcie_pf_irq_handle, pcie);
-            printf("Handle IRQ 52\n");
-            irq_install_handler(IRQ_VEC(53, IRQ_TRIGGER_LEVEL), axiado_pcie_pf_irq_handle, pcie);
-            printf("Handle IRQ 53\n");
-            irq_install_handler(IRQ_VEC(54, IRQ_TRIGGER_LEVEL), axiado_pcie_pf_irq_handle, pcie);
-            printf("Handle IRQ 54\n");
-            irq_install_handler(IRQ_VEC(55, IRQ_TRIGGER_LEVEL), axiado_pcie_pf_irq_handle, pcie);
-            printf("Handle IRQ 55\n");
-        }
     }
 
     return 0;

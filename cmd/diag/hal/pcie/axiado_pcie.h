@@ -21,7 +21,17 @@
      (~0U >> (31U - ((end_bit) - (start_bit)))))
 
 #define AX_PCIE_TL_CLOCK_FREQ_MHZ  500
+
+#ifdef CONFIG_AXIADO_AX3005
 #define IS_LANE_REVERSAL_EN 1
+#elif CONFIG_AXIADO_AX3000
+#define IS_LANE_REVERSAL_EN 0
+#endif
+
+#ifdef CONFIG_AXIADO_AX3000
+#define IS_PCIE_DEV_BAD 1
+#endif
+
 #define IS_COMMON_SLOT_CLOCK_SET 1
 #define MAX_VF (64)
 
@@ -146,6 +156,8 @@
 #endif
 
 /* REG_PCIE_X1_RESET_CTRL_ADRS_OFFSET / REG_PCIE_X2_RESET_CTRL_ADRS_OFFSET*/
+#define REG_PCIE_PIPE_31_0_ADRS_OFFSET 0x0088
+#define REG_PCIE_PIPE_63_32_ADRS_OFFSET 0x008C
 #define REG_PCIE_RESET_CTRL_PCIE_RSTN_GET(val) ((uint32_t)val & 0x1)
 #define REG_PCIE_RESET_CTRL_HOLD_PIPE_RST_GET(val) (((uint32_t)val & 0x2) >> 1)
 #define REG_PCIE_RESET_CTRL_PCIE_RP_PERST_GET(val) (((uint32_t)val & 0x4) >> 2)

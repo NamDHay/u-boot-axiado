@@ -17,7 +17,14 @@ struct diag_test diag_list[] = {
         "adc",
         "adc diagnostic test",
         .test = {
-            { "ax_adc start 8", 1000, 0 },
+            { "ax_adc single 0 0 10000", 1000, 0 },
+            { "ax_adc single 1 0 10000", 1000, 0 },
+            { "ax_adc single 2 0 10000", 1000, 0 },
+            { "ax_adc single 3 0 10000", 1000, 0 },
+            { "ax_adc single 4 0 10000", 1000, 0 },
+            { "ax_adc single 5 0 10000", 1000, 0 },
+            { "ax_adc single 6 0 10000", 1000, 0 },
+            { "ax_adc single 7 0 10000", 1000, 0 },
         },
     },
 #endif
@@ -27,6 +34,8 @@ struct diag_test diag_list[] = {
         "emmc",
         "emmc diagnostic test",
         .test = {
+            { "ax_mmc init 2 2 1", 1000, 0 },
+            { "ax_mmc memtest 0 10", 1000, 0 },
         },
     },
 #endif
@@ -45,6 +54,7 @@ struct diag_test diag_list[] = {
         "hdmi",
         "hdmi diagnostic test",
         .test = {
+            { "ax_hdmi bist", 1000, 0 },
         }
     },
 #endif
@@ -72,6 +82,7 @@ struct diag_test diag_list[] = {
         "ltpi",
         "ltpi diagnostic test",
         .test = {
+            { "ax_ltpi init", 1000, 0 },
         }
     },
 #endif
@@ -81,14 +92,13 @@ struct diag_test diag_list[] = {
         "uart",
         "uart diagnostic test",
         .test = {
-            /* "ax_uart ext_lb 0", */
-            /* "ax_uart ext_lb 1", */
-            /* "ax_uart ext_lb 2", */
-            /* "ax_uart ext_lb 4", */
-            /* "ax_uart ext_lb 5", */
-            /* "ax_uart ext_lb 6", */
-            /* "ax_uart ext_lb 7", */
-            /* "ax_uart ext_lb 8", */
+            { "ax_uart ext_lb 0", 1000, 0 },
+            { "ax_uart ext_lb 1", 1000, 0 },
+            { "ax_uart ext_lb 2", 1000, 0 },
+            { "ax_uart ext_lb 4", 1000, 0 },
+            { "ax_uart ext_lb 5", 1000, 0 },
+            { "ax_uart ext_lb 6", 1000, 0 },
+            { "ax_uart ext_lb 7", 1000, 0 },
         }
     },
 #endif
@@ -108,8 +118,12 @@ struct diag_test diag_list[] = {
         "pcie",
         "pcie diagnostic test",
         .test = {
-            { "ax_pcie init 0 rp 4", 1000, 0 },
-            { "ax_pcie init 1 rp 4", 1000, 0 }
+            { "ax_pcie init 0 4", 1000, 0 },
+            { "ax_pcie init 1 4", 1000, 0 },
+#ifdef CONFIG_CMD_AX_NVME
+            { "ax_nvme init 1; ax_nvme compare 0 100", 1000, 0 },
+            { "ax_nvme init 2; ax_nvme compare 0 100", 1000, 0 },
+#endif
         }
     },
 #endif
@@ -182,6 +196,9 @@ struct diag_test diag_list[] = {
         "usb",
         "usb diagnostic test",
         .test = {
+            { "ax_usb stop; ax_usb init mmio 0x41000000; ax_usb info; ax_usb read 0 0xa0000000 0 1", 1000, 0 },
+            { "ax_usb stop; ax_usb init mmio 0x41400000; ax_usb info; ax_usb read 0 0xa0000000 0 1", 1000, 0 },
+            { "ax_usb stop; ax_usb init mmio 0x41500000; ax_usb info; ax_usb read 0 0xa0000000 0 1", 1000, 0 },
         }
     },
 #endif

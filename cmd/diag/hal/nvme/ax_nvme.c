@@ -18,6 +18,7 @@
 #include <cpu_func.h>
 #include <display_options.h>
 
+#include "ax_diag.h"
 #include "ax_pcie.h"
 #include "ax_pcie_conf.h"
 #include "ax_nvme.h"
@@ -31,7 +32,7 @@
  * stack, relocated code) lives in this range.
  */
 #ifndef NVME_DMA_BASE
-#define NVME_DMA_BASE            0x92000000ULL   /* override: -DNVME_DMA_BASE=0x89000000ULL */
+#define NVME_DMA_BASE            (AX3000_MEM_BASE_ADRS_DDR_LO + 0x40000000UL)   
 #endif
 #define NVME_ADMIN_SQ_ADDR       (NVME_DMA_BASE + 0x0000)
 #define NVME_ADMIN_CQ_ADDR       (NVME_DMA_BASE + 0x1000)
