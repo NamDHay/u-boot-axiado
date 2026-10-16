@@ -37,12 +37,12 @@ static int eth_test_xfer(u8 mac_idx, u16 pkt, unsigned char *txbuff,
 		// printf("SGMII_MON = 0x%x\n", readl(SGMII_MON_BASE + (mac_idx - 1) * SGMII_MON_OFFSET) >> 16);
 		if (ax_hcp_send(txbuff, frame_len) != frame_len) {
 			printf("frame length mismatch\n");
-			return -EIO;
+			return -1;
 		}
 		rx_len = ax_hcp_recv(mac_idx, rxbuff,
 				     ETH_TEST_TRAFFIC_MAX_BUFFER);
 		if (rx_len == frame_len || !link_retry ||
-		    retry == ETH_TEST_LINK_RETRY)
+   retry == ETH_TEST_LINK_RETRY)
 			return rx_len;
 
 		printf("Packet %d dropped, link retry %d/%d\n", pkt, retry + 1,
