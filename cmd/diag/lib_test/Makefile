@@ -5,6 +5,8 @@ obj-$(CONFIG_CMD_AX_ADC) 	+= adc/adc_cli.o
 
 obj-$(CONFIG_CMD_AX_EMMC) 	+= emmc/emmc_cli.o
 
+obj-$(CONFIG_CMD_AX_ETH) 	+= eth/eth_cli.o
+
 obj-$(CONFIG_CMD_AX_GPIO) 	+= gpio/gpio_cli.o
 
 obj-$(CONFIG_CMD_AX_HDMI) 	+= hdmi/hdmi_cli.o
