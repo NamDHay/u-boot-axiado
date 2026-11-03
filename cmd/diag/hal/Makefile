@@ -12,6 +12,7 @@ obj-$(CONFIG_AXIADO_HCP_ETH) 	+= ethernet/hcp/hcp_main.o \
 				   ethernet/hcp/eth_common_api/eth_common_api.o \
 				   ethernet/hcp/mac/eth_mac.o \
 				   ethernet/hcp/mdio/eth_mdio.o \
+				   ethernet/hcp/mdio/eth_phy_table.o \
 				   ethernet/hcp/net/eth_net.o
 
 obj-y						+= gpio/ax_gpio.o

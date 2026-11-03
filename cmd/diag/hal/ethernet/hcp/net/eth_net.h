@@ -7,6 +7,7 @@
 
 #include <net.h>
 #include <linux/types.h>
+#include "ax_net.h"
 
 /* Network identity of one SGMII port (diag port N = mac_idx N + 1) */
 struct eth_net_port_cfg {
@@ -36,8 +37,21 @@ static const struct eth_net_port_cfg eth_net_port3_cfg = {
 	{ 0x00, 0x11, 0x22, 0x33, 0x44, 0x58 }
 };
 
+#define ETH_NET_DBG_FRAMES	8
+
+struct eth_net_dbg_frame {
+	u8 src[ARP_HLEN];
+	u16 type;
+	u8 proto;
+	struct in_addr ip_src;
+	u8 icmp_type;
+	u16 icmp_id;
+	u16 icmp_seq;
+};
+
 /* State of one ping / receive session on a port */
 struct eth_net {
+	struct net_dev dev;
 	u8 mac_idx;
 	u8 mac[ARP_HLEN];
 	struct in_addr ip;
@@ -60,6 +74,9 @@ struct eth_net {
 	u8 reply_ttl;
 	u32 arp_replied;
 	u32 icmp_replied;
+	u32 rx_frames;
+	u8 dbg_cnt;
+	struct eth_net_dbg_frame dbg[ETH_NET_DBG_FRAMES];
 	/* two-port mode (p2p, disabled): session at the other end, else NULL */
 	struct eth_net *other;
 };

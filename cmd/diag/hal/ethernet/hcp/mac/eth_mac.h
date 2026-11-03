@@ -25,7 +25,9 @@ int sgmii_link_try(u8 mac_idx);
 void xgmii_fast_sim(void);
 void mac_reset_sgmii(u8 mac_idx);
 void mac_init_10g(void);
+void mac_stop_10g(void);
 void xgmii_enable_near_loopback(void);
+void xgmii_disable_near_loopback(void);
 
 /* --- MAC 1G reset / init / EIP bypass / loopback --- */
 int mac_reset_1g(u8 mac_idx);
@@ -38,6 +40,8 @@ void disable_internal_near_end_lb(u8 mac_idx);
 /* --- RMII: pin setup + GMII/NCSI port control --- */
 void eth_setup_gpio_rmii(void);
 void eth_enable_gmii_ncsi(u8 mac_idx, u8 rmii_mode);
+void eth_rmii_pinctrl_config(void);
+void mac_init_rmii(u8 mac_idx);
 
 /* --- MAC stats counter print (test helper, uses AX_READ_MAC_REG32) --- */
 void eth_print_mac_counters(uint32_t mac_idx);

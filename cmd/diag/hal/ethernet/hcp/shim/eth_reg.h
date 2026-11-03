@@ -72,6 +72,9 @@
 /* Total number of maximum RMII MAC */
 #define MAX_RMII_MAC_CNT 3
 
+#define ETH_RMII_IOCTL_OFFSET	0xcc
+#define ETH_RMII_IOCTL_VAL	0x10
+
 /* base offset for five MAC. base is shim_phy_base_addr */
 #define MAC_BASE_OFFSET		0x400
 #define MAC_CONFIG_BYTE_CNT 0x400

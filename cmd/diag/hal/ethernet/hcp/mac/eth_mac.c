@@ -311,11 +311,8 @@ void xgmii_fast_sim(void)
 		reg_val = readl(RXAUI_BASE + 0x2c77);
 		mdelay(50);
 		timeout--;
-		if (timeout == 0) {
-			printf(
-				"Time out Wait for PMA stability - address 16'h2c77[1]\n");
+		if (timeout == 0)
 			break;
-		}
 	}
 	reg_val = 0;
 	timeout = 100;
@@ -324,11 +321,8 @@ void xgmii_fast_sim(void)
 		reg_val = readl(RXAUI_BASE + 0x6c77);
 		mdelay(50);
 		timeout--;
-		if (timeout == 0) {
-			printf(
-				"Time out Wait for PMA stability - address 16'h6c77[1]\n");
+		if (timeout == 0)
 			break;
-		}
 	}
 
 	// Configure PCS registers
@@ -349,10 +343,8 @@ void xgmii_fast_sim(void)
 		reg_val = readl(RXAUI_BASE + 0x8084);
 		mdelay(50);
 		timeout--;
-		if (timeout == 0) {
-			printf("Time out Wait for RLU (bit[2])\n");
+		if (timeout == 0)
 			break;
-		}
 	}
 }
 /* Reset the SGMII block of the port (port control bit 4) */
@@ -560,10 +552,10 @@ static inline int mac_reset_10g(void)
 	} while (timeout > 0);
 
 	if (timeout == 0) {
-		printf("MAC SW_RESET timeout!");
+		printf("MAC SW_RESET timeout!\n");
 		return 0;
 	}
-	printf("MAC Reset done.");
+	printf("MAC Reset done.\n");
 	return 1;
 }
 void mac_init_10g(void)
@@ -614,6 +606,21 @@ void mac_init_10g(void)
 
 	printf("Successfully configured MAC 10G.\n");
 }
+void mac_stop_10g(void)
+{
+	u32 mac_base = XGMII_MAC_BASE;
+	u32 regval;
+
+	regval = readl(mac_base + R_COMMAND_CONFIG);
+	regval &= ~(MAC_CC_TX_ENA | MAC_CC_RX_ENA);
+	writel(regval, mac_base + R_COMMAND_CONFIG);
+
+	regval = readl(AXILS_HCP_BASE + XGMII_PORT_CONTROL);
+	regval &= ~BIT(HOST_TX_FIFO_EN);
+	writel(regval, AXILS_HCP_BASE + XGMII_PORT_CONTROL);
+
+	mac_reset_10g();
+}
 /*
  * Enable the near-end loopback (internal loop) on XGMII SerDes lanes 0 and 1
  * (offsets 0x0xxx and 0x4xxx):
@@ -623,8 +630,24 @@ void mac_init_10g(void)
  * This step can be skipped by connecting TXP/N to RXP/N on the pads
  * (external loop).
  */
+static const u32 xgmii_near_lb_regs[] = {
+	0x0010, 0x4010, 0x001c, 0x401c, 0x0044, 0x4044,
+};
+static u32 xgmii_near_lb_saved[ARRAY_SIZE(xgmii_near_lb_regs)];
+static bool xgmii_near_lb_enabled;
+
 void xgmii_enable_near_loopback(void)
 {
+	int i;
+
+	if (xgmii_near_lb_enabled)
+		return;
+
+	for (i = 0; i < ARRAY_SIZE(xgmii_near_lb_regs); i++)
+		xgmii_near_lb_saved[i] = readl(RXAUI_BASE +
+					       xgmii_near_lb_regs[i]);
+	xgmii_near_lb_enabled = true;
+
 	writel(0x020000a2, RXAUI_BASE + 0x0010);
 	writel(0x020000a2, RXAUI_BASE + 0x4010);
 
@@ -637,6 +660,19 @@ void xgmii_enable_near_loopback(void)
 
 	writel(0x00026490, RXAUI_BASE + 0x0044);
 	writel(0x00026490, RXAUI_BASE + 0x4044);
+}
+
+void xgmii_disable_near_loopback(void)
+{
+	int i;
+
+	if (!xgmii_near_lb_enabled)
+		return;
+
+	for (i = ARRAY_SIZE(xgmii_near_lb_regs) - 1; i >= 0; i--)
+		writel(xgmii_near_lb_saved[i],
+		       RXAUI_BASE + xgmii_near_lb_regs[i]);
+	xgmii_near_lb_enabled = false;
 }
 
 u8 eth_wait_internal_phy_linkup(u32 mac_idx)
@@ -696,6 +732,30 @@ void eth_setup_gpio_rmii(void){
 	writel(gpio_val, AX3000_CSR_BASE_ADRS_GPIO_3); // RMII1
 
 	mdelay(1000);
+}
+void eth_rmii_pinctrl_config(void)
+{
+	writel(ETH_RMII_IOCTL_VAL,
+	       AX3000_CSR_BASE_ADRS_IOCTL_1 + ETH_RMII_IOCTL_OFFSET);
+}
+void mac_init_rmii(u8 mac_idx)
+{
+	u32 mac_base = XGMII_MAC_BASE + (mac_idx * MAC_CONFIG_BYTE_CNT);
+
+	writel(XG_R_MAC_0_VAL, mac_base + R_MAC_0);
+	writel(XG_R_MAC_1_VAL, mac_base + R_MAC_1);
+	writel(0x000001e7, mac_base + R_HASHTABLE_LOAD);
+	writel(0x00000123, mac_base + R_HASHTABLE_LOAD);
+	writel(MAC_1G_R_RX_FIFO_VAL, mac_base + R_RX_FIFO_SECTIONS);
+	writel(MAC_1G_R_TX_FIFO_VAL, mac_base + R_TX_FIFO_SECTIONS);
+	writel(MAC_CC_NULL | MAC_CC_TX_ENA | MAC_CC_RX_ENA |
+	       MAC_CC_PROMIS_EN | MAC_CC_TX_PAD_EN | MAC_CC_SW_RESET,
+	       mac_base + R_COMMAND_CONFIG);
+	writel(MAC_1G_R_FRM_LENGTH_VAL, mac_base + R_FRM_LENGTH);
+	writel(MAC_MII_IF_MODE_VAL, mac_base + R_IF_MODE);
+	mdelay(200);
+	printf("RMII MAC-%d Configured (Cmd: 0x%08x)\n", mac_idx,
+	       readl(mac_base + R_COMMAND_CONFIG));
 }
 /* port control bits written by baremetal: 0x64 (output) / 0x24 (input) */
 #define GMII_PORT_NCSI_MASK		0x64

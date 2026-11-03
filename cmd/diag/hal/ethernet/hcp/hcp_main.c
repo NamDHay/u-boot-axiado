@@ -49,21 +49,45 @@ struct ax_hcp_ops hcp = {
 };
 
 /*
- * PHY config applied by the last hcp_phy_init() on each SGMII port, so that
+ * PHY config applied by the last hcp_phy_init() on each port, so that
  * hcp_stop_link_up() can undo exactly the loopback mode that was set up.
- * Indexed by mac_idx (1..GMII_PORT_COUNT); slot 0 (XGMII) is unused.
+ * Indexed by mac_idx (0 = XGMII, 1..GMII_PORT_COUNT = SGMII/RMII).
  */
 static struct ax_phy_info hcp_phy_state[GMII_PORT_COUNT + 1];
 static bool hcp_phy_configured[GMII_PORT_COUNT + 1];
+static enum ax_eth_speed hcp_eth_speed[GMII_PORT_COUNT + 1] = {
+	[0 ... GMII_PORT_COUNT] = AX_ETH_1G,
+};
 
 static bool hcp_mac_idx_valid(unsigned mac_idx)
 {
 	return mac_idx >= 1 && mac_idx <= GMII_PORT_COUNT;
 }
 
-static int hcp_mac_init(unsigned mac_idx)
+static int hcp_mac_init(unsigned mac_idx, enum ax_eth_speed speed)
 {
 	int ret = 0;
+
+	if (mac_idx > GMII_PORT_COUNT || !ax_speed_get(speed, mac_idx))
+		return -EINVAL;
+	hcp_eth_speed[mac_idx] = speed;
+
+	switch (speed) {
+	case AX_ETH_10G:
+		mac_init_10g();
+		xgmii_fast_sim();
+		eth_set_eipbypass(mac_idx);
+		return 0;
+	case AX_ETH_100M:
+		mac_init_rmii(mac_idx);
+		eth_set_eipbypass(mac_idx);
+		eth_enable_gmii_ncsi(mac_idx, 1);
+		return 0;
+	case AX_ETH_1G:
+		break;
+	default:
+		return -EINVAL;
+	}
 
 	mac_reset_1g(mac_idx);
 	mac_init_1g(mac_idx);
@@ -80,35 +104,75 @@ static int hcp_mac_init(unsigned mac_idx)
 	/* The mac_reset_1g() result is not checked: this always returns 0 */
 	return ret;
 }
-static int hcp_phy_init(unsigned mac_idx, int test_ops, struct ax_phy_info *info){
-   u8 phyaddr= 0,phy_type = UNKNOWNED_PHY;
-   u16 id1 = 0;
-   u16 id2 = 0 ;
-   int test_result = 1;
-   eth_test_options opt = { test_ops, DIS_EX_PHY_AN_BYBASS,ENA_EX_PHY_MODE };
-   printf("Start Init: Port[%d]\n", mac_idx - 1);
-   //Config MDIO, Using C22
-   mdio_config_c22(mac_idx);
-   //Read ID Phy
-	phyaddr = mdio_find_phy_id(mac_idx, &id1, &id2);
-	if (phy_type == UNKNOWNED_PHY) {
-		if (id1 == 0x1c && id2 == 0xc916) {
-			phy_type = REALTEK_PHY;
-			printf("Realtek phy\n");
-		}
-		else if (id1 == 0x141 && id2 == 0xdd1) {
-			phy_type = MARVELL_PHY;
-			printf("Marvell phy\n");
-		}
+static int hcp_phy_init(unsigned mac_idx, int test_ops, struct ax_phy_info *info,
+			enum ax_eth_speed speed)
+{
+	const struct ax_phy_desc *desc = NULL;
+	u8 phyaddr = INVALID_MAC_IDX, phy_type = UNKNOWNED_PHY;
+	int test_result = 1;
+	eth_test_options opt = { test_ops, DIS_EX_PHY_AN_BYBASS, ENA_EX_PHY_MODE };
+
+	if (mac_idx > GMII_PORT_COUNT || !ax_speed_get(speed, mac_idx))
+		return -EINVAL;
+	hcp_eth_speed[mac_idx] = speed;
+
+	if (info) {
+		info->phyaddr = INVALID_MAC_IDX;
+		info->phy_type = UNKNOWNED_PHY;
+		info->opt = opt;
 	}
 
-	test_result = eth_init_exPhy(mac_idx, phyaddr, opt, phy_type);
-
-	if (hcp_mac_idx_valid(mac_idx)) {
+	switch (speed) {
+	case AX_ETH_10G:
+		desc = ax_phy_probe(mac_idx, speed, &phyaddr);
+		if (!desc) {
+			printf("XGMII PHY not found\n");
+			return -ENODEV;
+		}
+		if (eth_xgmii_TUNIT_sw_reset(phyaddr) ||
+		    eth_xgmii_copper_sw_reset(phyaddr)) {
+			printf("XGMII PHY reset failed\n");
+			return -ETIMEDOUT;
+		}
+		xgmii_enable_phy_loopback(XGMII_MAC_BASE, phyaddr);
 		hcp_phy_state[mac_idx].phyaddr = phyaddr;
-		hcp_phy_state[mac_idx].phy_type = phy_type;
-		hcp_phy_state[mac_idx].opt = opt;
 		hcp_phy_configured[mac_idx] = true;
+		break;
+	case AX_ETH_100M:
+		eth_rmii_pinctrl_config();
+		mdelay(1000);
+		eth_setup_gpio_rmii();
+		mdelay(50);
+		desc = ax_phy_probe(mac_idx, speed, &phyaddr);
+		if (!desc) {
+			printf("RMII PHY not found\n");
+			return -ENODEV;
+		}
+		mdio_rmii_enable_mii_loopback(mac_idx, phyaddr);
+		mdelay(1000);
+		hcp_phy_state[mac_idx].phyaddr = phyaddr;
+		hcp_phy_configured[mac_idx] = true;
+		break;
+	case AX_ETH_1G:
+		printf("Start Init: Port[%d]\n", mac_idx - 1);
+		desc = ax_phy_probe(mac_idx, speed, &phyaddr);
+		if (!desc) {
+			printf("SGMII PHY not found\n");
+			return -ENODEV;
+		}
+		phy_type = desc->phy_type;
+
+		test_result = eth_init_exPhy(mac_idx, phyaddr, opt, phy_type);
+
+		if (hcp_mac_idx_valid(mac_idx)) {
+			hcp_phy_state[mac_idx].phyaddr = phyaddr;
+			hcp_phy_state[mac_idx].phy_type = phy_type;
+			hcp_phy_state[mac_idx].opt = opt;
+			hcp_phy_configured[mac_idx] = true;
+		}
+		break;
+	default:
+		return -EINVAL;
 	}
 
 	if (info) {
@@ -124,6 +188,12 @@ static int hcp_phy_init(unsigned mac_idx, int test_ops, struct ax_phy_info *info
  */
 static int hcp_start_link_up(unsigned mac_idx)
 {
+	if (mac_idx > GMII_PORT_COUNT)
+		return -EINVAL;
+
+	if (hcp_eth_speed[mac_idx] != AX_ETH_1G)
+		return 0;
+
 	if (!hcp_mac_idx_valid(mac_idx))
 		return -EINVAL;
 
@@ -141,15 +211,33 @@ static int hcp_stop_link_up(unsigned mac_idx)
 	struct ax_phy_info *phy;
 	u32 mac_base, regval;
 
-	if (!hcp_mac_idx_valid(mac_idx))
+	if (mac_idx > GMII_PORT_COUNT)
 		return -EINVAL;
 
 	phy = &hcp_phy_state[mac_idx];
-	if (hcp_phy_configured[mac_idx] && phy->phyaddr != INVALID_MAC_IDX) {
-		if (phy->opt.eth_run_test_ops == EXTERNAL_PHY_RJ45_LOOPBACK)
-			mdio_disable_stub_lb(mac_idx, phy->phyaddr, phy->phy_type);
-		else if (phy->opt.eth_run_test_ops == EXTERNAL_PHY_LOOPBACK)
-			mdio_disable_exphy_lb(mac_idx, phy->phyaddr, phy->phy_type);
+	switch (hcp_eth_speed[mac_idx]) {
+	case AX_ETH_10G:
+		if (hcp_phy_configured[mac_idx])
+			xgmii_disable_phy_loopback(XGMII_MAC_BASE, phy->phyaddr);
+		hcp_phy_configured[mac_idx] = false;
+		xgmii_disable_near_loopback();
+		mac_stop_10g();
+		return 0;
+	case AX_ETH_100M:
+		if (hcp_phy_configured[mac_idx])
+			mdio_rmii_disable_mii_loopback(mac_idx, phy->phyaddr);
+		break;
+	default:
+		if (!hcp_mac_idx_valid(mac_idx))
+			return -EINVAL;
+		if (hcp_phy_configured[mac_idx] &&
+		    phy->phyaddr != INVALID_MAC_IDX) {
+			if (phy->opt.eth_run_test_ops == EXTERNAL_PHY_RJ45_LOOPBACK)
+				mdio_disable_stub_lb(mac_idx, phy->phyaddr, phy->phy_type);
+			else if (phy->opt.eth_run_test_ops == EXTERNAL_PHY_LOOPBACK)
+				mdio_disable_exphy_lb(mac_idx, phy->phyaddr, phy->phy_type);
+		}
+		break;
 	}
 	hcp_phy_configured[mac_idx] = false;
 
@@ -163,6 +251,9 @@ static int hcp_stop_link_up(unsigned mac_idx)
 	regval = readl(AXILS_HCP_BASE + gmii_port_ctrl_offset(mac_idx));
 	regval &= ~BIT(HOST_TX_FIFO_EN);
 	writel(regval, AXILS_HCP_BASE + gmii_port_ctrl_offset(mac_idx));
+
+	if (hcp_eth_speed[mac_idx] == AX_ETH_1G)
+		mac_reset_1g(mac_idx);
 
 	return 0;
 }
@@ -265,6 +356,99 @@ static int hcp_send(unsigned char buf[], int len)
 	mod = len % 4;
 	writel(BIT(TX_FIFO_EOP) | mod << TX_FIFO_MOD,
 	       AXILS_HCP_BASE + TX_PACKET_FIFO_1);
-	return pkt_int - ((4 - mod) % 4); 
+	return pkt_int - ((4 - mod) % 4);
 }
 
+#define HCP_ETH_LINK_RETRY	3
+
+static u8 hcp_eth_rxbuf[2048] __aligned(4);
+
+static int hcp_eth_mac_idx(struct net_dev *port)
+{
+	if (port->port >= GMII_PORT_COUNT)
+		return -EINVAL;
+
+	return port->port + 1;
+}
+
+static int hcp_eth_start(struct net_dev *port)
+{
+	struct ax_phy_info *cfg = port->priv_pdata;
+	struct ax_phy_info info;
+	int test_ops = cfg ? cfg->opt.eth_run_test_ops : EXTERNAL_PHY_COPPER;
+	int mac_idx = hcp_eth_mac_idx(port);
+	u8 retry = HCP_ETH_LINK_RETRY;
+	int ret;
+
+	if (mac_idx < 0)
+		return mac_idx;
+
+	ret = hcp_phy_init(mac_idx, test_ops, &info, AX_ETH_1G);
+	if (test_ops == EXTERNAL_PHY_COPPER) {
+		if (ret != 1 || info.phy_type == UNKNOWNED_PHY) {
+			printf("External PHY copper link down: %d\n", ret);
+			return -ENOLINK;
+		}
+		mdio_setup_realtek_phy_autoneg(mac_idx);
+	}
+
+	hcp_mac_init(mac_idx, AX_ETH_1G);
+	while ((ret = hcp_start_link_up(mac_idx)) && --retry) {
+		printf("Internal PHY - Link Retry! %d\n", retry);
+		sgmii_link_try(mac_idx);
+	}
+	if (ret) {
+		printf("Internal PHY - Link Down! (%d)\n", ret);
+		return ret;
+	}
+	printf("Internal PHY - Link Up!\n");
+
+	return 0;
+}
+
+static int hcp_eth_send(struct net_dev *port, void *packet, int length)
+{
+	if (hcp_eth_mac_idx(port) < 0)
+		return -EINVAL;
+
+	return hcp_send(packet, length) == length ? 0 : -EIO;
+}
+
+static int hcp_eth_recv(struct net_dev *port, int flags, uchar **packetp)
+{
+	int mac_idx = hcp_eth_mac_idx(port);
+	int len;
+
+	if (mac_idx < 0)
+		return mac_idx;
+
+	len = hcp_recv(mac_idx, hcp_eth_rxbuf, sizeof(hcp_eth_rxbuf));
+	if (len == -2)
+		return -EMSGSIZE;
+	if (len < 0)
+		return -EAGAIN;
+
+	*packetp = hcp_eth_rxbuf;
+	return len;
+}
+
+static int hcp_eth_free_pkt(struct net_dev *port, uchar *packet, int length)
+{
+	return 0;
+}
+
+static void hcp_eth_stop(struct net_dev *port)
+{
+	int mac_idx = hcp_eth_mac_idx(port);
+
+	if (mac_idx > 0)
+		hcp_stop_link_up(mac_idx);
+}
+
+struct ax_eth_ops hcp_eth_ops = {
+	.start = hcp_eth_start,
+	.send = hcp_eth_send,
+	.recv = hcp_eth_recv,
+	.free_pkt = hcp_eth_free_pkt,
+	.stop = hcp_eth_stop,
+};

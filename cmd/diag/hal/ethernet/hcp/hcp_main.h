@@ -7,7 +7,11 @@
 #define __HCP_H
 #include "mac/eth_mac.h"
 #include "mdio/eth_mdio.h"
+#include "mdio/eth_phy_table.h"
 #include "eth_common_api/eth_common_api.h"
+#include "ax_net.h"
+
+extern struct ax_eth_ops hcp_eth_ops;
 
 struct ax_phy_info {
     u8 phyaddr;
@@ -15,15 +19,17 @@ struct ax_phy_info {
     eth_test_options opt;
 };
 
-static int hcp_mac_init(unsigned mac_idx);
-static int hcp_phy_init(unsigned mac_idx, int test_ops, struct ax_phy_info *info);
+static int hcp_mac_init(unsigned mac_idx, enum ax_eth_speed speed);
+static int hcp_phy_init(unsigned mac_idx, int test_ops, struct ax_phy_info *info,
+			enum ax_eth_speed speed);
 static int hcp_start_link_up(unsigned mac_idx);
 static int hcp_stop_link_up(unsigned mac_idx);
 static int hcp_recv(unsigned mac_idx, unsigned char *packet, int length);
 static int hcp_send(unsigned char *packet, int length);
 struct ax_hcp_ops {
-    int (*mac_init)(unsigned mac_idx);
-    int (*phy_init)(unsigned mac_idx, int test_ops, struct ax_phy_info *info);
+    int (*mac_init)(unsigned mac_idx, enum ax_eth_speed speed);
+    int (*phy_init)(unsigned mac_idx, int test_ops, struct ax_phy_info *info,
+			enum ax_eth_speed speed);
     int (*start_link_up)(unsigned mac_idx);
     int (*stop_link_up)(unsigned mac_idx);    
     int (*recv)(unsigned mac_idx,unsigned char *packet,int length);
@@ -31,22 +37,23 @@ struct ax_hcp_ops {
     
 };
 extern struct ax_hcp_ops hcp;
-static inline int ax_hcp_mac_init(unsigned mac_idx) {  
+static inline int ax_hcp_mac_init(unsigned mac_idx, enum ax_eth_speed speed) {  
     if (hcp.mac_init == NULL) return -ENOSYS;
 
-    return hcp.mac_init(mac_idx); 
+    return hcp.mac_init(mac_idx, speed); 
 }
 /*
  * test_ops: EXTERNAL_PHY_LOOPBACK, EXTERNAL_PHY_RJ45_LOOPBACK or
  * EXTERNAL_PHY_COPPER.
  * Returns eth_init_exPhy() verdict: for RJ45/COPPER, 1 = copper link up.
  */
-static inline int ax_hcp_phy_init(unsigned mac_idx, int test_ops, struct ax_phy_info *info) {  
+static inline int ax_hcp_phy_init(unsigned mac_idx, int test_ops, struct ax_phy_info *info,
+				  enum ax_eth_speed speed) {  
     if (hcp.phy_init == NULL) return -ENOSYS;
 
-    return hcp.phy_init(mac_idx, test_ops, info); 
+    return hcp.phy_init(mac_idx, test_ops, info, speed); 
 }
-/* Wait for SGMII link up. Returns 0, -ETIMEDOUT or -EINVAL. */
+/* Wait for SGMII link up, RMII/XGMII return 0. Returns 0, -ETIMEDOUT or -EINVAL. */
 static inline int ax_hcp_start_link_up(unsigned mac_idx) {
     if (hcp.start_link_up == NULL) return -ENOSYS;
 

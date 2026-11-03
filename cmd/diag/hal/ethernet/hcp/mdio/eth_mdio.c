@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0+
+#include <time.h>
+#include <linux/errno.h>
 #include "eth_mdio.h"
 /* packet generator burst size used by the CRC error test: 1 packet */
 #define ETH_PACKET_CRC_ERROR	0x1
@@ -195,6 +197,26 @@ u8 mdio_find_phy_id(u8 mac_idx, uint16_t *id1, uint16_t *id2)
 
 		if ((*id1 != 0xFFFF && *id1 != 0x0000) &&
 		    (*id2 != 0xFFFF && *id2 != 0x0000)) {
+			printf("MDIO Found PHY at addr: 0x%x\n", phy_addr);
+			printf("ID1: 0x%x\n", *id1);
+			printf("ID2: 0x%x\n", *id2);
+			return phy_addr;
+		}
+	}
+	return INVALID_MAC_IDX;
+}
+u8 mdio_find_phy_by_id(u8 mac_idx, u16 match_id1, u16 match_id2,
+		       u16 id2_mask, u16 *id1, u16 *id2)
+{
+	if (id1 == NULL || id2 == NULL)
+		return INVALID_MAC_IDX;
+
+	for (u8 phy_addr = 0; phy_addr < 32; phy_addr++) {
+		*id1 = mdio_clause22_read(mac_idx, phy_addr, 2);
+		*id2 = mdio_clause22_read(mac_idx, phy_addr, 3);
+
+		if (*id1 == match_id1 &&
+		    (*id2 & id2_mask) == (match_id2 & id2_mask)) {
 			printf("MDIO Found PHY at addr: 0x%x\n", phy_addr);
 			printf("ID1: 0x%x\n", *id1);
 			printf("ID2: 0x%x\n", *id2);
@@ -620,6 +642,40 @@ void mdio_setup_realtek_phy_autoneg(u8 mac_idx)
 	rval = (rval | (0x1 << 12));
 	writel(rval, sgmii_base + 0x1c00);
 }
+void mdio_disable_sgmii_autoneg(u8 mac_idx)
+{
+	u32 rval;
+	u32 sgmii_base =
+		SGMII0_BASE + ((mac_idx - 1) * SGMII_CONFIG_RANGE);
+	rval = readl(sgmii_base + 0x1c00);
+	rval = (rval & ~(0x1 << 12));
+	writel(rval, sgmii_base + 0x1c00);
+}
+void mdio_rmii_enable_mii_loopback(u8 mac_idx, u8 phy_addr)
+{
+	u16 regval;
+
+	regval = mdio_clause22_read(mac_idx, phy_addr, 0x19);
+	regval &= ~((1 << 15) | (1 << 14));
+	mdio_clause22_write(mac_idx, phy_addr, 0x19, regval);
+
+	regval = mdio_clause22_read(mac_idx, phy_addr, 0);
+	regval |= (1 << 14) | (1 << 13);
+	regval &= ~(1 << 12);
+	mdio_clause22_write(mac_idx, phy_addr, 0, regval);
+}
+void mdio_rmii_disable_mii_loopback(u8 mac_idx, u8 phy_addr)
+{
+	u16 regval;
+
+	regval = mdio_clause22_read(mac_idx, phy_addr, 0);
+	regval &= ~(1 << 14);
+	mdio_clause22_write(mac_idx, phy_addr, 0, regval);
+
+	regval = mdio_clause22_read(mac_idx, phy_addr, 0x19);
+	regval |= (1 << 15);
+	mdio_clause22_write(mac_idx, phy_addr, 0x19, regval);
+}
 void mdio_disable_realtek_phy_autoneg(u8 mac_idx, u8 phy_addr,
 					     u8 reg)
 {
@@ -716,7 +772,25 @@ int eth_init_exPhy(u8 mac_idx, u8 phyaddr, eth_test_options opt,
  * T-Unit software reset.
  * 31.F001[13] - 0: normal; 1: reset
  */
-void eth_xgmii_TUNIT_sw_reset(u32 phyaddr)
+static int xgmii_c45_wait_clear(u32 phyaddr, u32 dev_addr, u32 reg_addr,
+				u32 bit)
+{
+	u32 mac_base = XGMII_MAC_BASE;
+	ulong start = get_timer(0);
+
+	while (mdio_clause45_read(mac_base, phyaddr, dev_addr, reg_addr) &
+	       bit) {
+		if (get_timer(start) > XGMII_PHY_RESET_TIMEOUT_MS) {
+			printf("PHY reset timeout: %d.%04x\n", dev_addr,
+			       reg_addr);
+			return -ETIMEDOUT;
+		}
+		mdelay(100);
+	}
+	return 0;
+}
+
+int eth_xgmii_TUNIT_sw_reset(u32 phyaddr)
 {
 	u32 mac_base = XGMII_MAC_BASE;
 	u32 reg_val = 0;
@@ -725,18 +799,17 @@ void eth_xgmii_TUNIT_sw_reset(u32 phyaddr)
 	/* Bit 13: software reset the T Unit */
 	reg_val |= (1 << 13);
 	mdio_clause45_write(mac_base, phyaddr, 31, 0xF001, reg_val);
-	while (reg_val & (1 << 13)) {
-		reg_val = mdio_clause45_read(mac_base, phyaddr, 31, 0xF001);
-		mdelay(100);
-	}
+	if (xgmii_c45_wait_clear(phyaddr, 31, 0xF001, 1 << 13))
+		return -ETIMEDOUT;
 	printf("Done SW Reset T Unit\n");
+	return 0;
 }
 /*
  * Copper software reset.
  * PMA/PMD - 1.0000[15] - 0: normal; 1: reset
  * PCS     - 3.0000[15] - 0: normal; 1: reset
  */
-void eth_xgmii_copper_sw_reset(u32 phyaddr)
+int eth_xgmii_copper_sw_reset(u32 phyaddr)
 {
 	u32 mac_base = XGMII_MAC_BASE;
 	u32 reg_val = 0;
@@ -745,21 +818,18 @@ void eth_xgmii_copper_sw_reset(u32 phyaddr)
 	/* Bit 15: PMA/PMD software reset */
 	reg_val |= (1 << 15);
 	mdio_clause45_write(mac_base, phyaddr, 1, 0x0000, reg_val);
-	while (reg_val & (1 << 15)) {
-		reg_val = mdio_clause45_read(mac_base, phyaddr, 1, 0x0000);
-		mdelay(100);
-	}
+	if (xgmii_c45_wait_clear(phyaddr, 1, 0x0000, 1 << 15))
+		return -ETIMEDOUT;
 	printf("Done PMA/PMD SW Reset Copper\n");
 
 	/* Bit 15: PCS software reset */
 	reg_val = mdio_clause45_read(mac_base, phyaddr, 3, 0x0000);
 	reg_val |= (1 << 15);
 	mdio_clause45_write(mac_base, phyaddr, 3, 0x0000, reg_val);
-	while (reg_val & (1 << 15)) {
-		reg_val = mdio_clause45_read(mac_base, phyaddr, 3, 0x0000);
-		mdelay(100);
-	}
+	if (xgmii_c45_wait_clear(phyaddr, 3, 0x0000, 1 << 15))
+		return -ETIMEDOUT;
 	printf("Done PCS SW Reset Copper\n");
+	return 0;
 }
 /* Read the firmware revision */
 static inline int eth_read_fw_revision(u32 phyaddr)
@@ -792,6 +862,14 @@ void xgmii_enable_phy_loopback(u32 mac_base, u32 phyaddr)
 	printf("LB Setting");
 	mdelay(1000);
 	reg_val = mdio_clause45_read(mac_base, phyaddr, 3, 0x0000);
+}
+void xgmii_disable_phy_loopback(u32 mac_base, u32 phyaddr)
+{
+	u32 reg_val;
+
+	reg_val = mdio_clause45_read(mac_base, phyaddr, 3, 0x0000);
+	reg_val &= ~(1 << 14);
+	mdio_clause45_write(mac_base, phyaddr, 3, 0x0000, reg_val);
 }
 void mdio_phy_88e1512_packet_64bytes_gen(uint8_t mac_idx, uint8_t phy_addr, uint8_t reg){
     mdio_select_page(mac_idx, phy_addr, reg, 6); //select page 6

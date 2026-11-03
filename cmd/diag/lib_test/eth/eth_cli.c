@@ -14,27 +14,16 @@
 
 #define ETH_CLI_SGMII_PORTS	4
 #define ETH_CLI_RMII_PORTS	2
-/* SGMII link retries for one dropped frame before it counts as dropped */
+#define ETH_CLI_XGMII_PORTS	1
+#define ETH_XGMII_MAC_IDX	0
 #define ETH_TEST_LINK_RETRY	5
 
-/* ===================== Part 1: helper functions ===================== */
-
-/*
- * Send one frame and read it back into rxbuff. With link_retry, a drop
- * (RX timeout or wrong length) runs sgmii_link_try() and sends the same
- * frame again, up to ETH_TEST_LINK_RETRY times. Returns the RX length of
- * the last try, or < 0 on TX failure / RX timeout.
- */
 static int eth_test_xfer(u8 mac_idx, u16 pkt, unsigned char *txbuff,
 			 int frame_len, unsigned char *rxbuff, bool link_retry)
 {
 	int rx_len, retry;
 
 	for (retry = 0; ; retry++) {
-		/* debug: uncomment to dump the SGMII state per frame */
-		// printf("Auto-Neg status: 0x%x\n", readl(SGMII0_BASE + ((mac_idx - 1) * SGMII_CONFIG_RANGE) + 0x1bc4));
-		// printf("SGMII_CSR = 0x%x\n", readl(SGMII_CSR_BASE + (mac_idx - 1) * SGMII_CSR_OFFSET));
-		// printf("SGMII_MON = 0x%x\n", readl(SGMII_MON_BASE + (mac_idx - 1) * SGMII_MON_OFFSET) >> 16);
 		if (ax_hcp_send(txbuff, frame_len) != frame_len) {
 			printf("frame length mismatch\n");
 			return -1;
@@ -42,7 +31,7 @@ static int eth_test_xfer(u8 mac_idx, u16 pkt, unsigned char *txbuff,
 		rx_len = ax_hcp_recv(mac_idx, rxbuff,
 				     ETH_TEST_TRAFFIC_MAX_BUFFER);
 		if (rx_len == frame_len || !link_retry ||
-   retry == ETH_TEST_LINK_RETRY)
+		    retry == ETH_TEST_LINK_RETRY)
 			return rx_len;
 
 		printf("Packet %d dropped, link retry %d/%d\n", pkt, retry + 1,
@@ -128,7 +117,6 @@ static int generate_ethernet_ctrlframe_packet(unsigned char *tx_buffer,
 	return payload_len + ETH_PF_HEADER_SIZE;
 }
 
-/* Same traffic loop as eth_test_traffic(), but with a MAC control frame */
 static int eth_test_traffic_ctrl_frame(u8 mac_idx, u16 pkt_cnt)
 {
 	int frame_len;
@@ -145,7 +133,6 @@ static int eth_test_traffic_ctrl_frame(u8 mac_idx, u16 pkt_cnt)
 				      false);
 }
 
-/* Send only, nothing is read back: the MAC drop counters are checked after */
 static int eth_test_traffic_drop_events(u8 mac_idx, u16 pkt_cnt,
 					unsigned char *dest_mac)
 {
@@ -161,10 +148,6 @@ static int eth_test_traffic_drop_events(u8 mac_idx, u16 pkt_cnt,
 
 	for (i = 0; i < pkt_cnt; i++) {
 		status = 0;
-		/* debug: uncomment to dump the SGMII state per frame */
-		// printf("Auto-Neg status: 0x%x\n", readl(SGMII0_BASE + ((mac_idx - 1) * SGMII_CONFIG_RANGE) + 0x1bc4));
-		// printf("SGMII_CSR = 0x%x\n", readl(SGMII_CSR_BASE + (mac_idx - 1) * SGMII_CSR_OFFSET));
-		// printf("SGMII_MON = 0x%x\n", readl(SGMII_MON_BASE + (mac_idx - 1) * SGMII_MON_OFFSET) >> 16);
 		ax_hcp_send(txbuff, frame_len);
 	}
 	return status;
@@ -184,14 +167,11 @@ static int eth_test_traffic_rmii(u8 mac_idx, u16 pkt_cnt,
 				      false);
 }
 
-/* Common failure exit of every test: tear the link down, report failure */
 static int eth_test_fail(u8 mac_idx)
 {
 	ax_hcp_stop_link_up(mac_idx);
 	return CMD_RET_FAILURE;
 }
-
-/* ======================== Part 2: test cases ======================== */
 
 static int eth_mac_internal_lb(u8 mac_idx)
 {
@@ -201,7 +181,7 @@ static int eth_mac_internal_lb(u8 mac_idx)
 
 	printf("Start Init: Port: %d\n", mac_idx - 1);
 
-	if (ax_hcp_mac_init(mac_idx) < 0) {
+	if (ax_hcp_mac_init(mac_idx, AX_ETH_1G) < 0) {
 		printf("MAC init failed\n");
 		return eth_test_fail(mac_idx);
 	}
@@ -224,8 +204,13 @@ static int eth_mac_external_lb(u8 mac_idx, u8 phyaddr,
 	u8 retry = 3;
 	unsigned char dest_mac[ETH_TEST_MAC_SIZE] = { 0x01, 0xaa, 0xaa,
 						      0xaa, 0xaa, 0xaa };
+	bool marvell_lb = reg == MARVELL_PHY &&
+			  opt.eth_run_test_ops == EXTERNAL_PHY_LOOPBACK;
 
-	mdio_setup_realtek_phy_autoneg(mac_idx);
+	if (marvell_lb)
+		mdio_disable_sgmii_autoneg(mac_idx);
+	else
+		mdio_setup_realtek_phy_autoneg(mac_idx);
 	if (reg == REALTEK_PHY ||
 	    opt.eth_run_test_ops == EXTERNAL_PHY_RJ45_LOOPBACK) {
 		ret = wait_auto_neg_comple(mac_idx, phyaddr, reg);
@@ -234,7 +219,14 @@ static int eth_mac_external_lb(u8 mac_idx, u8 phyaddr,
 	}
 	printf("Start Init: Port: %d\n", mac_idx - 1);
 
-	ax_hcp_mac_init(mac_idx);
+	ax_hcp_mac_init(mac_idx, AX_ETH_1G);
+	if (marvell_lb) {
+		ax_hcp_start_link_up(mac_idx);
+		ret = eth_test_traffic(mac_idx, ETH_TEST_DFLT_FRAMES, dest_mac,
+				       false);
+		eth_print_mac_counters(mac_idx);
+		return ret;
+	}
 try_again:
 	ret = ax_hcp_start_link_up(mac_idx);
 	if (ret) {
@@ -261,7 +253,8 @@ static int eth_sgmii_external_phy_lb(u8 mac_idx)
 	int ret;
 	struct ax_phy_info info;
 
-	ret = ax_hcp_phy_init(mac_idx, EXTERNAL_PHY_LOOPBACK, &info);
+	ret = ax_hcp_phy_init(mac_idx, EXTERNAL_PHY_LOOPBACK, &info,
+			      AX_ETH_1G);
 	if (ret < 0 || info.phy_type == UNKNOWNED_PHY) {
 		printf("External PHY init failed: %d\n", ret);
 		return eth_test_fail(mac_idx);
@@ -283,7 +276,8 @@ static int eth_sgmii_rj45_lb(u8 mac_idx)
 	int ret;
 	struct ax_phy_info info;
 
-	ret = ax_hcp_phy_init(mac_idx, EXTERNAL_PHY_RJ45_LOOPBACK, &info);
+	ret = ax_hcp_phy_init(mac_idx, EXTERNAL_PHY_RJ45_LOOPBACK, &info,
+			      AX_ETH_1G);
 	if (ret < 0 || info.phy_type == UNKNOWNED_PHY) {
 		printf("External PHY init failed: %d\n", ret);
 		return eth_test_fail(mac_idx);
@@ -305,34 +299,89 @@ static int eth_sgmii_rj45_lb(u8 mac_idx)
 	return CMD_RET_FAILURE;
 }
 
-static int eth_rmii_internal_lb(u8 mac_idx)
+static int eth_rmii_external_lb(u8 mac_idx)
 {
 	int ret;
-	u8 rmii_mode = 1;
-	u32 mac_base = XGMII_MAC_BASE + (mac_idx * MAC_CONFIG_BYTE_CNT);
 	unsigned char dest_mac[ETH_TEST_MAC_SIZE] = { 0x00, 0x00, 0x00,
 						      0x00, 0x00, 0x00 };
 
 	printf("Start Init: RMII Port: %d\n", mac_idx - 1);
-	mdelay(1000);
-	eth_setup_gpio_rmii();
-	mdelay(50);
-	ax_hcp_mac_init(mac_idx);
-	writel(MAC_MII_IF_MODE_VAL, mac_base + R_IF_MODE);	/* GMII -> MII */
-	eth_enable_gmii_ncsi(mac_idx, rmii_mode);
+	ret = ax_hcp_phy_init(mac_idx, EXTERNAL_PHY_LOOPBACK, NULL,
+			      AX_ETH_100M);
+	if (ret < 0)
+		return CMD_RET_FAILURE;
+
+	ax_hcp_mac_init(mac_idx, AX_ETH_100M);
+	ax_hcp_start_link_up(mac_idx);
+	mdelay(100);
 	ret = eth_test_traffic_rmii(mac_idx, ETH_TEST_DFLT_FRAMES, dest_mac);
 	eth_print_mac_counters(mac_idx);
+
 	ax_hcp_stop_link_up(mac_idx);
 
 	if (ret) {
-		printf("RMII Loopback init successed: %d\n", ret);
+		printf("RMII External Loopback init successed: %d\n", ret);
 		return CMD_RET_SUCCESS;
 	}
-	printf("RMII Loopback init failed: %d\n", ret);
+	printf("RMII External Loopback init failed: %d\n", ret);
 	return CMD_RET_FAILURE;
 }
 
-/* Resolve ip_str with ARP, then send count ICMP echo requests to it. */
+static int eth_xgmii_internal_lb(u8 port)
+{
+	int ret;
+	unsigned char dest_mac[ETH_TEST_MAC_SIZE] = { 0x01, 0xaa, 0xaa,
+						      0xaa, 0xaa, 0xaa };
+
+	printf("Start Init: XGMII Port: %d\n", port - 1);
+	ax_hcp_mac_init(ETH_XGMII_MAC_IDX, AX_ETH_10G);
+	ax_hcp_start_link_up(ETH_XGMII_MAC_IDX);
+	xgmii_enable_near_loopback();
+	mdelay(100);
+
+	ret = eth_test_traffic(ETH_XGMII_MAC_IDX, ETH_TEST_DFLT_FRAMES,
+			       dest_mac, false);
+	eth_print_mac_counters(ETH_XGMII_MAC_IDX);
+
+	ax_hcp_stop_link_up(ETH_XGMII_MAC_IDX);
+
+	if (ret) {
+		printf("XGMII Internal Loopback passed\n");
+		return CMD_RET_SUCCESS;
+	}
+	printf("XGMII Internal Loopback failed\n");
+	return CMD_RET_FAILURE;
+}
+
+static int eth_xgmii_external_lb(u8 port)
+{
+	int ret;
+	unsigned char dest_mac[ETH_TEST_MAC_SIZE] = { 0x01, 0xaa, 0xaa,
+						      0xaa, 0xaa, 0xaa };
+
+	printf("Start Init: XGMII Port: %d\n", port - 1);
+	ret = ax_hcp_phy_init(ETH_XGMII_MAC_IDX, EXTERNAL_PHY_LOOPBACK, NULL,
+			      AX_ETH_10G);
+	if (ret < 0)
+		return CMD_RET_FAILURE;
+
+	ax_hcp_mac_init(ETH_XGMII_MAC_IDX, AX_ETH_10G);
+	ax_hcp_start_link_up(ETH_XGMII_MAC_IDX);
+
+	ret = eth_test_traffic(ETH_XGMII_MAC_IDX, ETH_TEST_DFLT_FRAMES,
+			       dest_mac, false);
+	eth_print_mac_counters(ETH_XGMII_MAC_IDX);
+
+	ax_hcp_stop_link_up(ETH_XGMII_MAC_IDX);
+
+	if (ret) {
+		printf("XGMII External Loopback passed\n");
+		return CMD_RET_SUCCESS;
+	}
+	printf("XGMII External Loopback failed\n");
+	return CMD_RET_FAILURE;
+}
+
 static int eth_sgmii_ping(u8 mac_idx, const char *ip_str, int count)
 {
 	struct eth_net n;
@@ -369,7 +418,6 @@ static int eth_sgmii_ping(u8 mac_idx, const char *ip_str, int count)
 	return ret;
 }
 
-/* Answer ARP requests and ICMP echo requests until Ctrl+C. */
 static int eth_sgmii_recv(u8 mac_idx)
 {
 	struct eth_net n;
@@ -397,7 +445,6 @@ static int eth_sgmii_recv(u8 mac_idx)
 	return CMD_RET_SUCCESS;
 }
 
-/* Send frames back to back for seconds and print the TX speed. */
 static int eth_sgmii_speed(u8 mac_idx, int seconds)
 {
 	struct eth_net n;
@@ -416,8 +463,7 @@ static int eth_sgmii_speed(u8 mac_idx, int seconds)
 	return ret;
 }
 
-#if 0	/* p2p: currently broken, disabled until fixed */
-/* Ping from src_mac to dst_mac of this board, needs a cable between them */
+#if 0
 static int eth_sgmii_p2p(u8 src_mac, u8 dst_mac, int count)
 {
 	struct eth_net src, dst;
@@ -450,8 +496,6 @@ static int eth_sgmii_p2p(u8 src_mac, u8 dst_mac, int count)
 }
 #endif
 
-/* ========================= Part 3: monitors ========================= */
-
 static int eth_mac_auto_neg_mon(u8 mac_idx)
 {
 	u32 test_result = 1;
@@ -460,7 +504,7 @@ static int eth_mac_auto_neg_mon(u8 mac_idx)
 	       mac_idx - 1);
 	auto_neg_mon_clear_bit(mac_idx);
 	printf("Start Init: Port: %d\n", mac_idx - 1);
-	if (ax_hcp_mac_init(mac_idx) < 0) {
+	if (ax_hcp_mac_init(mac_idx, AX_ETH_1G) < 0) {
 		printf("MAC init failed\n");
 		return eth_test_fail(mac_idx);
 	}
@@ -480,7 +524,7 @@ static int eth_mac_ge_mon(u8 mac_idx)
 	printf("======== SGMII %d - GE MON TEST =========\n", mac_idx - 1);
 	ge_mon_clear_bit(mac_idx);
 	printf("Start Init: Port: %d\n", mac_idx - 1);
-	if (ax_hcp_mac_init(mac_idx) < 0) {
+	if (ax_hcp_mac_init(mac_idx, AX_ETH_1G) < 0) {
 		printf("MAC init failed\n");
 		return eth_test_fail(mac_idx);
 	}
@@ -502,7 +546,7 @@ static int eth_broadcast_frame(u8 mac_idx)
 	printf("======== SGMII %d - BROADCAST FRAME TEST =========\n",
 	       mac_idx - 1);
 	printf("Start Init: Port: %d\n", mac_idx - 1);
-	if (ax_hcp_mac_init(mac_idx) < 0) {
+	if (ax_hcp_mac_init(mac_idx, AX_ETH_1G) < 0) {
 		printf("MAC init failed\n");
 		return eth_test_fail(mac_idx);
 	}
@@ -522,7 +566,7 @@ static int eth_crc_fwd(u8 mac_idx)
 	printf("======== SGMII %d - CRC FORWARDING TEST =========\n",
 	       mac_idx - 1);
 	printf("Start Init: Port: %d\n", mac_idx - 1);
-	if (ax_hcp_mac_init(mac_idx) < 0) {
+	if (ax_hcp_mac_init(mac_idx, AX_ETH_1G) < 0) {
 		printf("MAC init failed\n");
 		return eth_test_fail(mac_idx);
 	}
@@ -544,17 +588,13 @@ static int eth_ctrl_frame_enable(u8 mac_idx)
 	       mac_idx - 1);
 	printf("Start Init: Port: %d\n", mac_idx - 1);
 
-	/* Traffic goes MAC -> SGMII -> external PHY (PHY-side loopback) -> back */
-	ret = ax_hcp_phy_init(mac_idx, EXTERNAL_PHY_LOOPBACK, &info);
+	ret = ax_hcp_phy_init(mac_idx, EXTERNAL_PHY_LOOPBACK, &info,
+			      AX_ETH_1G);
 	if (ret < 0 || info.phy_type == UNKNOWNED_PHY) {
 		printf("External PHY init failed: %d\n", ret);
 		return eth_test_fail(mac_idx);
 	}
-	ax_hcp_mac_init(mac_idx);
-	/*
-	 * Forward control frames to the host instead of consuming them in MAC
-	 * (mac_init_1g() already sets PAUSE_FWD, kept here to be explicit)
-	 */
+	ax_hcp_mac_init(mac_idx, AX_ETH_1G);
 	writel(readl(mac_base + R_COMMAND_CONFIG) | MAC_CC_PAUSE_FWD,
 	       mac_base + R_COMMAND_CONFIG);
 	if (ax_hcp_start_link_up(mac_idx)) {
@@ -581,7 +621,7 @@ static int eth_drop_events(u8 mac_idx)
 
 	printf("======== SGMII %d - DROP EVENTS TEST =========\n", mac_idx - 1);
 	printf("Start Init: Port: %d\n", mac_idx - 1);
-	if (ax_hcp_mac_init(mac_idx) < 0) {
+	if (ax_hcp_mac_init(mac_idx, AX_ETH_1G) < 0) {
 		printf("MAC init failed\n");
 		return eth_test_fail(mac_idx);
 	}
@@ -604,8 +644,9 @@ static int eth_mac_fragments_packet(u8 mac_idx)
 	       mac_idx - 1);
 	printf("Start Init: Port: %d\n", mac_idx - 1);
 
-	ax_hcp_mac_init(mac_idx);
-	ret = ax_hcp_phy_init(mac_idx, EXTERNAL_PHY_COPPER, &info);
+	ax_hcp_mac_init(mac_idx, AX_ETH_1G);
+	ret = ax_hcp_phy_init(mac_idx, EXTERNAL_PHY_COPPER, &info,
+			      AX_ETH_1G);
 	printf("DUT PHY: phyaddr %d, phy_type %d\n", info.phyaddr,
 	       info.phy_type);
 	if (ret < 0 || info.phy_type == UNKNOWNED_PHY) {
@@ -620,13 +661,15 @@ static int eth_mac_fragments_packet(u8 mac_idx)
 			return eth_test_fail(mac_idx);
 		}
 		printf("Retry Init MAC - PHY: %d\n", retry);
-		ax_hcp_phy_init(mac_idx, EXTERNAL_PHY_COPPER, &info);
-		ax_hcp_mac_init(mac_idx);
+		ax_hcp_phy_init(mac_idx, EXTERNAL_PHY_COPPER, &info,
+				AX_ETH_1G);
+		ax_hcp_mac_init(mac_idx, AX_ETH_1G);
 		mac_cfg_jabber_packet(mac_idx);
 	}
 	printf("Internal PHY - Link Up!\n");
 	mdelay(700);
-	ret = ax_hcp_phy_init(4, EXTERNAL_PHY_COPPER, &gen_info);
+	ret = ax_hcp_phy_init(4, EXTERNAL_PHY_COPPER, &gen_info,
+			      AX_ETH_1G);
 	printf("Generator PHY: phyaddr %d, phy_type %d\n",
 	       gen_info.phyaddr, gen_info.phy_type);
 	if (gen_info.phy_type != MARVELL_PHY) {
@@ -659,14 +702,15 @@ static int eth_mac_hpi_mon(u8 mac_idx)
 
 	printf("======== SGMII %d - HPI MON TEST =========\n", mac_idx - 1);
 	printf("Start Init: Port: %d\n", mac_idx - 1);
-	phy = ax_hcp_phy_init(mac_idx, EXTERNAL_PHY_LOOPBACK, &info);
+	phy = ax_hcp_phy_init(mac_idx, EXTERNAL_PHY_LOOPBACK, &info,
+			      AX_ETH_1G);
 	printf("DUT PHY: phyaddr %d, phy_type %d\n", info.phyaddr,
 	       info.phy_type);
 	if (phy < 0 || info.phy_type == UNKNOWNED_PHY) {
 		printf("External PHY init failed: %d\n", phy);
 		return eth_test_fail(mac_idx);
 	}
-	ret = ax_hcp_mac_init(mac_idx);
+	ret = ax_hcp_mac_init(mac_idx, AX_ETH_1G);
 	if (ret < 0) {
 		printf("MAC init failed: %d\n", ret);
 		return eth_test_fail(mac_idx);
@@ -697,14 +741,11 @@ static int eth_mac_hpi_mon(u8 mac_idx)
 	return test_result ? CMD_RET_SUCCESS : CMD_RET_FAILURE;
 }
 
-/* ================= Part 4: commands, log and results ================= */
-
 struct udiag_log {
 	int result;
 	char test_name[64];
 };
 
-/* One "ax_eth <rmii|sgmii> <cmd> <port|all>" entry; run() takes port + 1 */
 struct eth_cli_test {
 	const char *cmd;
 	const char *name;
@@ -712,7 +753,12 @@ struct eth_cli_test {
 };
 
 static const struct eth_cli_test eth_rmii_tests[] = {
-	{ "internal",	"Internal",		eth_rmii_internal_lb },
+	{ "external",	"External",		eth_rmii_external_lb },
+};
+
+static const struct eth_cli_test eth_xgmii_tests[] = {
+	{ "internal",	"Internal",		eth_xgmii_internal_lb },
+	{ "external",	"External",		eth_xgmii_external_lb },
 };
 
 static const struct eth_cli_test eth_sgmii_tests[] = {
@@ -743,7 +789,6 @@ static const struct eth_cli_test *eth_find_test(const struct eth_cli_test *tbl,
 	return NULL;
 }
 
-/* Decimal number in [min, max]; returns 0 or -EINVAL */
 static int eth_parse_ulong(const char *str, ulong min, ulong max, ulong *val)
 {
 	char *endp;
@@ -777,10 +822,6 @@ static int eth_print_summary(const char *title, struct udiag_log *log,
 	return overall;
 }
 
-/*
- * Run t on port_str, or on ports 0..nports-1 in turn for "all", then print
- * the summary. log_fmt takes (port, t->name), title_fmt takes t->name.
- */
 static int eth_run_ports(const struct eth_cli_test *t, const char *port_str,
 			 int nports, const char *log_fmt,
 			 const char *title_fmt)
@@ -807,9 +848,6 @@ static int eth_run_ports(const struct eth_cli_test *t, const char *port_str,
 	return eth_print_summary(title, log, total);
 }
 
-/*
- * ax_eth rmii internal <0|1|all>: RMII0 is MAC-1, RMII1 is MAC-2
- */
 static int eth_cmd_rmii(struct cmd_tbl *cmdtp, int flag,
 			int argc, char *const argv[])
 {
@@ -823,27 +861,57 @@ static int eth_cmd_rmii(struct cmd_tbl *cmdtp, int flag,
 			     "RMII_%d %s Loopback test", "ETH RMII %s Loopback");
 }
 
-/*
- * ax_eth sgmii ping <port> <ip> [count]
- */
+static int eth_cmd_xgmii(struct cmd_tbl *cmdtp, int flag,
+			 int argc, char *const argv[])
+{
+	const struct eth_cli_test *testcase;
+
+	testcase = eth_find_test(eth_xgmii_tests, ARRAY_SIZE(eth_xgmii_tests),
+				 argv[1]);
+	if (!testcase || !strcmp(argv[2], "all"))
+		return CMD_RET_USAGE;
+
+	return eth_run_ports(testcase, argv[2], ETH_CLI_XGMII_PORTS,
+			     "XGMII_%d %s Loopback test",
+			     "ETH XGMII %s Loopback");
+}
+
 static int eth_cmd_ping(struct cmd_tbl *cmdtp, int flag,
 			int argc, char *const argv[])
 {
-	ulong port, count = 4;
+	struct udiag_log log[ETH_CLI_SGMII_PORTS];
+	ulong port = 0, count = 4;
+	int total = 1;
+	int i;
 
 	if (argc != 3 && argc != 4)
 		return CMD_RET_USAGE;
-	if (eth_parse_ulong(argv[1], 0, ETH_CLI_SGMII_PORTS - 1, &port))
+	if (!strcmp(argv[1], "all"))
+		total = ETH_CLI_SGMII_PORTS;
+	else if (eth_parse_ulong(argv[1], 0, ETH_CLI_SGMII_PORTS - 1, &port))
 		return CMD_RET_USAGE;
 	if (argc == 4 && eth_parse_ulong(argv[3], 1, ULONG_MAX, &count))
 		return CMD_RET_USAGE;
 
-	return eth_sgmii_ping(port + 1, argv[2], count);
+	clear_ctrlc();
+	for (i = 0; i < total; i++, port++) {
+		log[i].result = eth_sgmii_ping(port + 1, argv[2], count);
+		if (log[i].result == CMD_RET_USAGE)
+			return CMD_RET_USAGE;
+		snprintf(log[i].test_name, sizeof(log[i].test_name),
+			 "SGMII_%lu ping %s", port, argv[2]);
+		if (had_ctrlc()) {
+			total = i + 1;
+			break;
+		}
+		if (total > 1)
+			mdelay(1000);
+	}
+	clear_ctrlc();
+
+	return eth_print_summary("ETH SGMII Ping", log, total);
 }
 
-/*
- * ax_eth sgmii recv <port>
- */
 static int eth_cmd_recv(struct cmd_tbl *cmdtp, int flag,
 			int argc, char *const argv[])
 {
@@ -857,9 +925,6 @@ static int eth_cmd_recv(struct cmd_tbl *cmdtp, int flag,
 	return eth_sgmii_recv(port + 1);
 }
 
-/*
- * ax_eth sgmii speed <port> <seconds>: TX only
- */
 static int eth_cmd_speed(struct cmd_tbl *cmdtp, int flag,
 			 int argc, char *const argv[])
 {
@@ -875,10 +940,7 @@ static int eth_cmd_speed(struct cmd_tbl *cmdtp, int flag,
 	return eth_sgmii_speed(port + 1, seconds);
 }
 
-#if 0	/* p2p: currently broken, disabled until fixed */
-/*
- * ax_eth sgmii p2p <src port> <dst port|all> [count]
- */
+#if 0
 static int eth_cmd_p2p(struct cmd_tbl *cmdtp, int flag,
 		       int argc, char *const argv[])
 {
@@ -900,7 +962,6 @@ static int eth_cmd_p2p(struct cmd_tbl *cmdtp, int flag,
 		return eth_sgmii_p2p(src + 1, dst + 1, count);
 	}
 
-	/* src port to every other port, one pair after the other */
 	for (dst = 0; dst < ETH_CLI_SGMII_PORTS; dst++) {
 		if (dst == src)
 			continue;
@@ -915,10 +976,6 @@ static int eth_cmd_p2p(struct cmd_tbl *cmdtp, int flag,
 }
 #endif
 
-/*
- * ax_eth sgmii <test|monitor> <port|all>
- * ax_eth sgmii ping|recv|speed ...
- */
 static int eth_cmd_sgmii(struct cmd_tbl *cmdtp, int flag,
 			 int argc, char *const argv[])
 {
@@ -933,7 +990,7 @@ static int eth_cmd_sgmii(struct cmd_tbl *cmdtp, int flag,
 	if (!strcmp(argv[1], "speed"))
 		return eth_cmd_speed(cmdtp, flag, argc - 1, &argv[1]);
 
-#if 0	/* p2p: currently broken, disabled until fixed */
+#if 0
 	if (!strcmp(argv[1], "p2p"))
 		return eth_cmd_p2p(cmdtp, flag, argc - 1, &argv[1]);
 #endif
@@ -967,6 +1024,9 @@ static int do_ax_eth(struct cmd_tbl *cmdtp, int flag,
 	if (!strcmp(argv[1], "sgmii"))
 		return eth_cmd_sgmii(cmdtp, flag, argc - 1, &argv[1]);
 
+	if (!strcmp(argv[1], "xgmii"))
+		return eth_cmd_xgmii(cmdtp, flag, argc - 1, &argv[1]);
+
 	return CMD_RET_USAGE;
 }
 
@@ -983,9 +1043,13 @@ U_BOOT_CMD(
 	"    - External PHY loopback test (auto-detect Realtek/Marvell PHY)\n"
 	"ax_eth sgmii rj45 <port|all>\n"
 	"    - RJ45 loopback test (requires RJ45 loopback plug)\n"
-	"ax_eth rmii internal <0|1|all>\n"
-	"    - RMII loopback test (RMII0 = MAC-1, RMII1 = MAC-2)\n"
-	"ax_eth sgmii ping <port> <ip> [count]\n"
+	"ax_eth rmii external <0|1|all>\n"
+	"    - RMII external PHY MII loopback test (RMII0 = MAC-1, RMII1 = MAC-2)\n"
+	"ax_eth xgmii internal 0\n"
+	"    - XGMII (10G) RXAUI SerDes near-end loopback test\n"
+	"ax_eth xgmii external 0\n"
+	"    - XGMII (10G) external PHY PCS loopback test (Clause 45)\n"
+	"ax_eth sgmii ping <port|all> <ip> [count]\n"
 	"    - ARP + ICMP echo to <ip> (default 4 times), no U-Boot net stack;\n"
 	"      <ip> outside the subnet goes through the gateway\n"
 	"ax_eth sgmii recv <port>\n"
@@ -993,12 +1057,6 @@ U_BOOT_CMD(
 	"ax_eth sgmii speed <port> <seconds>\n"
 	"    - Send raw broadcast frames for <seconds> and print the TX\n"
 	"      speed (bytes * 8 / time), needs a link partner on the port\n"
-	/* p2p: currently broken, disabled until fixed
-	"ax_eth sgmii p2p <src port> <dst port|all> [count]\n"
-	"    - Ping from one port to another port of this board (default 4\n"
-	"      times); needs a cable between the two ports\n"
-	"      all: to every other port in turn, all 4 ports on one switch\n"
-	*/
 	"    (ping/recv: MAC/IP/gateway are per port, set in eth_net.h\n"
 	"     as eth_net_port0_cfg..eth_net_port3_cfg)\n"
 	"Monitors:\n"

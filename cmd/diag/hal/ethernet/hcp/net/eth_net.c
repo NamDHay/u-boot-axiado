@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
- * Minimal ARP / IPv4 / ICMP echo on top of the diag HCP HAL
- * (ax_hcp_send / ax_hcp_recv). It does not use U-Boot's net/ stack or the
+ * Minimal ARP / IPv4 / ICMP echo on top of the diag ethernet HAL
+ * (ax_net.h, backed by hcp_eth_ops). It does not use U-Boot's net/ stack or the
  * DM ethernet driver: frames are built and parsed here and pushed through
  * the host packet FIFO directly.
  *
@@ -32,7 +32,6 @@
 #define ETH_NET_SPEED_REPORT_MS	1000
 
 static u8 eth_net_txbuf[ETH_NET_BUF_SIZE] __aligned(4);
-static u8 eth_net_rxbuf[ETH_NET_BUF_SIZE] __aligned(4);
 /* speed test frame, built once and resent */
 static u8 eth_net_speedbuf[ETH_NET_BUF_SIZE] __aligned(4);
 
@@ -54,9 +53,12 @@ void eth_net_init(struct eth_net *n, u8 mac_idx)
 
 	memset(n, 0, sizeof(*n));
 	n->mac_idx = mac_idx;
+	n->dev.ops = &hcp_eth_ops;
+	n->dev.port = mac_idx - 1;
 
 	/* per-port identity from eth_net.h; the env is not used */
 	memcpy(n->mac, cfg->mac, ARP_HLEN);
+	memcpy(n->dev.enetaddr, cfg->mac, ARP_HLEN);
 	n->ip = string_to_ip(cfg->ip);
 	n->netmask = string_to_ip(cfg->netmask);
 	n->gw = string_to_ip(cfg->gw);
@@ -65,29 +67,12 @@ void eth_net_init(struct eth_net *n, u8 mac_idx)
 /* Link bring-up: copper AN on the external PHY, then SGMII */
 int eth_net_link_up(u8 mac_idx)
 {
-	struct ax_phy_info info;
-	u8 retry = 3;
-	int ret;
+	struct net_dev dev = {
+		.ops = &hcp_eth_ops,
+		.port = mac_idx - 1,
+	};
 
-	ret = ax_hcp_phy_init(mac_idx, EXTERNAL_PHY_COPPER, &info);
-	if (ret != 1 || info.phy_type == UNKNOWNED_PHY) {
-		printf("External PHY copper link down: %d\n", ret);
-		return -ENOLINK;
-	}
-
-	mdio_setup_realtek_phy_autoneg(mac_idx);
-	ax_hcp_mac_init(mac_idx);
-	while ((ret = ax_hcp_start_link_up(mac_idx)) && --retry) {
-		printf("Internal PHY - Link Retry! %d\n", retry);
-		sgmii_link_try(mac_idx);
-	}
-	if (ret) {
-		printf("Internal PHY - Link Down! (%d)\n", ret);
-		return ret;
-	}
-	printf("Internal PHY - Link Up!\n");
-
-	return 0;
+	return ax_eth_start(&dev);
 }
 
 /* two-port mode (p2p, disabled): mac_idx the host RX FIFO last pointed at */
@@ -136,7 +121,7 @@ static int eth_net_xmit(struct eth_net *n, const u8 *dst, u16 proto,
 	if (n->other)
 		eth_net_route(n);
 
-	return ax_hcp_send(eth_net_txbuf, len) == len ? 0 : -EIO;
+	return ax_eth_send(&n->dev, eth_net_txbuf, len) ? -EIO : 0;
 }
 
 /* tha is ignored for a request (target MAC is unknown) */
@@ -280,11 +265,67 @@ static void eth_net_rx_ip(struct eth_net *n, struct ethernet_hdr *et,
 	}
 }
 
+static void eth_net_dbg_record(struct eth_net *n, struct ethernet_hdr *et,
+			       u8 *payload, int len)
+{
+	struct eth_net_dbg_frame *f;
+	struct ip_hdr *ip = (struct ip_hdr *)payload;
+	struct icmp_hdr *icmp;
+
+	n->rx_frames++;
+	if (n->dbg_cnt >= ETH_NET_DBG_FRAMES)
+		return;
+
+	f = &n->dbg[n->dbg_cnt++];
+	memset(f, 0, sizeof(*f));
+	memcpy(f->src, et->et_src, ARP_HLEN);
+	f->type = ntohs(et->et_protlen);
+	if (f->type != PROT_IP || len < IP_HDR_SIZE)
+		return;
+
+	f->proto = ip->ip_p;
+	f->ip_src = ip->ip_src;
+	if (f->proto != IPPROTO_ICMP || len < IP_ICMP_HDR_SIZE)
+		return;
+
+	icmp = (struct icmp_hdr *)(payload + IP_HDR_SIZE);
+	f->icmp_type = icmp->type;
+	f->icmp_id = ntohs(icmp->un.echo.id);
+	f->icmp_seq = ntohs(icmp->un.echo.sequence);
+}
+
+static void eth_net_dbg_print(struct eth_net *n, u32 mac_good, u32 sw_frames)
+{
+	struct eth_net_dbg_frame *f;
+	int i;
+
+	printf("  dbg: MAC RX good +%u, read by sw +%u, RX_FIFO_0=0x%x, RX_FIFO_1=0x%x\n",
+	       AX_READ_MAC_REG32(n->mac_idx, SHIM_STATS_RX_MAC_GOOD) - mac_good,
+	       n->rx_frames - sw_frames,
+	       readl(AXILS_HCP_BASE + RX_PACKET_FIFO_0),
+	       readl(AXILS_HCP_BASE + RX_PACKET_FIFO_1));
+
+	for (i = 0; i < n->dbg_cnt; i++) {
+		f = &n->dbg[i];
+		printf("  dbg: frame %d: %pM type 0x%04x", i + 1, f->src, f->type);
+		if (f->type == PROT_IP)
+			printf(" proto %u src %pI4", f->proto, &f->ip_src);
+		if (f->type == PROT_IP && f->proto == IPPROTO_ICMP)
+			printf(" icmp type %u id 0x%04x seq %u", f->icmp_type,
+			       f->icmp_id, f->icmp_seq);
+		printf("\n");
+	}
+	if (n->rx_frames - sw_frames > n->dbg_cnt)
+		printf("  dbg: +%u frame(s) not shown\n",
+		       n->rx_frames - sw_frames - n->dbg_cnt);
+}
+
 /* Receive and handle at most one frame. */
 void eth_net_service(struct eth_net *n)
 {
-	struct ethernet_hdr *et = (struct ethernet_hdr *)eth_net_rxbuf;
-	u8 *payload = eth_net_rxbuf + ETHER_HDR_SIZE;
+	struct ethernet_hdr *et;
+	uchar *pkt;
+	u8 *payload;
 	int len;
 
 	/* p2p: the frame belongs to the port the RX FIFO listens to */
@@ -297,19 +338,25 @@ void eth_net_service(struct eth_net *n)
 	/* timestamp the frame as soon as DAV is seen, before hcp_recv() */
 	n->rx_us = timer_get_us();
 
-	len = ax_hcp_recv(n->mac_idx, eth_net_rxbuf, sizeof(eth_net_rxbuf));
-	if (len <= ETHER_HDR_SIZE)
+	len = ax_eth_recv(&n->dev, 0, &pkt);
+	if (len <= (int)ETHER_HDR_SIZE)
 		return;
-	len -= ETHER_HDR_SIZE;
+	et = (struct ethernet_hdr *)pkt;
+	payload = pkt + ETHER_HDR_SIZE;
+	eth_net_dbg_record(n, et, payload, len - ETHER_HDR_SIZE);
 
 	switch (ntohs(et->et_protlen)) {
 	case PROT_ARP:
-		eth_net_rx_arp(n, (struct arp_hdr *)payload, len);
+		eth_net_rx_arp(n, (struct arp_hdr *)payload,
+			       len - ETHER_HDR_SIZE);
 		break;
 	case PROT_IP:
-		eth_net_rx_ip(n, et, (struct ip_hdr *)payload, len);
+		eth_net_rx_ip(n, et, (struct ip_hdr *)payload,
+			      len - ETHER_HDR_SIZE);
 		break;
 	}
+
+	ax_eth_free_pkt(&n->dev, pkt, len);
 }
 
 static int eth_net_arp_resolve(struct eth_net *n)
@@ -339,6 +386,7 @@ int eth_net_run_ping(struct eth_net *n, int count)
 	u8 data[ETH_NET_PING_DATA_LEN];
 	int seq, sent = 0, received = 0;
 	ulong start, tx_us, rtt, rtt_min = 0, rtt_max = 0, rtt_sum = 0;
+	u32 dbg_mac_good, dbg_sw_frames;
 	int ret, i;
 
 	for (i = 0; i < ETH_NET_PING_DATA_LEN; i++)
@@ -353,6 +401,9 @@ int eth_net_run_ping(struct eth_net *n, int count)
 
 	for (seq = 1; seq <= count; seq++) {
 		n->reply_seen = false;
+		n->dbg_cnt = 0;
+		dbg_mac_good = AX_READ_MAC_REG32(n->mac_idx, SHIM_STATS_RX_MAC_GOOD);
+		dbg_sw_frames = n->rx_frames;
 		start = get_timer(0);
 		ret = eth_net_send_icmp(n, n->peer_mac, n->peer_ip,
 					ICMP_ECHO_REQUEST,
@@ -386,6 +437,7 @@ int eth_net_run_ping(struct eth_net *n, int count)
 			       seq, n->reply_ttl, rtt / 1000, (rtt % 1000) / 10);
 		} else {
 			printf("Request timeout for icmp_seq=%d\n", seq);
+			eth_net_dbg_print(n, dbg_mac_good, dbg_sw_frames);
 		}
 
 		/* keep answering ARP/ping from the peer between requests */
@@ -472,7 +524,7 @@ int eth_net_run_speed(struct eth_net *n, int seconds)
 		/* ctrlc() polls the UART, too slow to call per frame */
 		if (!(sent % ETH_NET_SPEED_CTRLC_PERIOD) && ctrlc())
 			break;
-		if (ax_hcp_send(eth_net_speedbuf, frame_len) != frame_len) {
+		if (ax_eth_send(&n->dev, eth_net_speedbuf, frame_len)) {
 			printf("Send failed at frame %u\n", sent);
 			break;
 		}
