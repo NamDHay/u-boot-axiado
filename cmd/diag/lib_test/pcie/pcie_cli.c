@@ -102,7 +102,7 @@ static int ax_pcie_cmd_init(struct cmd_tbl *cmdtp, int flag,
         for (func = 0; func < PCI_MAX_PCI_FUNCTIONS; func++) {
             ret = ax_pcie_init_ep_bars(port, 1, dev, func);
             if (ret)
-                break;
+                continue;
 
             ret = ax_pcie_ep_enable_aer(port, 1, dev, func);
             if (ret) {

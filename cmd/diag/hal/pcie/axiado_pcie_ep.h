@@ -1,18 +1,15 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
  * (C) Copyright 2026
- * Nguyen Nam Huy namhuyngn03@gmail.com
+ * Nguyen Nam Huy hnnguyen@axiado.com
  */
 
 #ifndef __AXIADO_PCIE_EP_H
 #define __AXIADO_PCIE_EP_H
 
 #define MAX_DMA_LIST (16)
-#define MAX_PF (1)
-#define MAX_VF (64)
 #define MAX_PF_MBX (4)
 #define MAX_MBX (64)
-#define MAX_PORT 2
 
 #define REG_PCIE_X1_PF_CTRL_STATUS_ADRS_OFFSET 0x104
 #define REG_PCIE_X1_INTR_STATUS_ADRS_OFFSET 0x108
@@ -24,14 +21,19 @@
 #define REG_PCIE_X2_CSR_INT_OCM_OFFSET 0x03f8
 
 #define REG_PCIE_X1_USB_MSI_INTR_MASK_ADRS_OFFSET 0x384
+#define REG_PCIE_WINROM_ADRS_OFFSET (0x0000 + 0x00FC)
+#define PCIE_WINROM_EXP_ROM_SIZE_MASK_SET(dst, val) ((uint32_t)dst & ~0xFFFFF800) | (((uint32_t)val & 0xFFFFF800))
 
-enum PCIE_PF_NUM { PCIE_PF_NUM_0 = 0, PCIE_PF_NUM_1, PCIE_PF_NUM_2, PCIE_PF_NUM_3, PCIE_PF_NUM_4, PCIE_MAX_PF_NUM };
+/* PCIE port number */
+enum axiado_pcie_port_num { PCIE_X1, PCIE_X2 };
+/* PCIE BAR numbers */
+enum axiado_pcie_bars { BAR_01 = 0, BAR_23 = 2, BAR_45 = 4, BAR_MAX = 6 };
+/* PCIE PF numbers */
+enum axiado_pcie_pf { PCIE_PF_NUM_0 = 0, PCIE_PF_NUM_1, PCIE_PF_NUM_2, PCIE_PF_NUM_3, PCIE_PF_NUM_4, PCIE_MAX_PF_NUM };
 
-struct axiado_pcie_func_info {
-	u8 port;
-	u8 pf_num;
-	u8 vf_num;
-};
+#define OCM_64_BIT_BAR BAR_01
+#define DDR_64_BIT_BAR BAR_23
+#define PCIE_MBX_64_BIT_BAR BAR_45
 
 /* PCIE DMA Channel numbers */
 enum axiado_pcie_dma_channel {
@@ -90,9 +92,11 @@ struct dma_cfg {
 typedef void (*mbx_callback)(u32 mailbox_num, u32 *data, u32 count,
 			     void *opaque);
 
+int axiado_pcie_rom_init(struct axiado_pcie *pcie, enum axiado_pcie_pf func);
 int axiado_pcie_bar_init(struct axiado_pcie *pcie,
-        enum axiado_pcie_bars bar_num, u64 base_address,
-        u32 aperture_size);
+        enum axiado_pcie_pf pf,
+        enum axiado_pcie_bars bar_num);
+int axiado_pcie_alloc_pf_vf_bar(struct axiado_pcie *pcie);
 
 u64 axiado_pcie_get_bar(struct axiado_pcie *pcie,
 			struct axiado_pcie_func_info func_info,

@@ -43,6 +43,8 @@
  */
 #define AX_PCIE_BAR_MIN_ADDR		0x1000ULL
 
+__weak struct ax_pcie_ops pcie;
+
 static u64 ax_pcie_bar_next;
 static u64 ax_pcie_bar_end;
 static int ax_pcie_bar_port = -1;

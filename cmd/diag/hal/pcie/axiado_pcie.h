@@ -32,16 +32,26 @@
 #define IS_PCIE_DEV_BAD 1
 #endif
 
-#define IS_COMMON_SLOT_CLOCK_SET 1
+#ifdef CONFIG_AXIADO_AX3005
+#define MAX_PF (5)
 #define MAX_VF (64)
+#else
+#define MAX_PF (1)
+#define MAX_VF (0)
+#endif
+
+#define IS_COMMON_SLOT_CLOCK_SET 1
 
 #define PCIE_BRIDGE_CLASS_CODE          0x06040000 /* PCIe Class Code for Host Mode */
 #define PCIE_ETHERNET_CLASS_CODE    	0x02000000 /* PCIe Class Code for network in EP Mode */
 #define PCIE_VGA_CLASS_CODE             0x03000000 /* PCIe Class Code for VGA in EP Mode */
-// #define PCIE_USB_CLASS_CODE             0x0C03FE00 /* PCIe Class Code for USB Mode */
 #define PCIE_USB_CLASS_CODE             0x0C033000 /* PCIe Class Code for USB Mode */
 #define PCIE_STORAGE_CLASS_CODE         0x01800000 /* PCIe Class Code for Storage Mode */
 #define PCIE_TRUSTEDS_CLASS_CODE        0x0B800000 /* PCIe Class Code for Trusted Services Mode */
+
+#define PCI_BUS(bus)    (bus << 20)
+#define PCI_DEV(dev)    (dev << 15)
+#define PCI_FUNC(func)  (func << 12)
 
 /* REG_PCIE_X1_PCIE_PCI_IDS_63_32_ADRS_OFFSET / REG_PCIE_X2_PCIE_PCI_IDS_63_32_ADRS_OFFSET*/
 #define PCIE_PCI_IDS_63_32_CLASS_CODE_SET(dst, val) BIT_SET_VAL(31, 8, dst, val)
@@ -102,6 +112,7 @@
 #define PCIE_PHY_FREQ_MASK 0xFF800001
 #define PCIE_PHY_POR_RESET 0x3
 #define PCIE_ATR_PCIE_WIN0 0x600
+#define PCIE_ATR_PCIE_WIN0_TAB6 0x6C0
 #define PCIE_ATR_AXI4_SLV0 0x800
 #define PCIE_BAR_MASK                  0xFFFFFA
 #define PCIE_BAR_64_MASK		0xFFFFFE
@@ -136,10 +147,10 @@
 #define PCIE_BAR_23_OFFSET		0xEC
 #define PCIE_BAR_45_OFFSET		0xF4
 
-#define REG_PCIE_SRIOV_31_0_ADRS_OFFSET 0x0000 + 0x0120
-#define REG_PCIE_SRIOV_63_32_ADRS_OFFSET 0x0000 + 0x0124
-#define REG_PCIE_SRIOV_95_64_ADRS_OFFSET 0x0000 + 0x0128
-#define REG_PCIE_PEX_DEV2_ADRS_OFFSET 0x0000 + 0x00C4
+#define REG_PCIE_SRIOV_31_0_ADRS_OFFSET (0x0000 + 0x0120)
+#define REG_PCIE_SRIOV_63_32_ADRS_OFFSET (0x0000 + 0x0124)
+#define REG_PCIE_SRIOV_95_64_ADRS_OFFSET (0x0000 + 0x0128)
+#define REG_PCIE_PEX_DEV2_ADRS_OFFSET (0x0000 + 0x00C4)
 
 #define MAX_DMA_LIST (16)
 #define PCIE_INTF 0x00000000
@@ -178,6 +189,7 @@
 #define REG_PCIE_X2_IP_CTRL_ADRS_OFFSET 0x188
 
 #define REG_PCIE_GEN_SETTINGS_ADRS_OFFSET (0x0000 + 0x0080)
+#define REG_PCIE_PF_VF_ADRS_OFFSET (0x0000 + 0x0014)
 #define REG_PCIE_PEX_DEV_ADRS_OFFSET (0x0000 + 0x00C0)
 #define REG_PCIE_PEX_SPC_ADRS_OFFSET (0x0000 + 0x00D4)
 #define REG_PCIE_IMASK_LOCAL_ADRS_OFFSET (0x0180 + 0x0000)
@@ -242,6 +254,16 @@
 #define REG_PCIE_IP_CTRL_TL_CLK_GATE_EN_SET(dst, val) (((uint32_t)dst & ~0x800000) | (((uint32_t)val << 23) & 0x800000))
 
 /* REG_PCIE_X2_IATU_PF0_BAR0_CONFIG_ADRS_OFFSET */
+#define REG_PCIE_X2_IATU_PF0_BAR0_CONFIG_ADRS_OFFSET 0x3a4
+#define REG_PCIE_X2_IATU_PF0_BAR0_BASE_ADRS_OFFSET 0x3a8
+#define REG_PCIE_X2_IATU_PF0_VF_BAR0_CONFIG_ADRS_OFFSET 0x3ac
+#define REG_PCIE_X2_IATU_PF0_VF_BAR0_BASE_ADRS_OFFSET 0x3b0
+#define REG_PCIE_X2_IATU_PF0_BAR1_CONFIG_ADRS_OFFSET 0x3b4
+#define REG_PCIE_X2_IATU_PF0_BAR1_BASE_ADRS_OFFSET 0x3b8
+#define REG_PCIE_X2_IATU_PF0_VF_BAR1_BASE_ADRS_OFFSET 0x3c0
+#define REG_PCIE_X2_IATU_PF1_BAR0_CONFIG_ADRS_OFFSET 0x404
+#define REG_PCIE_X2_IATU_PF1_BAR0_BASE_ADRS_OFFSET 0x408
+#define REG_PCIE_X2_IATU_PF1_VF_BAR0_BASE_ADRS_OFFSET 0x410
 #define EXT_PCIE_X2_IATU_PF_CONFIG_ENABLE_SET(dst, val) BIT_SET_VAL(0, 0, dst, val)
 #define EXT_PCIE_X2_IATU_PF_CONFIG_BASE_ADDR_SIZE_SET(dst, val) BIT_SET_VAL(5, 1, dst, val)
 
@@ -254,23 +276,33 @@
 #define EXT_PCIE_X2_IATU_PF_VF_CONFIG_GRANULARITY_SET(dst, val) BIT_SET_VAL(10, 6, dst, val)
 
 /* REG_PCIE_X2_OFM_PF0_CONFIG_ADRS_OFFSET */
+#define REG_PCIE_X2_OFM_PF0_CONFIG_ADRS_OFFSET 0x584
 #define EXT_PCIE_X2_OFM_PF_CONFIG_ENABLE_SET(dst, val) BIT_SET_VAL(0, 0, dst, val)
 #define EXT_PCIE_X2_OFM_PF_CONFIG_BASE_ADRS_SIZE_SET(dst, val) BIT_SET_VAL(5, 1, dst, val)
 #define EXT_PCIE_X2_OFM_PF_CONFIG_PF_ID_SET(dst, val) BIT_SET_VAL(8, 6, dst, val)
 #define EXT_PCIE_X2_OFM_PF_CONFIG_PCIE_X2_SPACE_SET(dst, val) BIT_SET_VAL(31, 12, dst, val)
 
 /* REG_PCIE_X2_OFM_PF0_VF_CONFIG_ADRS_OFFSET */
+#define REG_PCIE_X2_OFM_PF0_VF_CONFIG_ADRS_OFFSET 0x588
 #define EXT_PCIE_X2_OFM_VF_CONFIG_ENABLE_SET(dst, val) BIT_SET_VAL(0, 0, dst, val)
 #define EXT_PCIE_X2_OFM_VF_CONFIG_BASE_ADRS_SIZE_SET(dst, val) BIT_SET_VAL(5, 1, dst, val)
 #define EXT_PCIE_X2_OFM_VF_CONFIG_GRAN_SET(dst, val) BIT_SET_VAL(10, 6, dst, val)
 #define EXT_PCIE_X2_OFM_VF_CONFIG_PCIE_X2_SPACE_SET(dst, val) BIT_SET_VAL(31, 12, dst, val)
 
+#define REG_PCIE_X2_OFM_PF1_CONFIG_ADRS_OFFSET 0x58c
+#define REG_PCIE_X2_OFM_PF1_VF_CONFIG_ADRS_OFFSET 0x590
+
 /* REG_PCIE_X2_IATU_PF0_ROM_EXP_CONFIG_ADRS_OFFSET */
+#define REG_PCIE_X2_IATU_PF0_ROM_EXP_CONFIG_ADRS_OFFSET 0x86c
 #define EXT_PCIE_X2_ROM_EXP_CONFIG_ENABLE_SET(dst, val) BIT_SET_VAL(0, 0, dst, val)
 #define EXT_PCIE_X2_ROM_EXP_CONFIG_BASE_ADRS_SIZE_SET(dst, val) BIT_SET_VAL(5, 1, dst, val)
 
 /* REG_PCIE_X2_IATU_PF0_ROM_EXP_BASE_ADRS_OFFSET */
+#define REG_PCIE_X2_IATU_PF0_ROM_EXP_BASE_ADRS_OFFSET 0x870
 #define EXT_PCIE_X2_ROM_EXP_BASE_SET(dst, val) BIT_SET_VAL(27, 0, dst, val)
+
+#define REG_PCIE_X2_IATU_PF1_ROM_EXP_CONFIG_ADRS_OFFSET 0x874
+#define REG_PCIE_X2_IATU_PF1_ROM_EXP_BASE_ADRS_OFFSET 0x878
 
 /* REG_PCIE_X1_KUP_KEYS_ACCESS_ADRS_OFFSET / REG_PCIE_X2_KUP_KEYS_ACCESS_ADRS_OFFSET */
 
@@ -369,6 +401,7 @@
 #define EXT_MSG_INTR_MASK_END_ADDR_SET(dst, val) BIT_SET_VAL(2, 2, dst, val)
 
 /* REG_PCIE_X2_PF0_VF_ALLOC_ADRS_OFFSET */
+#define REG_PCIE_X2_PF0_VF_ALLOC_ADRS_OFFSET 0x384
 #define EXT_PF_VF_ALLOC_BASE_SET(dst, val) BIT_SET_VAL(9, 0, dst, val)
 #define EXT_PF_VF_ALLOC_TOP_SET(dst, val) BIT_SET_VAL(19, 10, dst, val)
 
@@ -425,12 +458,6 @@
 
 /* REG_PCIE_X1_PCIE_CFGCTRL_ADRS_OFFSET / REG_PCIE_X2_PCIE_CFGCTRL_ADRS_OFFSET
  */
-#define PCIE_CFGCTRL_PHY_FUNC_CFG_NOT_RDY_GET(val) ((uint32_t)val & 0x1)
-#define PCIE_CFGCTRL_VIR_FUNC_CFG_NOT_RDY_GET(val) (((uint32_t)val & 0x2) >> 1)
-#define PCIE_CFGCTRL_DISABLE_LTSSM_GET(val) (((uint32_t)val & 0x4) >> 2)
-#define PCIE_CFGCTRL_MARGIN_RDY_GET(val) (((uint32_t)val & 0x8) >> 3)
-#define PCIE_CFGCTRL_MARGIN_SW_RDY_GET(val) (((uint32_t)val & 0x10) >> 4)
-
 #define PCIE_CFGCTRL_PHY_FUNC_CFG_NOT_RDY_SET(dst, val) (((uint32_t)dst & ~0x1) | (((uint32_t)val & 0x1)))
 #define PCIE_CFGCTRL_VIR_FUNC_CFG_NOT_RDY_SET(dst, val) (((uint32_t)dst & ~0x2) | (((uint32_t)val << 1) & 0x2))
 #define PCIE_CFGCTRL_DISABLE_LTSSM_SET(dst, val) (((uint32_t)dst & ~0x4) | (((uint32_t)val << 2) & 0x4))
@@ -519,6 +546,9 @@
 
 /* REG_PCIE_X1_PCIE_PEX_DEV_ADRS_OFFSET / REG_PCIE_X2_PCIE_PEX_DEV_ADRS_OFFSET*/
 #define PCIE_PEX_DEV_MAX_PAYLOAD_SET(dst, val) (((uint32_t)dst & ~0x7) | ((uint32_t)val & 0x7))
+
+/* REG_PCIE_X1_PCIE_PEX_DEV2_ADRS_OFFSET / REG_PCIE_X1_PCIE_PEX_DEV2_ADRS_OFFSET */
+#define PCIE_PEX_DEV2_ARI_FORWARD_SUP_SET(dst, val) BIT_SET_VAL(5, 5, dst, val)
 
 /* REG_PCIE_X1_PCIE_PEX_SPC_ADRS_OFFSET / REG_PCIE_X2_PCIE_PEX_SPC_ADRS_OFFSET
  */
@@ -786,21 +816,27 @@ enum PCIE_PRESET_NUM {
                (((g4_rx_pre << 4) | g4_tx_pre) << 16) | (((g4_rx_pre << 4) | g4_tx_pre) << 24))
 #define PCIE_GEN4_RX_TX_PRESET PCIE_GEN4_RX_TX_PRESET_GET(PCIE_GEN4_RX_PRESET, PCIE_GEN4_TX_PRESET)
 
-/* PCIE port number */
-enum axiado_pcie_port_num { PCIE_X1, PCIE_X2 };
-/* PCIE BAR numbers */
-enum axiado_pcie_bars { BAR_01 = 0, BAR_23 = 2, BAR_45 = 4 };
-
-struct axiado_pcie {
-	bool pcie_x1; /* Used for executing PCIe X1 specific task */
-	bool pcie_x2; /* Used for executing PCIe X2 specific task */
-
-    bool is_root_port;
+struct ax_pcie_func_info {
     bool is_usb;
     bool is_net;
     bool is_trust;
     bool is_vga;
     bool is_storage;
+
+    u8 vf_num;
+    u8 num_vfs;
+
+    struct ax_pci_region pf[3];
+    struct ax_pci_region vf[3];
+
+    struct ax_pci_region rom;
+};
+
+struct axiado_pcie {
+    bool pcie_x1; /* Used for executing PCIe X1 specific task */
+    bool pcie_x2; /* Used for executing PCIe X2 specific task */
+
+    bool is_root_port;
 
     int irq;
     int mailbox_irq;
@@ -818,13 +854,15 @@ struct axiado_pcie {
     void __iomem *bridge; /* INT bridge registers */
     void __iomem *mbx; /* mailbox memory region */
     void __iomem *ext; /* EXT memory region */
-    void __iomem *ioctl; /* EXT memory region */
+    void __iomem *ioctl; /* IOCTL memory region */
 
     void __iomem *ecam; /* ECAM base address */
 
     struct ax_pci_region atr[2];
 
-    struct ax_pci_region bar[3];
+    bool using_iatu;
+    u8 pf_num;
+    struct ax_pcie_func_info func[MAX_PF];
 
     void *sg_buffer_desc_src[MAX_DMA_LIST];
     dma_addr_t sg_buffer_dma_desc_src[MAX_DMA_LIST];
