@@ -1,0 +1,15 @@
+if TARGET_MK
+
+config SYS_BOARD
+	string
+	default "mk"
+
+config SYS_VENDOR
+	string
+	default "axiado"
+
+config SYS_CONFIG_NAME
+	string
+	default "mk"
+
+endif

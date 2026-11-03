@@ -1,0 +1,170 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * Copyright (c) 2021-2026 Axiado Corporation (or its affiliates).
+ */
+
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+
+/ {
+	aliases {
+		uartdbg = &uartdbg;
+	};
+
+	cpus {
+		#address-cells = <2>;
+		#size-cells = <0>;
+
+		cpu0: cpu@0 {
+			compatible = "arm,cortex-a53";
+			device_type = "cpu";
+			reg = <0x0 0x0>;
+		};
+		/* cpu0: cpu@0 { */
+		/* 	compatible = "arm,cortex-a35"; */
+		/* 	device_type = "cpu"; */
+		/* 	reg = <0x0 0x0>; */
+            /* i-cache-line-size = <64>; */
+            /* d-cache-line-size = <64>; */
+		/* }; */
+	};
+
+	timer {
+		compatible = "arm,armv8-timer";
+		interrupt-parent = <&gic500>;
+		interrupts = <GIC_PPI 13 IRQ_TYPE_LEVEL_LOW>,
+			     <GIC_PPI 14 IRQ_TYPE_LEVEL_LOW>,
+			     <GIC_PPI 11 IRQ_TYPE_LEVEL_LOW>,
+			     <GIC_PPI 10 IRQ_TYPE_LEVEL_LOW>;
+		arm,cpu-registers-not-fw-configured;
+	};
+
+	clocks {
+		refclk: refclk {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <125000000>;
+			u-boot,dm-pre-reloc;
+		};
+
+		clk_ahb: clk_ahb {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <200000000>;
+		};
+
+		clk_xin: clk_xin {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <200000000>;
+		};
+	};
+
+	soc: soc {
+		compatible = "simple-bus";
+		#address-cells = <2>;
+		#size-cells = <2>;
+		interrupt-parent = <&gic500>;
+		ranges;
+
+		gic500: interrupt-controller@80300000 {
+			compatible = "arm,gic-v3";
+			#address-cells = <2>;
+			#size-cells = <2>;
+			ranges;
+			#interrupt-cells = <3>;
+			interrupt-controller;
+			#redistributor-regions = <1>;
+			reg = <0x00 0x80300000 0x00 0x10000>,
+				  <0x00 0x80380000 0x00 0x80000>;
+			interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		/* gic500: interrupt-controller@80600000 { */
+		/* 	compatible = "arm,gic-v3"; */
+		/* 	#address-cells = <2>; */
+		/* 	#size-cells = <2>; */
+		/* 	ranges; */
+		/* 	#interrupt-cells = <3>; */
+		/* 	interrupt-controller; */
+		/* 	#redistributor-regions = <1>; */
+		/* 	reg = <0x00 0x80600000 0x00 0x10000>, /1* GICD *1/ */
+		/* 	      <0x00 0x80640000 0x00 0x20000>; /1* GICR *1/ */
+		/* 	interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_HIGH>; */
+		/* }; */
+
+        /*
+		 * Cadence UARTs, 0x80 bytes each. No interrupts properties:
+		 * MK's SPI map is not yet confirmed, so only polled operation
+		 * is available.
+		 *
+		 * clock-frequency is derived from test_lib's uart.c, which
+		 * programs BRGR=108 and BDIVR=9. For the Cadence part
+		 * baud = uart_clk / (CD * (BDIV + 1)) = uart_clk / 1080, so
+		 * 115200 baud gives 124416000 Hz. The exact value makes
+		 * Zephyr's divisor search land on the same 1080.
+		 */
+		/* KW_CSR_BASE_ADRS_UART (unnumbered) = SP_1 + 0x200. Console. */
+		uartdbg: serial@80520800 {
+			compatible = "cdns,uart-r1p12", "xlnx,xuartps";
+			interrupt-parent = <&gic500>;
+			interrupts = <GIC_SPI 170 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x00 0x80520800 0x00 0x100>;
+			clock-names = "uart_clk", "pclk";
+			clocks = <&refclk &refclk>;
+			u-boot,dm-pre-reloc;
+			status = "disabled";
+		};
+		/* uartdbg: serial@81080200 { */
+		/* 	compatible = "cdns,uart-r1p12", "xlnx,xuartps"; */
+		/* 	reg = <0x00 0x81080200 0x00 0x80>; */
+		/* 	clock-names = "uart_clk", "pclk"; */
+		/* 	clocks = <&refclk &refclk>; */
+		/* 	u-boot,dm-pre-reloc; */
+		/* 	status = "disabled"; */
+		/* }; */
+
+		/* KW_CSR_BASE_ADRS_UART_0 = SP_1 + 0x280. */
+		uart0: serial@81080280 {
+			compatible = "cdns,uart-r1p12", "xlnx,xuartps";
+			reg = <0x00 0x81080280 0x00 0x80>;
+			clock-names = "uart_clk", "pclk";
+			clocks = <&refclk &refclk>;
+			status = "disabled";
+		};
+		/* KW_CSR_BASE_ADRS_UART_1 = SP_1 + 0x300. */
+		uart1: serial@81080300 {
+			compatible = "cdns,uart-r1p12", "xlnx,xuartps";
+			reg = <0x00 0x81080300 0x00 0x80>;
+			clock-names = "uart_clk", "pclk";
+			clocks = <&refclk &refclk>;
+			status = "disabled";
+		};
+		/* KW_CSR_BASE_ADRS_UART_2 = SP_2 + 0x080. */
+		uart2: serial@81100080 {
+			compatible = "cdns,uart-r1p12", "xlnx,xuartps";
+			reg = <0x00 0x81100080 0x00 0x80>;
+			clock-names = "uart_clk", "pclk";
+			clocks = <&refclk &refclk>;
+			status = "disabled";
+		};
+		/* KW_CSR_BASE_ADRS_UART_3 = SP_2 + 0x100. */
+		uart3: serial@81100100 {
+			compatible = "cdns,uart-r1p12", "xlnx,xuartps";
+			reg = <0x00 0x81100100 0x00 0x80>;
+			clock-names = "uart_clk", "pclk";
+			clocks = <&refclk &refclk>;
+			status = "disabled";
+		};
+		/* KW_CSR_BASE_ADRS_UART_4 = SP_1 + 0xA0400. */
+		uart4: serial@81120400 {
+			compatible = "cdns,uart-r1p12", "xlnx,xuartps";
+			reg = <0x00 0x81120400 0x00 0x80>;
+			clock-names = "uart_clk", "pclk";
+			clocks = <&refclk &refclk>;
+			status = "disabled";
+		};
+
+	};
+};

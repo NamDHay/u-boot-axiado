@@ -233,5 +233,5 @@ struct ax_adc_ops adc = {
 	.start_channels	= ax_saradc_start_channels,
 	.channel_data	= ax_saradc_channel_data,
 	.channels_data	= ax_saradc_channels_data,
-	.stop		= ax_saradc_stop,
+	.stop		    = ax_saradc_stop,
 };

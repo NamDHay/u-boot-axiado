@@ -212,6 +212,7 @@ void reset_cpu(void)
 
 void enable_caches(void)
 {
+    printf("Cache: Enable\n");
     icache_enable();
     dcache_enable();
 }

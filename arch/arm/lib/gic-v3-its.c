@@ -143,7 +143,7 @@ int gicv3_cpu_init(void)
      */
     asm volatile("msr DAIFClr, #0x7");
 
-    printf("%s - Init CORE_%u successful\n", __func__, cpu);
+    printf("GICv3: Core %d init successful\n", cpu);
 
     return 0;
 }

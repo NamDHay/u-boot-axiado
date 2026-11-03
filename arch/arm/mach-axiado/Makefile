@@ -5,3 +5,4 @@
 
 obj-$(CONFIG_AXIADO_AX3000) += scm3000/
 obj-$(CONFIG_AXIADO_AX3005) += scm3005/
+obj-$(CONFIG_AXIADO_MK) 	+= mk/

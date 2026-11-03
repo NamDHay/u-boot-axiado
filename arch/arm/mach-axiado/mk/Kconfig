@@ -1,0 +1,11 @@
+if AXIADO_MK
+
+config TARGET_MK
+	bool "Support Axiado mK SCM1100"
+	help
+	  Support for the Axiado mK SCM1100 board.
+	  Based on the Axiado mK single-core ARMv8 Cortex-A35 SoC.
+
+source "board/axiado/mk/Kconfig"
+
+endif

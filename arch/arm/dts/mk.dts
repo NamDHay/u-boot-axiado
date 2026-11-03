@@ -1,0 +1,30 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * Copyright (c) 2021-2026 Axiado Corporation (or its affiliates).
+ */
+
+/dts-v1/;
+
+#include "mk.dtsi"
+
+/ {
+	model = "Axiado mK NamDHay Version";
+	compatible = "axiado,mk-scm1100", "axiado,mk";
+    interrupt-parent = <&gic500>;
+	#address-cells = <2>;
+	#size-cells = <2>;
+
+	chosen {
+		stdout-path = "uartdbg:115200";
+	};
+
+	memory@80200000 {
+		device_type = "memory";
+		reg = <0x00 0x80200000 0x00 0x00100000>;
+	};
+};
+
+&uartdbg {
+	status = "okay";
+};
+

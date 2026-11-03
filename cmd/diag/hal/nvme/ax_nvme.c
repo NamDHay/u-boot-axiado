@@ -117,8 +117,8 @@ static void ax_nvme_msi_handler(void *arg)
     struct ax_nvme_dev *ndev = arg;
 
     ndev->msi_pending = true;
-    printf("%s - Receive MSI%d: \n\taddr = 0x%llx, \n\tdata = 0x%x\n", 
-            __func__, ndev->msi.vector, ndev->msi.address, ndev->msi.data);
+    /* printf("%s - Receive MSI%d: \n\taddr = 0x%llx, \n\tdata = 0x%x\n", */ 
+    /*         __func__, ndev->msi.vector, ndev->msi.address, ndev->msi.data); */
 }
 
 static int ax_nvme_enable_msi(struct ax_nvme_dev *ndev)

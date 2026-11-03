@@ -1,11 +1,20 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * (C) Copyright 2026
+ * Nguyen Nam Huy hnnguyen@axiado.com
+ */
+
 #include <command.h>
 #include <dm.h>
 #include <errno.h>
+#include <time.h>
+#include <console.h>
 #include <linux/kernel.h>
 #include <linux/printk.h>
 #include <linux/types.h>
 #include <string.h>
 
+#include "ax_diag.h"
 #include "ax_pcie.h"
 #include "ax_nvme.h"
 
@@ -19,9 +28,12 @@
  *
  * Existing NVMe queues occupy 0x90000000 - 0x90005fff.
  */
-#define NVME_TEST_BUF_ADDR   0x90010000ULL
+#define NVME_TEST_BUF_ADDR   (AX3000_MEM_BASE_ADRS_DDR_LO + 0x40000000UL + 0x10000)
 #define NVME_TEST_BUF_SIZE   (256U * 1024U)
 #define NVME_TEST_DUMP_SIZE  64U
+
+#define NVME_SPEED_DEFAULT_DURATION  60U
+#define NVME_SPEED_REPORT_MS         1000U
 
 static struct ax_nvme_dev ndev;
 static bool nvme_initialized;
@@ -347,6 +359,225 @@ static int ax_nvme_cmd_compare(struct cmd_tbl *cmdtp, int flag,
 }
 
 /* -------------------------------------------------------
+ * speed <lba> <blocks> [duration_s]
+ *
+ * Default duration: 60 seconds.
+ * duration_s = 0: run until Ctrl-C.
+ *
+ * Destructive: repeatedly writes the selected LBA range.
+ * ------------------------------------------------------- */
+
+static void nvme_print_speed(const char *name, u64 total_bytes,
+                             u64 elapsed_ms)
+{
+    u64 speed_kbs;
+
+    if (!elapsed_ms) {
+        printf("%s: elapsed time below timer resolution\n", name);
+        return;
+    }
+
+    /*
+     * MB/s = bytes / (seconds * 1,000,000).
+     * Use integer arithmetic to avoid floating-point dependencies.
+     */
+    speed_kbs = total_bytes / elapsed_ms;
+
+    printf("%s: %llu bytes, %llu ms, ",
+           name, total_bytes, elapsed_ms);
+    printf("%llu.%03llu MB/s\n",
+           speed_kbs / 1000ULL,
+           speed_kbs % 1000ULL);
+}
+
+static int ax_nvme_cmd_speed(struct cmd_tbl *cmdtp, int flag,
+                             int argc, char *const argv[])
+{
+    u64 lba, blocks64;
+    u64 total_write_bytes = 0;
+    u64 total_read_bytes = 0;
+    u64 write_time_ms = 0;
+    u64 read_time_ms = 0;
+    u64 last_write_bytes = 0;
+    u64 last_read_bytes = 0;
+    u64 last_write_time_ms = 0;
+    u64 last_read_time_ms = 0;
+    u32 blocks, bytes;
+    u32 duration_s = NVME_SPEED_DEFAULT_DURATION;
+    u8 *buf = (u8 *)(ulong)NVME_TEST_BUF_ADDR;
+    ulong test_start, report_start, io_start, elapsed;
+    ulong io_elapsed;
+    int ret;
+    bool interrupted = false;
+
+    if (argc != 4 && argc != 5)
+        return CMD_RET_USAGE;
+
+    if (nvme_parse_u64(argv[2], &lba) ||
+        nvme_parse_u64(argv[3], &blocks64) ||
+        blocks64 > 0xffffffffULL)
+        return CMD_RET_USAGE;
+
+    if (argc == 5) {
+        u64 duration64;
+
+        if (nvme_parse_u64(argv[4], &duration64) ||
+            duration64 > 0xffffffffULL)
+            return CMD_RET_USAGE;
+
+        duration_s = (u32)duration64;
+    }
+
+    blocks = (u32)blocks64;
+
+    ret = nvme_check_io(lba, blocks, &bytes);
+    if (ret)
+        return CMD_RET_FAILURE;
+
+    if (ndev.max_xfer_bytes &&
+        bytes > ndev.max_xfer_bytes) {
+        printf("NVMe speed: transfer exceeds controller limit\n");
+        return CMD_RET_FAILURE;
+    }
+
+    printf("\nNVMe CONTINUOUS SPEED TEST\n");
+    printf("LBA=%llu blocks=%u bytes=%u\n", lba, blocks, bytes);
+    printf("Duration: %s\n",
+           duration_s ? "limited" : "until Ctrl-C");
+    if (duration_s)
+        printf("Time limit: %u seconds\n", duration_s);
+
+    printf("WARNING: overwrites the selected LBA range\n");
+    printf("Press Ctrl-C to stop\n\n");
+
+    /* Generate the pattern outside the timed I/O loop. */
+    nvme_fill_pattern(buf, bytes, lba);
+
+    test_start = get_timer(0);
+    report_start = test_start;
+
+    while (1) {
+        /*
+         * Ctrl-C is checked between synchronous NVMe commands.
+         * It cannot abort a command already blocked in the driver.
+         */
+        if (ctrlc()) {
+            interrupted = true;
+            break;
+        }
+
+        elapsed = get_timer(test_start);
+
+        if (duration_s && elapsed >= (ulong)duration_s * 1000UL)
+            break;
+
+        /* Write one transfer. */
+        io_start = get_timer(0);
+
+        ret = ax_nvme_write(&ndev, ndev.nsid, lba, blocks,
+                            buf, NVME_TEST_BUF_ADDR);
+
+        io_elapsed = get_timer(io_start);
+        write_time_ms += io_elapsed;
+
+        if (ret) {
+            printf("\nNVMe speed: WRITE failed: %d\n", ret);
+            return CMD_RET_FAILURE;
+        }
+
+        total_write_bytes += bytes;
+
+        if (ctrlc()) {
+            interrupted = true;
+            break;
+        }
+
+        /* Read one transfer. */
+        io_start = get_timer(0);
+
+        ret = ax_nvme_read(&ndev, ndev.nsid, lba, blocks,
+                           buf, NVME_TEST_BUF_ADDR);
+
+        io_elapsed = get_timer(io_start);
+        read_time_ms += io_elapsed;
+
+        if (ret) {
+            printf("\nNVMe speed: READ failed: %d\n", ret);
+            return CMD_RET_FAILURE;
+        }
+
+        total_read_bytes += bytes;
+
+        /* Verify data outside the measured read interval. */
+        ret = nvme_compare_pattern(buf, bytes, lba);
+        if (ret) {
+            printf("\nNVMe speed: data verification FAILED\n");
+            return CMD_RET_FAILURE;
+        }
+
+        elapsed = get_timer(test_start);
+
+        if (elapsed - report_start >= NVME_SPEED_REPORT_MS) {
+            u64 delta_write = total_write_bytes - last_write_bytes;
+            u64 delta_read = total_read_bytes - last_read_bytes;
+            u64 delta_write_ms = write_time_ms - last_write_time_ms;
+            u64 delta_read_ms = read_time_ms - last_read_time_ms;
+
+            printf("[%lu s] ", elapsed / 1000UL);
+
+            if (delta_write_ms)
+                printf("Write=%llu.%03llu MB/s ",
+                       (delta_write / delta_write_ms) / 1000ULL,
+                       (delta_write / delta_write_ms) % 1000ULL);
+            else
+                printf("Write=N/A ");
+
+            if (delta_read_ms)
+                printf("Read=%llu.%03llu MB/s",
+                       (delta_read / delta_read_ms) / 1000ULL,
+                       (delta_read / delta_read_ms) % 1000ULL);
+            else
+                printf("Read=N/A");
+
+            printf("\n");
+
+            last_write_bytes = total_write_bytes;
+            last_read_bytes = total_read_bytes;
+            last_write_time_ms = write_time_ms;
+            last_read_time_ms = read_time_ms;
+            report_start = elapsed;
+        }
+
+        if (duration_s &&
+            elapsed >= (ulong)duration_s * 1000UL)
+            break;
+    }
+
+    elapsed = get_timer(test_start);
+
+    printf("\n--- NVMe SPEED TEST SUMMARY ---\n");
+    printf("Status: %s\n", interrupted ? "Stopped by Ctrl-C" :
+           "Duration completed");
+    printf("Elapsed: %lu.%03lu seconds\n",
+           elapsed / 1000UL, elapsed % 1000UL);
+    printf("Write total: %llu bytes\n", total_write_bytes);
+    printf("Read total : %llu bytes\n", total_read_bytes);
+
+    /*
+     * These rates use accumulated NVMe call time, excluding
+     * pattern verification and console output.
+     */
+    nvme_print_speed("WRITE", total_write_bytes, write_time_ms);
+    nvme_print_speed("READ ", total_read_bytes, read_time_ms);
+
+    printf("Data integrity: PASS\n");
+    printf("Final checksum: 0x%08x\n",
+           nvme_checksum(buf, bytes));
+
+    return CMD_RET_SUCCESS;
+}
+
+/* -------------------------------------------------------
  * Command dispatcher
  * ------------------------------------------------------- */
 
@@ -368,18 +599,24 @@ int do_ax_nvme(struct cmd_tbl *cmdtp, int flag,
     if (!strcmp(argv[1], "compare"))
         return ax_nvme_cmd_compare(cmdtp, flag, argc, argv);
 
+    if (!strcmp(argv[1], "speed"))
+        return ax_nvme_cmd_speed(cmdtp, flag, argc, argv);
+
     return CMD_RET_USAGE;
 }
 
 U_BOOT_CMD(
-    ax_nvme, 8, 1, do_ax_nvme,
-    "Axiado NVMe diagnostic commands",
-    "init <port> [gen]\n"
-    "    - Initialize NVMe controller and I/O queue\n"
-    "ax_nvme read <lba> <blocks>\n"
-    "    - Read blocks and display checksum/data\n"
-    "ax_nvme write <lba> <blocks>\n"
-    "    - Write deterministic test pattern (DESTRUCTIVE)\n"
-    "ax_nvme compare <lba> <blocks>\n"
-    "    - Write, read back and compare every byte (DESTRUCTIVE)\n"
-);
+        ax_nvme, 8, 1, do_ax_nvme,
+        "Axiado NVMe diagnostic commands",
+        "init <port> [gen]\n"
+        "    - Initialize NVMe controller and I/O queue\n"
+        "ax_nvme read <lba> <blocks>\n"
+        "    - Read blocks and display checksum/data\n"
+        "ax_nvme write <lba> <blocks>\n"
+        "    - Write deterministic test pattern (DESTRUCTIVE)\n"
+        "ax_nvme compare <lba> <blocks>\n"
+        "    - Write, read back and compare every byte (DESTRUCTIVE)\n"
+        "ax_nvme speed <lba> <blocks> [duration_s]\n"
+        "    - Continuous NVMe read/write speed test (default 60s)\n"
+        "    - duration_s=0 runs until Ctrl-C (DESTRUCTIVE)\n"
+        );

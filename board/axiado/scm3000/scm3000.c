@@ -230,7 +230,7 @@ void reset_cpu(void)
 
 void enable_caches(void)
 {
-    printf("%s\n", __func__);
+    printf("Cache: Enable\n");
     icache_enable();
     dcache_enable();
 }
