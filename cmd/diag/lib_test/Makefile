@@ -44,3 +44,4 @@ obj-$(CONFIG_CMD_AX_UART) 	+= uart/uart_cli.o
 obj-$(CONFIG_CMD_AX_WDT) 	+= wdt/wdt_cli.o
 
 obj-$(CONFIG_CMD_AX_USB) 	+= usb/usb_cli.o
+obj-$(CONFIG_CMD_AX_USB) 	+= usb/usb_dev_cli.o

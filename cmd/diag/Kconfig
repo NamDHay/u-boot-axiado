@@ -1,6 +1,5 @@
 config CMD_AX_ADC
 	bool "ax_adc - Axiado ADC diagnostics"
-	depends on ARCH_AXIADO
 	depends on CMD_AX_DIAG
 	help
 	  This command provides access to ADC board diagnostic tests.
@@ -12,7 +11,6 @@ config INNO_ADC
 
 config CMD_AX_EMMC
 	bool "ax_emmc - Axiado eMMC diagnostics"
-	depends on ARCH_AXIADO
 	depends on CMD_AX_DIAG
 	help
 	  This command provides access to eMMC board diagnostic tests.
@@ -24,7 +22,6 @@ config ARASAN_SDHCI
 
 config CMD_AX_ETH
 	bool "ax_eth - Axiado Ethernet diagnostics"
-	depends on ARCH_AXIADO
 	depends on CMD_AX_DIAG
 	help
 	  This command provides access to Ethernet (SGMII/RMII) diagnostic tests.
@@ -36,7 +33,6 @@ config AXIADO_HCP_ETH
 
 config CMD_AX_GPIO
 	bool "ax_gpio - Axiado GPIO diagnostics"
-	depends on ARCH_AXIADO
 	depends on CMD_AX_DIAG
 	help
 	  This command provides access to GPIO board diagnostic tests.
@@ -48,7 +44,6 @@ config CDNS_GPIO
 
 config CMD_AX_HDMI
 	bool "ax_hdmi - Axiado HDMI diagnostics"
-	depends on ARCH_AXIADO
 	depends on CMD_AX_DIAG
 	help
 	  This command provides access to HDMI board diagnostic tests.
@@ -60,7 +55,6 @@ config INNO_HDMI
 
 config CMD_AX_I2C
 	bool "ax_i2c - Axiado I2C diagnostics"
-	depends on ARCH_AXIADO
 	depends on CMD_AX_DIAG
 	depends on AXIADO_AX3005
 	help
@@ -68,7 +62,6 @@ config CMD_AX_I2C
 
 config CDNS_I2C
 	bool "Cadence I2C support"
-	depends on AXIADO_AX3005
 	help
 	  This config support for Cadence I2C.
 
@@ -149,6 +142,7 @@ config CMD_AX_NVME
 	bool "ax_nvme - Axiado NVME diagnostics"
 	depends on ARCH_AXIADO
 	depends on CMD_AX_DIAG
+	depends on CMD_AX_PCIE
 	help
 	  This command provides access to NVME board diagnostic tests.
 
@@ -156,6 +150,7 @@ config CMD_AX_E1000
 	bool "ax_nvme - Axiado E1000 diagnostics"
 	depends on ARCH_AXIADO
 	depends on CMD_AX_DIAG
+	depends on CMD_AX_PCIE
 	help
 	  This command provides access to E1000 board diagnostic tests.
 
@@ -272,18 +267,16 @@ config AXIADO_WDT
 
 config CMD_AX_USB
 	bool "ax_usb - Axiado USB diagnostics"
-	depends on ARCH_AXIADO
 	depends on CMD_AX_DIAG
 	help
 	  This command provides access to USB board diagnostic tests.
 
-config AXIADO_USB
-	bool "Axiado SoCs USB support"
+config AXIADO_XHCI
+	bool "Axiado SoCs USB xHCI support"
 	help
-	  This config support for Axiado SoCs USB.
+	  This config support for Axiado SoCs USB xHCI.
 
 config CRG_XHCI
-	bool "Corigine XHCI support"
+	bool "Corigine USB Device support"
 	help
-	  This config support for Corigine XHCI.
-
+	  This config support for Corigine USB device.

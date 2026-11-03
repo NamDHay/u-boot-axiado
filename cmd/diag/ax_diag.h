@@ -15,7 +15,7 @@
 #include "hal/base/A0/ax3000_base_adrs.h"
 #include "hal/base/A0/ax3000_slo_base_adrs.h"
 #define CONFIG_NR_CPUS  4
-#elif CONFIG_AXIADO_AX1100
+#elif CONFIG_AXIADO_MK
 #include "hal/base/mK/ax3000_base_adrs.h"
 #include "hal/base/mK/ax3000_slo_base_adrs.h"
 #define CONFIG_NR_CPUS  1
