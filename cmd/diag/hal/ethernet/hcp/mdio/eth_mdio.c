@@ -4,16 +4,27 @@
 #include "eth_mdio.h"
 /* packet generator burst size used by the CRC error test: 1 packet */
 #define ETH_PACKET_CRC_ERROR	0x1
+#define MDIO_WAIT_TIMEOUT_MS	100
+
+static bool mdio_timeout_reported;
 
 /* Clause 22 API */
 void mdio_wait(u8 mac_idx)
 {
 	u32 mac_base = XGMII_MAC_BASE + (mac_idx * MAC_CONFIG_BYTE_CNT);
 	u32 temp = 0x0001; //MDIO Busy bit 0
+	ulong start = get_timer(0);
 
 	while ((temp & 0x0001) == 0x0001) {
 		temp = readl(mac_base+R_MDIO_CFG_STATUS);
+		if ((temp & 0x0001) && get_timer(start) > MDIO_WAIT_TIMEOUT_MS) {
+			if (!mdio_timeout_reported)
+				printf("MDIO busy timeout (MDIO base 0x%x)\n", mac_base);
+			mdio_timeout_reported = true;
+			return;
+		}
 	}
+	mdio_timeout_reported = false;
 }
 void mdio_clause22_write(u8 mac_idx, u8 phy_addr, u8 reg_addr,
 			 u16 data)

@@ -37,6 +37,11 @@ void eth_set_eipbypass(u8 mac_idx);
 void enable_internal_near_end_lb(u8 mac_idx);
 void disable_internal_near_end_lb(u8 mac_idx);
 
+void eth_eip_enable_near_end_lb(u8 mac_idx);
+void eth_sgmii_reset(u8 mac_idx);
+void mac_1g_cd_config(u8 mac_idx);
+void tdest_mask_config(u8 mac_idx);
+
 /* --- RMII: pin setup + GMII/NCSI port control --- */
 void eth_setup_gpio_rmii(void);
 void eth_enable_gmii_ncsi(u8 mac_idx, u8 rmii_mode);

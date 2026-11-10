@@ -77,4 +77,8 @@ static inline int ax_hcp_send(unsigned char*packet,int length) {
     return hcp.send(packet,length); 
 }
 
+void ax_hcp_set_eip(bool on);
+bool ax_hcp_get_eip(void);
+void ax_hcp_eip_path(unsigned mac_idx, bool on);
+
 #endif

@@ -514,6 +514,85 @@ void enable_internal_near_end_lb(u8 mac_idx)
 	reg_val |= (1 << 1); //RX_NEAR_LPBK_EN
 	writel(reg_val, sgmii_base + 0x0010);
 }
+void eth_eip_enable_near_end_lb(u8 mac_idx)
+{
+	u64 sgmii_base = sgmii_phy_base(mac_idx);
+	u32 reg_val;
+
+	enable_internal_near_end_lb(mac_idx);
+
+	reg_val = readl(sgmii_base + 0x0020);
+	reg_val |= (1 << 17); //NEAR_LPBK_EN
+	writel(reg_val, sgmii_base + 0x0020);
+}
+
+void eth_sgmii_reset(u8 mac_idx)
+{
+	writel(0x00000000, AXILS_HCP_BASE + (mac_idx * sizeof(u32)));
+}
+
+/**
+ * @brief Configure Command Descriptor for 1G-MAC for ingress pkts.
+ *
+ * @param mac_idx index associated with 1G MAC. Valid values can be 1/2/3/4.
+ */
+void mac_1g_cd_config(u8 mac_idx)
+{
+	u32 cd_tkn_offset = SHIM_CD_TOKEN_CONFIG_BASE_OFFSET + (mac_idx * SHIM_CD_TOKEN_CONFIG_BYTE_CNT);
+	u32 cmd_tkn_word_offset = CMD_TOKEN_WORD_0_OFFSET;
+	u32 base = AXILS_HCP_BASE + cd_tkn_offset + cmd_tkn_word_offset;
+
+	writel(0x00000000, base + 0);
+	writel(0xC8000000, base + 4);
+	writel(0x00000001, base + 0);
+	writel(0x0030A600, base + 4);  // Token SIze updated from 0x20 to 0x30
+	writel(0x00000002, base + 0);
+	writel(0xFFFFFFFC, base + 4);
+	writel(0x00000003, base + 0);
+	writel(0xFFFFFFFF, base + 4);
+	writel(0x00000004, base + 0);
+	writel(0x02000000, base + 4);
+	writel(0x00000005, base + 0);
+	writel(0x00000e00, base + 4);
+	writel(0x00000006, base + 0);
+	writel(0x00000000, base + 4);
+	writel(0x00000007, base + 0);
+	writel(0x00000000, base + 4);
+
+	mdelay(1000);
+}
+
+/* Configure Tdest mask for each enabled MAC */
+void tdest_mask_config(u8 mac_idx)
+{
+	u32 tdest_base_offset;
+
+	printf("Configuring tdest mask\n");
+
+	/*  Configuration for MAC_XGMII */
+	tdest_base_offset = TDEST_MASK_BASE_OFFSET + (mac_idx * TDEST_MASK_BYTE_CNT);
+
+	switch (mac_idx) {
+	case 0:
+		writel(TDEST_MASK_VALUE_XG, AXILS_HCP_BASE + tdest_base_offset);
+		break;
+	case 1:
+		writel(TDEST_MASK_VALUE_1G_0, AXILS_HCP_BASE + tdest_base_offset);
+		break;
+	case 2:
+		writel(TDEST_MASK_VALUE_1G_1, AXILS_HCP_BASE + tdest_base_offset);
+		break;
+	case 3:
+		writel(TDEST_MASK_VALUE_1G_2, AXILS_HCP_BASE + tdest_base_offset);
+		break;
+	case 4:
+		writel(TDEST_MASK_VALUE_1G_3, AXILS_HCP_BASE + tdest_base_offset);
+		break;
+	default:
+		printf("Invalid mac\n");
+	}
+}
+
 void disable_internal_near_end_lb(u8 mac_idx)
 {
 	u64 sgmii_base = sgmii_phy_base(mac_idx);
@@ -779,7 +858,7 @@ void eth_enable_gmii_ncsi(u8 mac_idx, u8 rmii_mode){
 int auto_neg_mon_clear_bit(int mac_idx)
 {
 	int  reg_val, auto_neg_mon,sgmii_reset_val,sgmii_reset;
-    volatile u32 read_data,read_data_3;
+    volatile u32 read_data;
 	reg_val = readl(GE_MON_BASE + sgmii_stride(mac_idx));
 	reg_val |= (1 << AUTO_NEG_MON);
 	writel(reg_val, GE_MON_BASE + sgmii_stride(mac_idx));

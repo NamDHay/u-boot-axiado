@@ -11,12 +11,14 @@
 #include <net.h>
 #include "hcp_main.h"
 #include "eth_net.h"
+#include "eip197.h"
 
 #define ETH_CLI_SGMII_PORTS	4
 #define ETH_CLI_RMII_PORTS	2
 #define ETH_CLI_XGMII_PORTS	1
 #define ETH_XGMII_MAC_IDX	0
 #define ETH_TEST_LINK_RETRY	5
+#define ETH_EIP_TDEST_XGMII	5
 
 static int eth_test_xfer(u8 mac_idx, u16 pkt, unsigned char *txbuff,
 			 int frame_len, unsigned char *rxbuff, bool link_retry)
@@ -167,6 +169,28 @@ static int eth_test_traffic_rmii(u8 mac_idx, u16 pkt_cnt,
 				      false);
 }
 
+static int eth_lb_mac_init(u8 mac_idx, enum ax_eth_speed speed)
+{
+	ax_hcp_eip_path(mac_idx, ax_hcp_get_eip());
+	return ax_hcp_mac_init(mac_idx, speed);
+}
+
+static int eth_eip_traffic(u8 mac_idx)
+{
+	u8 tdest = mac_idx ? mac_idx : ETH_EIP_TDEST_XGMII;
+
+	return eth_eip_197_test(mac_idx, tdest) == 1;
+}
+
+static int eth_lb_traffic(u8 mac_idx, unsigned char *dest_mac,
+			  bool link_retry)
+{
+	if (ax_hcp_get_eip())
+		return eth_eip_traffic(mac_idx);
+	return eth_test_traffic(mac_idx, ETH_TEST_DFLT_FRAMES, dest_mac,
+				link_retry);
+}
+
 static int eth_test_fail(u8 mac_idx)
 {
 	ax_hcp_stop_link_up(mac_idx);
@@ -181,12 +205,15 @@ static int eth_mac_internal_lb(u8 mac_idx)
 
 	printf("Start Init: Port: %d\n", mac_idx - 1);
 
-	if (ax_hcp_mac_init(mac_idx, AX_ETH_1G) < 0) {
+	if (eth_lb_mac_init(mac_idx, AX_ETH_1G) < 0) {
 		printf("MAC init failed\n");
 		return eth_test_fail(mac_idx);
 	}
-	enable_internal_near_end_lb(mac_idx);
-	ret = eth_test_traffic(mac_idx, ETH_TEST_DFLT_FRAMES, dest_mac, true);
+	if (ax_hcp_get_eip())
+		eth_eip_enable_near_end_lb(mac_idx);
+	else
+		enable_internal_near_end_lb(mac_idx);
+	ret = eth_lb_traffic(mac_idx, dest_mac, true);
 	ax_hcp_stop_link_up(mac_idx);
 
 	if (ret) {
@@ -219,11 +246,10 @@ static int eth_mac_external_lb(u8 mac_idx, u8 phyaddr,
 	}
 	printf("Start Init: Port: %d\n", mac_idx - 1);
 
-	ax_hcp_mac_init(mac_idx, AX_ETH_1G);
+	eth_lb_mac_init(mac_idx, AX_ETH_1G);
 	if (marvell_lb) {
 		ax_hcp_start_link_up(mac_idx);
-		ret = eth_test_traffic(mac_idx, ETH_TEST_DFLT_FRAMES, dest_mac,
-				       false);
+		ret = eth_lb_traffic(mac_idx, dest_mac, false);
 		eth_print_mac_counters(mac_idx);
 		return ret;
 	}
@@ -243,7 +269,7 @@ try_again:
 	}
 	printf("Internal PHY - Link Up!\n");
 
-	ret = eth_test_traffic(mac_idx, ETH_TEST_DFLT_FRAMES, dest_mac, true);
+	ret = eth_lb_traffic(mac_idx, dest_mac, true);
 	eth_print_mac_counters(mac_idx);
 	return ret;
 }
@@ -311,10 +337,14 @@ static int eth_rmii_external_lb(u8 mac_idx)
 	if (ret < 0)
 		return CMD_RET_FAILURE;
 
-	ax_hcp_mac_init(mac_idx, AX_ETH_100M);
+	eth_lb_mac_init(mac_idx, AX_ETH_100M);
 	ax_hcp_start_link_up(mac_idx);
 	mdelay(100);
-	ret = eth_test_traffic_rmii(mac_idx, ETH_TEST_DFLT_FRAMES, dest_mac);
+	if (ax_hcp_get_eip())
+		ret = eth_eip_traffic(mac_idx);
+	else
+		ret = eth_test_traffic_rmii(mac_idx, ETH_TEST_DFLT_FRAMES,
+					    dest_mac);
 	eth_print_mac_counters(mac_idx);
 
 	ax_hcp_stop_link_up(mac_idx);
@@ -334,13 +364,12 @@ static int eth_xgmii_internal_lb(u8 port)
 						      0xaa, 0xaa, 0xaa };
 
 	printf("Start Init: XGMII Port: %d\n", port - 1);
-	ax_hcp_mac_init(ETH_XGMII_MAC_IDX, AX_ETH_10G);
+	eth_lb_mac_init(ETH_XGMII_MAC_IDX, AX_ETH_10G);
 	ax_hcp_start_link_up(ETH_XGMII_MAC_IDX);
 	xgmii_enable_near_loopback();
 	mdelay(100);
 
-	ret = eth_test_traffic(ETH_XGMII_MAC_IDX, ETH_TEST_DFLT_FRAMES,
-			       dest_mac, false);
+	ret = eth_lb_traffic(ETH_XGMII_MAC_IDX, dest_mac, false);
 	eth_print_mac_counters(ETH_XGMII_MAC_IDX);
 
 	ax_hcp_stop_link_up(ETH_XGMII_MAC_IDX);
@@ -365,11 +394,10 @@ static int eth_xgmii_external_lb(u8 port)
 	if (ret < 0)
 		return CMD_RET_FAILURE;
 
-	ax_hcp_mac_init(ETH_XGMII_MAC_IDX, AX_ETH_10G);
+	eth_lb_mac_init(ETH_XGMII_MAC_IDX, AX_ETH_10G);
 	ax_hcp_start_link_up(ETH_XGMII_MAC_IDX);
 
-	ret = eth_test_traffic(ETH_XGMII_MAC_IDX, ETH_TEST_DFLT_FRAMES,
-			       dest_mac, false);
+	ret = eth_lb_traffic(ETH_XGMII_MAC_IDX, dest_mac, false);
 	eth_print_mac_counters(ETH_XGMII_MAC_IDX);
 
 	ax_hcp_stop_link_up(ETH_XGMII_MAC_IDX);
@@ -445,19 +473,25 @@ static int eth_sgmii_recv(u8 mac_idx)
 	return CMD_RET_SUCCESS;
 }
 
-static int eth_sgmii_speed(u8 mac_idx, int seconds)
+static int eth_sgmii_speed(u8 mac_idx, int seconds, u32 pkt_len)
 {
 	struct eth_net n;
 	int ret;
 
 	eth_net_init(&n, mac_idx);
 
+	ax_hcp_eip_path(mac_idx, ax_hcp_get_eip());
 	if (eth_net_link_up(mac_idx)) {
+		ax_hcp_eip_path(mac_idx, false);
 		ax_hcp_stop_link_up(mac_idx);
 		return CMD_RET_FAILURE;
 	}
 
-	ret = eth_net_run_speed(&n, seconds);
+	if (ax_hcp_get_eip())
+		ret = eth_eip197_speed(mac_idx, mac_idx, seconds, pkt_len) ?
+		      CMD_RET_FAILURE : CMD_RET_SUCCESS;
+	else
+		ret = eth_net_run_speed(&n, seconds);
 	ax_hcp_stop_link_up(mac_idx);
 
 	return ret;
@@ -928,16 +962,28 @@ static int eth_cmd_recv(struct cmd_tbl *cmdtp, int flag,
 static int eth_cmd_speed(struct cmd_tbl *cmdtp, int flag,
 			 int argc, char *const argv[])
 {
-	ulong port, seconds;
+	ulong port, seconds, len = EIP197_SPEED_PKT_LEN;
 
-	if (argc != 3)
+	if (argc != 3 && argc != 4)
 		return CMD_RET_USAGE;
 	if (eth_parse_ulong(argv[1], 0, ETH_CLI_SGMII_PORTS - 1, &port))
 		return CMD_RET_USAGE;
 	if (eth_parse_ulong(argv[2], 1, 3600, &seconds))
 		return CMD_RET_USAGE;
+	if (argc == 4) {
+		if (!ax_hcp_get_eip()) {
+			printf("[len] is only used with 'ax_eth eip on'\n");
+			return CMD_RET_FAILURE;
+		}
+		if (eth_parse_ulong(argv[3], EIP197_SPEED_PKT_MIN,
+				    EIP197_SPEED_PKT_MAX, &len)) {
+			printf("len must be %d..%d\n", EIP197_SPEED_PKT_MIN,
+			       EIP197_SPEED_PKT_MAX);
+			return CMD_RET_FAILURE;
+		}
+	}
 
-	return eth_sgmii_speed(port + 1, seconds);
+	return eth_sgmii_speed(port + 1, seconds, len);
 }
 
 #if 0
@@ -1012,9 +1058,28 @@ static int eth_cmd_sgmii(struct cmd_tbl *cmdtp, int flag,
 	return CMD_RET_USAGE;
 }
 
+static int eth_cmd_eip(int argc, char *const argv[])
+{
+	if (argc == 3) {
+		if (!strcmp(argv[2], "on"))
+			ax_hcp_set_eip(true);
+		else if (!strcmp(argv[2], "off"))
+			ax_hcp_set_eip(false);
+		else
+			return CMD_RET_USAGE;
+	} else if (argc != 2) {
+		return CMD_RET_USAGE;
+	}
+	printf("EIP197 path: %s\n", ax_hcp_get_eip() ? "on" : "off");
+	return CMD_RET_SUCCESS;
+}
+
 static int do_ax_eth(struct cmd_tbl *cmdtp, int flag,
 		     int argc, char *const argv[])
 {
+	if (argc >= 2 && !strcmp(argv[1], "eip"))
+		return eth_cmd_eip(argc, argv);
+
 	if (argc < 4)
 		return CMD_RET_USAGE;
 
@@ -1049,14 +1114,20 @@ U_BOOT_CMD(
 	"    - XGMII (10G) RXAUI SerDes near-end loopback test\n"
 	"ax_eth xgmii external 0\n"
 	"    - XGMII (10G) external PHY PCS loopback test (Clause 45)\n"
+	"ax_eth eip [on|off]\n"
+	"    - Show or set the EIP-197 path for the loopback tests above:\n"
+	"      on = traffic is encrypted/decrypted by EIP-197 (3-DES CBC),\n"
+	"      off = bypass EIP, host FIFO (default)\n"
 	"ax_eth sgmii ping <port|all> <ip> [count]\n"
 	"    - ARP + ICMP echo to <ip> (default 4 times), no U-Boot net stack;\n"
 	"      <ip> outside the subnet goes through the gateway\n"
 	"ax_eth sgmii recv <port>\n"
 	"    - Answer ARP/ping from the network until Ctrl+C\n"
-	"ax_eth sgmii speed <port> <seconds>\n"
+	"ax_eth sgmii speed <port> <seconds> [len]\n"
 	"    - Send raw broadcast frames for <seconds> and print the TX\n"
-	"      speed (bytes * 8 / time), needs a link partner on the port\n"
+	"      speed (bytes * 8 / time), needs a link partner on the port;\n"
+	"      with 'ax_eth eip on': <len>-byte IPv6/UDP packets (62..9572,\n"
+	"      default 1200) encrypted by EIP-197, rate in pkts/s\n"
 	"    (ping/recv: MAC/IP/gateway are per port, set in eth_net.h\n"
 	"     as eth_net_port0_cfg..eth_net_port3_cfg)\n"
 	"Monitors:\n"

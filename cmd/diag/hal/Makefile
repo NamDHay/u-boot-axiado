@@ -13,7 +13,11 @@ obj-$(CONFIG_AXIADO_HCP_ETH) 	+= ethernet/hcp/hcp_main.o \
 				   ethernet/hcp/mac/eth_mac.o \
 				   ethernet/hcp/mdio/eth_mdio.o \
 				   ethernet/hcp/mdio/eth_phy_table.o \
-				   ethernet/hcp/net/eth_net.o
+				   ethernet/hcp/net/eth_net.o \
+				   ethernet/hcp/eip197/eip197.o \
+				   ethernet/hcp/eip197/eip197_cfg.o \
+				   ethernet/hcp/eip197/eip197_fw.o \
+				   ethernet/hcp/eip197/eip197_sa.o
 
 obj-y						+= gpio/ax_gpio.o
 obj-$(CONFIG_CDNS_GPIO) 	+= gpio/cdns_gpio.o

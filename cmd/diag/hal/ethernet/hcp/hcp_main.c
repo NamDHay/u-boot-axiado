@@ -58,6 +58,35 @@ static bool hcp_phy_configured[GMII_PORT_COUNT + 1];
 static enum ax_eth_speed hcp_eth_speed[GMII_PORT_COUNT + 1] = {
 	[0 ... GMII_PORT_COUNT] = AX_ETH_1G,
 };
+static bool hcp_eip_enabled;
+static bool hcp_eip_req[GMII_PORT_COUNT + 1];
+
+void ax_hcp_set_eip(bool on)
+{
+	hcp_eip_enabled = on;
+}
+
+bool ax_hcp_get_eip(void)
+{
+	return hcp_eip_enabled;
+}
+
+void ax_hcp_eip_path(unsigned mac_idx, bool on)
+{
+	if (mac_idx <= GMII_PORT_COUNT)
+		hcp_eip_req[mac_idx] = on;
+}
+
+static void hcp_set_data_path(unsigned mac_idx, bool eip)
+{
+	if (!eip) {
+		eth_set_eipbypass(mac_idx);
+		return;
+	}
+	mac_1g_cd_config(mac_idx);
+	tdest_mask_config(mac_idx);
+	eth_sgmii_reset(mac_idx);
+}
 
 static bool hcp_mac_idx_valid(unsigned mac_idx)
 {
@@ -67,20 +96,23 @@ static bool hcp_mac_idx_valid(unsigned mac_idx)
 static int hcp_mac_init(unsigned mac_idx, enum ax_eth_speed speed)
 {
 	int ret = 0;
+	bool eip;
 
 	if (mac_idx > GMII_PORT_COUNT || !ax_speed_get(speed, mac_idx))
 		return -EINVAL;
 	hcp_eth_speed[mac_idx] = speed;
+	eip = hcp_eip_req[mac_idx];
+	hcp_eip_req[mac_idx] = false;
 
 	switch (speed) {
 	case AX_ETH_10G:
 		mac_init_10g();
 		xgmii_fast_sim();
-		eth_set_eipbypass(mac_idx);
+		hcp_set_data_path(mac_idx, eip);
 		return 0;
 	case AX_ETH_100M:
 		mac_init_rmii(mac_idx);
-		eth_set_eipbypass(mac_idx);
+		hcp_set_data_path(mac_idx, eip);
 		eth_enable_gmii_ncsi(mac_idx, 1);
 		return 0;
 	case AX_ETH_1G:
@@ -92,7 +124,7 @@ static int hcp_mac_init(unsigned mac_idx, enum ax_eth_speed speed)
 	mac_reset_1g(mac_idx);
 	mac_init_1g(mac_idx);
 	mdelay(200);
-	eth_set_eipbypass(mac_idx);
+	hcp_set_data_path(mac_idx, eip);
 	/* HW specific config for MAC. */
 	sgmii_innosilicon_pi_config(mac_idx);
 	sgmii_fast_sim(mac_idx);
