@@ -18,11 +18,12 @@ static int do_ax_i3c_init(struct cmd_tbl *cmdtp, int flag,
 {
     u8 bus;
     int ret;
+    char *endp;
 
     if (argc != 2)
         return CMD_RET_USAGE;
 
-    bus = hextoul(argv[1], NULL);
+    bus = simple_strtol(argv[1], &endp, 10);
 
     ret = ax_i3c_bus_init(bus);
     if (ret) {

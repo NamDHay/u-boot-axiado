@@ -28,7 +28,6 @@
 
 #define CONFIG_ENV_OVERWRITE
 
-
 #ifdef CONFIG_BOOTARGS
 #undef CONFIG_BOOTARGS
 #endif

@@ -97,7 +97,7 @@ static int ax_tmp75_get_temp(struct ax_tmp_dev *dev,
     return 0;
 }
 
-static int do_ax_tmp(struct cmd_tbl *cmdtp, int flag,
+static int do_ax_temp(struct cmd_tbl *cmdtp, int flag,
         int argc, char *const argv[])
 {
     char *endp;
@@ -116,7 +116,7 @@ static int do_ax_tmp(struct cmd_tbl *cmdtp, int flag,
         printf("Mode not found\n");
         return CMD_RET_USAGE;
     }
-    tmp.bus = simple_strtol(argv[3], &endp, 16);
+    tmp.bus = simple_strtol(argv[3], &endp, 10);
     tmp.addr = simple_strtol(argv[4], &endp, 16);
 
     ret = ax_tmp_init_bus(&tmp);
@@ -142,7 +142,7 @@ static int do_ax_tmp(struct cmd_tbl *cmdtp, int flag,
 }
 
 U_BOOT_CMD(
-        ax_tmp, 16, 1, do_ax_tmp,
+        ax_temp, 16, 1, do_ax_temp,
         "Axiado bare-metal TMP75 diagnostics test",
         "read <i2c|i3c> <bus> <address>\n"
         "    - read TMP75 temperature\n"

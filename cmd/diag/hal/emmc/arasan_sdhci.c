@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <malloc.h>
 #include <asm/io.h>
+#include <asm/cache.h>
+#include <cpu_func.h>
 #include <linux/delay.h>
 #include <linux/errno.h>
 #include <linux/kernel.h>
@@ -23,6 +25,39 @@ static struct arasan_emmc_ctrl_t emmc_dev = {
     .reg_base = (void __iomem *)AX3000_CSR_BASE_ADRS_AHBS_EMMC,
     .version = 1,
 };
+
+/*
+ * ADMA descriptor table. The controller fetches it from DRAM, so it must not
+ * live on the stack (cache maintenance would hit neighbouring stack data) and
+ * it must be cache-line aligned so it can be flushed on its own.
+ */
+static struct desp_t adma_table __aligned(ARCH_DMA_MINALIGN);
+
+/* Round [buf, buf + len) out to whole cache lines */
+static void emmc_cache_range(const void *buf, size_t len,
+        unsigned long *start, unsigned long *end)
+{
+    *start = rounddown((unsigned long)buf, ARCH_DMA_MINALIGN);
+    *end = roundup((unsigned long)buf + len, ARCH_DMA_MINALIGN);
+}
+
+/* CPU -> device: write dirty lines back to DRAM before DMA reads them */
+static void emmc_dma_flush(const void *buf, size_t len)
+{
+    unsigned long start, end;
+
+    emmc_cache_range(buf, len, &start, &end);
+    flush_dcache_range(start, end);
+}
+
+/* device -> CPU: drop stale lines so the CPU sees what DMA wrote */
+static void emmc_dma_invalidate(void *buf, size_t len)
+{
+    unsigned long start, end;
+
+    emmc_cache_range(buf, len, &start, &end);
+    invalidate_dcache_range(start, end);
+}
 
 static int arasan_emmc_phy_init(void)
 {
@@ -637,7 +672,7 @@ static int arasan_emmc_dma_write(uint32_t start_block_number, uint32_t blkcnt,
     uint32_t blk_size_cnt = 0;
     uint32_t delay_loop_count = 0;
     uint32_t dma_mode;
-    uint32_t dma_addr;
+    uint32_t dma_addr = 0;
     int ret;
 
     if (EMMC_CHECK_VALID(emmc) || write_buf == NULL) {
@@ -699,6 +734,9 @@ static int arasan_emmc_dma_write(uint32_t start_block_number, uint32_t blkcnt,
                     AX_EMMC_CONTROL0));
         return -EINVAL;
     }
+
+    /* Make sure the controller sees the data the CPU wrote */
+    emmc_dma_flush(write_buf, blkcnt * AX_EMMC_BLOCK_SIZE);
 
     /* Issue CMD25 to write multiple blocks of data */
     ret = sd_issue_command(emmc, dma_addr, blk_size_cnt, start_block_number,
@@ -820,6 +858,12 @@ static int arasan_emmc_dma_read(uint32_t start_block_number, uint32_t blkcnt,
         return -EINVAL;
     }
 
+    /*
+     * Invalidate before DMA so no dirty line can be evicted on top of the
+     * incoming data while the transfer is running.
+     */
+    emmc_dma_invalidate(read_buf, blkcnt * AX_EMMC_BLOCK_SIZE);
+
     /* Issue CMD18 to read multiple blocks of data */
     ret = sd_issue_command(
             emmc, dma_addr, blk_size_cnt, start_block_number,
@@ -853,6 +897,8 @@ static int arasan_emmc_dma_read(uint32_t start_block_number, uint32_t blkcnt,
         if (temp & AX_EMMC_INTERRUPT_TRFR_COMPLETE) {
             arasan_reg_write32(emmc->reg_base, AX_EMMC_INTERRUPT,
                     AX_EMMC_INTERRUPT_TRFR_COMPLETE);
+            /* Drop lines speculatively fetched during DMA */
+            emmc_dma_invalidate(read_buf, blkcnt * AX_EMMC_BLOCK_SIZE);
             // printf("SDMA/ADMA Read Transfer Complete\r\n\n");
             return 0;
         }
@@ -882,26 +928,29 @@ static int arasan_emmc_write_data(uint32_t start, uint32_t blkcnt, const void *s
     } else if (emmc->trans_mode == EMMC_SDMA) {
         return arasan_emmc_dma_write(start, blkcnt, src, AX_EMMC_BLKSIZECNT_SDMA_8KB);
     } else if (emmc->trans_mode == EMMC_ADMA) {
-        u32 total_size; 
+        u32 total_size;
         u32 current = 0;
-        struct desp_t table;
+        struct desp_t *table = &adma_table;
         int i;
 
+        memset(table, 0, sizeof(*table));
         total_size = blkcnt * AX_EMMC_BLOCK_SIZE;
         for (i = 0; i < EMMC_ADMA_MAX_TABLE; i++) {
-            table.line[i].addr = (uint32_t)(uintptr_t)(src + current);
-            table.line[i].length = (total_size > AX_EMMC_1BLOCK) ? 0 : total_size;
-            table.line[i].attr = ADMA_VALID | ADMA_ACT_TRAN;
+            table->line[i].addr = (uint32_t)(uintptr_t)(src + current);
+            table->line[i].length = (total_size > AX_EMMC_1BLOCK) ? 0 : total_size;
+            table->line[i].attr = ADMA_VALID | ADMA_ACT_TRAN;
             if(total_size > AX_EMMC_1BLOCK) {
                 total_size -= AX_EMMC_1BLOCK;
                 current += AX_EMMC_1BLOCK;
             } else {
-                table.line[i].attr |= ADMA_END;
+                table->line[i].attr |= ADMA_END;
                 break;
             }
         }
+        /* Controller fetches the descriptors from DRAM */
+        emmc_dma_flush(table, sizeof(*table));
 
-        return arasan_emmc_dma_write(start, blkcnt, src, (uint32_t)(uintptr_t)&table);
+        return arasan_emmc_dma_write(start, blkcnt, src, (uint32_t)(uintptr_t)table);
     } else {
         return -EINVAL;
     }
@@ -916,26 +965,29 @@ static int arasan_emmc_read_data(uint32_t start, uint32_t blkcnt, void *dst)
     } else if (emmc->trans_mode == EMMC_SDMA) {
         return arasan_emmc_dma_read(start, blkcnt, dst, AX_EMMC_BLKSIZECNT_SDMA_8KB);
     } else if (emmc->trans_mode == EMMC_ADMA) {
-        u32 total_size; 
+        u32 total_size;
         u32 current = 0;
-        struct desp_t table;
+        struct desp_t *table = &adma_table;
         int i;
 
+        memset(table, 0, sizeof(*table));
         total_size = blkcnt * AX_EMMC_BLOCK_SIZE;
         for (i = 0; i < EMMC_ADMA_MAX_TABLE; i++) {
-            table.line[i].addr = (uint32_t)(uintptr_t)(dst + current);
-            table.line[i].length = (total_size > AX_EMMC_1BLOCK) ? 0 : total_size;
-            table.line[i].attr = ADMA_VALID | ADMA_ACT_TRAN;
+            table->line[i].addr = (uint32_t)(uintptr_t)(dst + current);
+            table->line[i].length = (total_size > AX_EMMC_1BLOCK) ? 0 : total_size;
+            table->line[i].attr = ADMA_VALID | ADMA_ACT_TRAN;
             if(total_size > AX_EMMC_1BLOCK) {
                 total_size -= AX_EMMC_1BLOCK;
                 current += AX_EMMC_1BLOCK;
             } else {
-                table.line[i].attr |= ADMA_END;
+                table->line[i].attr |= ADMA_END;
                 break;
             }
         }
+        /* Controller fetches the descriptors from DRAM */
+        emmc_dma_flush(table, sizeof(*table));
 
-        return arasan_emmc_dma_read(start, blkcnt, dst, (uint32_t)(uintptr_t)&table);
+        return arasan_emmc_dma_read(start, blkcnt, dst, (uint32_t)(uintptr_t)table);
     } else {
         return -EINVAL;
     }

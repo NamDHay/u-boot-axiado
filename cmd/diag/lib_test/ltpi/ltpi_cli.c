@@ -15,24 +15,34 @@
 #define AX_LTPI_READ_ADDRESS    (AX3000_MEM_BASE_ADRS_DDR_LO + 0x20000000)
 #define AX_LTPI_WRITE_ADDRESS   (AX3000_MEM_BASE_ADRS_DDR_LO + 0x10000000)
 #define AX_LTPI_TIMEOUT_MS      5000
+#define AX_LTPI_LINK_MAX_RETRY  50
 
 static int do_ax_ltpi(struct cmd_tbl *cmdtp, int flag, int argc,
         char *const argv[])
 {
     int ret;
+    u32 retry = AX_LTPI_LINK_MAX_RETRY;
 
     if (argc < 2)
         return CMD_RET_USAGE;
 
     if (!strcmp(argv[1], "init")) {
+try_again:
         ret = ax_ltpi_init();
         if (ret) {
-            return CMD_RET_FAILURE;
+            return ret;
         }
 
         ret = ax_ltpi_check_link(AX_LTPI_TIMEOUT_MS);
-        if (ret) {
-            return CMD_RET_FAILURE;
+        if (ret & retry) {
+            ax_ltpi_reset();
+            retry--;
+            goto try_again;
+        }
+        if (!retry) {
+            printf("LTPI Link training timeout after %d retries\n",
+                    AX_LTPI_LINK_MAX_RETRY);
+            return ret;
         }
     } else if (!strcmp(argv[1], "free")) {
         ax_ltpi_reset();

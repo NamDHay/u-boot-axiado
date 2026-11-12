@@ -302,7 +302,8 @@ static int ax_nvme_enable_pcie(struct ax_nvme_dev *ndev)
     val &= 0xffff;
     val |= PCI_COMMAND_MEMORY;
     val |= PCI_COMMAND_MASTER;
-    val &= ~PCI_COMMAND_INTX_DISABLE;
+    /* The driver polls the CQs: keep legacy INTx off (see ax_pcie_init_ep_bars) */
+    val |= PCI_COMMAND_INTX_DISABLE;
 
     ret = ax_pcie_cfg_write(ndev->pcie_port, ndev->bus, ndev->dev,
             ndev->func, PCI_CFG_COMMAND, val);

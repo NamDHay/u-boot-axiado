@@ -31,7 +31,7 @@
 #define MAX_STACK_SIZE 10  // Define the maximum size of your stack
 #define PCIE_BRIDGE_OFFSET 0x2000
 #define PCIE_CFG_OFFSET 0x3000
-#define PCIE_ECAM_OFFSET 0xE0000000
+#define AX_PCIE_ECAM_BASE 0xE0000000
 
 #define PCIE_X1_INTX_MSI_AER_PM_SYSERR_INTR        65
 #define PCIE_X2_INTX_MSI_AER_PM_SYSERR_INTR        93
@@ -76,7 +76,6 @@ static struct axiado_pcie pcie_x1 = {
     .pcie_x2 = false,
 
     .irq = PCIE_X1_INTX_MSI_AER_PM_SYSERR_INTR,
-    .cur_vec = 0,
 
     .lanes = 1,
 
@@ -87,7 +86,7 @@ static struct axiado_pcie pcie_x1 = {
     .mbx = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_MBX_X1,
     .ext = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_EXT_X1,
     .ioctl = (void __iomem *)AX3000_CSR_BASE_ADRS_IOCTL_2,
-    .ecam = (void __iomem *)AX3000_MEM_BASE_ADRS_PCIE_X1 + PCIE_ECAM_OFFSET,
+    .ecam = (void __iomem *)AX3000_MEM_BASE_ADRS_PCIE_X1 + AX_PCIE_ECAM_BASE,
 
     .atr = {
         { 
@@ -110,19 +109,22 @@ static struct axiado_pcie pcie_x1 = {
             .num_vfs = 0,
             .pf = {
                 { 
-                    .bus_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_64M * 1,
-                    .phys_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_64M * 1,
+                    .bus_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_256M * 1,
+                    .phys_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_256M * 1,
                     .size = SZ_1M, 
                     .flags = PCI_BAR_MEM_TYPE_64,
                 },
                 { 
-                    .bus_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_64M * 2,
-                    .phys_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_64M * 2,
+                    .bus_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_256M * 2,
+                    .phys_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_256M * 2,
                     .size = SZ_1M, 
                     .flags = PCI_BAR_MEM_TYPE_64,
                 },
                 { 
-                    .size = 0x0, 
+                    .bus_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_256M * 3,
+                    .phys_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_256M * 3,
+                    .size = SZ_1M, 
+                    .flags = PCI_BAR_MEM_TYPE_64,
                 }, 
             },
         },
@@ -134,7 +136,6 @@ static struct axiado_pcie pcie_x2 = {
     .pcie_x2 = true,
 
     .irq = PCIE_X2_INTX_MSI_AER_PM_SYSERR_INTR,
-    .cur_vec = 0,
 
     .lanes = 2,
 
@@ -145,7 +146,7 @@ static struct axiado_pcie pcie_x2 = {
     .mbx = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_MBX_X2,
     .ext = (void __iomem *)AX3000_CSR_BASE_ADRS_PCIE_EXT_X2,
     .ioctl = (void __iomem *)AX3000_CSR_BASE_ADRS_IOCTL_2,
-    .ecam = (void __iomem *)AX3000_MEM_BASE_ADRS_PCIE_X2 + PCIE_ECAM_OFFSET,
+    .ecam = (void __iomem *)AX3000_MEM_BASE_ADRS_PCIE_X2 + AX_PCIE_ECAM_BASE,
 
     .atr = {
         { 
@@ -171,8 +172,8 @@ static struct axiado_pcie pcie_x2 = {
             .num_vfs = 0,
             .pf = {
                 { 
-                    .bus_start = (void __iomem *)AX3000_CSR_BASE_ADRS_USB2P0_0,
-                    .phys_start = (void __iomem *)AX3000_CSR_BASE_ADRS_USB2P0_0,
+                    .bus_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_256M * 1,
+                    .phys_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_256M * 1,
                     .size = SZ_1M, 
                     .flags = PCI_BAR_MEM_TYPE_64,
                 },
@@ -190,8 +191,8 @@ static struct axiado_pcie pcie_x2 = {
             .num_vfs = 0,
             .pf = {
                 { 
-                    .bus_start = (void __iomem *)AX3000_CSR_BASE_ADRS_USB2P0_1,
-                    .phys_start = (void __iomem *)AX3000_CSR_BASE_ADRS_USB2P0_1,
+                    .bus_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_256M * 2,
+                    .phys_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_256M * 2,
                     .size = SZ_1M, 
                     .flags = PCI_BAR_MEM_TYPE_64,
                 },
@@ -209,8 +210,8 @@ static struct axiado_pcie pcie_x2 = {
             .num_vfs = 0,
             .pf = {
                 { 
-                    .bus_start = (void __iomem *)AX3000_CSR_BASE_ADRS_USB2P0_2,
-                    .phys_start = (void __iomem *)AX3000_CSR_BASE_ADRS_USB2P0_2,
+                    .bus_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_256M * 3,
+                    .phys_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_256M * 3,
                     .size = SZ_1M, 
                     .flags = PCI_BAR_MEM_TYPE_64,
                 },
@@ -228,8 +229,8 @@ static struct axiado_pcie pcie_x2 = {
             .num_vfs = 0,
             .pf = {
                 { 
-                    .bus_start = (void __iomem *)AX3000_CSR_BASE_ADRS_USB2P0_3,
-                    .phys_start = (void __iomem *)AX3000_CSR_BASE_ADRS_USB2P0_3,
+                    .bus_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_256M * 4,
+                    .phys_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_256M * 4,
                     .size = SZ_1M, 
                     .flags = PCI_BAR_MEM_TYPE_64,
                 },
@@ -247,8 +248,8 @@ static struct axiado_pcie pcie_x2 = {
             .num_vfs = 0,
             .pf = {
                 { 
-                    .bus_start = (void __iomem *)AX3000_CSR_BASE_ADRS_USB3P0_0,
-                    .phys_start = (void __iomem *)AX3000_CSR_BASE_ADRS_USB3P0_0,
+                    .bus_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_256M * 5,
+                    .phys_start = (void __iomem *)AX3000_MEM_BASE_ADRS_DDR_LO + SZ_256M * 5,
                     .size = SZ_1M, 
                     .flags = PCI_BAR_MEM_TYPE_64,
                 },
@@ -308,9 +309,9 @@ static int get_ltssm_state(struct axiado_pcie *pcie) {
 static unsigned int axiado_pcie_conf_offset(u8 bus, u8 dev, u8 func,
         unsigned int where)
 {
-    return PCI_BUS(bus) |
-        PCI_DEV(dev) |
-        PCI_FUNC(func) |
+    return AX_PCIE_ECAM_BUS(bus) |
+        AX_PCIE_ECAM_DEV(dev) |
+        AX_PCIE_ECAM_FUNC(func) |
         (where & (SZ_4K - 1) & ~3);
 }
 
@@ -612,11 +613,11 @@ static int axiado_pcie_mem_write(u8 port, u64 offset,
 static int axiado_pcie_release_reset(struct axiado_pcie *pcie)
 {
     u32 value;
-    u32 offset;
 
     printf("%s - x%d\n", __func__, pcie->lanes);
 
 #ifdef CONFIG_AXIADO_AX3000
+    u32 offset;
     /*
      * TBD: Reset the PCIe controller, only in x1 case. Both x1 and x2
      * are having the same region for IOCTL. The same address cannot
@@ -1124,12 +1125,15 @@ static int axiado_pcie_setup_p2a_rom_atu(struct axiado_pcie *pcie, u64 src_addr,
     return axiado_pcie_setup_p2a_atu(pcie, TABLE_6, src_addr, trsl_addr, window_size, AXI4_MSTR_NUM_0);
 }
 
-static int axiado_pcie_setup_a2p_intern_atu(struct axiado_pcie *pcie, u8 pf_num, u64 src_addr,
+static int axiado_pcie_setup_a2p_intern_atu(struct axiado_pcie *pcie, u8 pf_num,
         u64 trsl_addr, size_t bar_size)
 {
     u32 val;
     u64 single_pf_base_reg_size;
     u64 single_pf_vf_reg_size;
+
+    printf("Internal ATU A2P entry [PF_%d] - 0x%010llx [0x%010lx]\n\r", pf_num,
+            trsl_addr, bar_size);
 
     single_pf_base_reg_size = REG_PCIE_X2_OFM_PF1_CONFIG_ADRS_OFFSET - REG_PCIE_X2_OFM_PF0_CONFIG_ADRS_OFFSET;
     single_pf_vf_reg_size = REG_PCIE_X2_OFM_PF1_VF_CONFIG_ADRS_OFFSET - REG_PCIE_X2_OFM_PF0_VF_CONFIG_ADRS_OFFSET;
@@ -1139,7 +1143,7 @@ static int axiado_pcie_setup_a2p_intern_atu(struct axiado_pcie *pcie, u8 pf_num,
     val = EXT_PCIE_X2_OFM_PF_CONFIG_ENABLE_SET(val, 1);
     val = EXT_PCIE_X2_OFM_PF_CONFIG_BASE_ADRS_SIZE_SET(val, ilog2(bar_size) - 1);
     val = EXT_PCIE_X2_OFM_PF_CONFIG_PF_ID_SET(val, pf_num);
-    val = EXT_PCIE_X2_OFM_PF_CONFIG_PCIE_X2_SPACE_SET(val, ((trsl_addr & 0xFFFFF000) >> 12));
+    val = EXT_PCIE_X2_OFM_PF_CONFIG_PCIE_X2_SPACE_SET(val, ((trsl_addr >> 12) & PCIE_ATR_TRSL_ADDR_MASK));
     writel(val, pcie->ext + REG_PCIE_X2_OFM_PF0_CONFIG_ADRS_OFFSET + single_pf_base_reg_size * pf_num);
 
     return 0;
@@ -1235,7 +1239,6 @@ static int axiado_pcie_setup_p2a_rom_intern_atu(struct axiado_pcie *pcie, u8 pf_
 static void axiado_pcie_setup_windows(struct axiado_pcie *pcie)
 {
     int table;
-    int bar_lo, bar_hi;
     u8 pf, bar;
 
     if (pcie->is_root_port) {
@@ -1274,21 +1277,17 @@ static void axiado_pcie_setup_windows(struct axiado_pcie *pcie)
                             (u64)pcie->func[pf].pf[bar/2].size,
                             (u64)pcie->func[pf].vf[bar/2].phys_start,
                             (u64)pcie->func[pf].vf[bar/2].size);
+
                 } else {
                     axiado_pcie_setup_p2a_atu(pcie, bar,
                             (u64)0x0,
                             (u64)pcie->func[pf].pf[bar/2].phys_start,
                             (u64)pcie->func[pf].pf[bar/2].size,
                             AXI4_MSTR_NUM_0);
-                    axiado_pcie_setup_a2p_atu(pcie, (bar/2),
-                            (u64)pcie->func[pf].pf[bar/2].phys_start,
-                            (u64)pcie->atr[bar/2].phys_start,
-                            (u64)pcie->func[pf].pf[bar/2].size,
-                            PCIE_TX_TX_INF);
                 }
             }
 
-            axiado_pcie_rom_init(pcie, pf);
+            /* axiado_pcie_rom_init(pcie, pf); */
 
             axiado_pcie_axi_clr(pcie);
         }
@@ -1296,45 +1295,51 @@ static void axiado_pcie_setup_windows(struct axiado_pcie *pcie)
     }
 }
 
-static void axiado_pcie_handle_intx_irq(struct axiado_pcie *pcie, unsigned long status)
+/*
+ * Local interrupt sources the root port services.
+ *
+ * Legacy INTx is deliberately NOT enabled: the diag drivers poll their
+ * devices, nothing here can make an endpoint drop INTA#, so with INTx
+ * enabled an asserting device would keep re-entering this handler.
+ * Endpoints get INTx Disable set in ax_pcie_init_ep_bars().
+ */
+#define AXIADO_PCIE_RP_IRQ_EN   (INT_MSI | INT_ERRORS)
+
+static void axiado_pcie_handle_intx_irq(struct axiado_pcie *pcie, u32 status)
 {
-    u32 bit;
-
-    printf("%s\n", __func__);
-    for_each_set_bit(bit, &status, PCI_NUM_INTX) {
-        /* Clear interrupts */
-        writel(1 << (bit + INTA_OFFSET), 
-                pcie->bridge + ISTATUS_LOCAL);
-
-        /* Handle interrupt bit's function */
-    }
+    /* INTx is masked; just acknowledge in case it was latched anyway */
+    writel(status & INT_INTX_MASK, pcie->bridge + ISTATUS_LOCAL);
 }
 
 static void axiado_pcie_handle_msi_irq(struct axiado_pcie *pcie)
 {
-    u32 bit;
     unsigned long status;
+    u32 bit;
 
-    status = readl(pcie->bridge + ISTATUS_MSI);
-
-    for_each_set_bit(bit, &status, INT_PCI_MSI_NR) {
-        /* Clear interrupts */
-        if(pcie->msi[bit].handler) {
-            pcie->msi[bit].handler(
-                    pcie->msi[bit].arg
-                    );
-        } else {
-            printf("Unhandled MSI, MSI%d\n", bit);
-        }
-        writel(1 << bit, 
-                pcie->bridge + ISTATUS_MSI);
-    }
+    /*
+     * Acknowledge the summary bit BEFORE draining the per-vector status:
+     * an MSI arriving while the vectors are being handled sets it again,
+     * instead of being wiped by a late summary clear.
+     */
     writel(INT_MSI, pcie->bridge + ISTATUS_LOCAL);
+
+    while ((status = readl(pcie->bridge + ISTATUS_MSI))) {
+        /* Clear first so a repeat of the same vector is not lost */
+        writel(status, pcie->bridge + ISTATUS_MSI);
+
+        for_each_set_bit(bit, &status, INT_PCI_MSI_NR) {
+            if (pcie->msi[bit].handler)
+                pcie->msi[bit].handler(pcie->msi[bit].arg);
+            else
+                printf("Unhandled MSI, MSI%d\n", bit);
+        }
+    }
 }
 
 static void axiado_pcie_handle_errors_irq(struct axiado_pcie *pcie, u32 status)
 {
-    /* printf("%s\n", __func__); */
+    writel(status & INT_ERRORS, pcie->bridge + ISTATUS_LOCAL);
+
     if (status & INT_AXI_POST_ERROR)
         printf("AXI post error\n");
     if (status & INT_AXI_FETCH_ERROR)
@@ -1347,16 +1352,16 @@ static void axiado_pcie_handle_errors_irq(struct axiado_pcie *pcie, u32 status)
         printf("PCIe fetch error\n");
     if (status & INT_PCIE_DISCARD_ERROR)
         printf("PCIe discard error\n");
-
-    writel(INT_ERRORS, pcie->bridge + ISTATUS_LOCAL);
 }
 
 static void axiado_pcie_intr_handler(void *arg)
 {
     struct axiado_pcie *pcie = arg;
-    unsigned long status = 0;
+    u32 status, other;
 
-    status = readl(pcie->bridge + ISTATUS_LOCAL) & INT_MASK;
+    /* Only sources that are enabled can be what raised the line */
+    status = readl(pcie->bridge + ISTATUS_LOCAL) &
+        readl(pcie->bridge + IMASK_LOCAL);
 
     if (status & INT_INTX_MASK)
         axiado_pcie_handle_intx_irq(pcie, status);
@@ -1366,6 +1371,25 @@ static void axiado_pcie_intr_handler(void *arg)
 
     if (status & INT_ERRORS)
         axiado_pcie_handle_errors_irq(pcie, status);
+
+    /*
+     * Anything else that is enabled but has no handler must still be
+     * acknowledged, otherwise the level interrupt fires forever.
+     */
+    other = status & ~INT_MASK;
+    if (other) {
+        writel(other, pcie->bridge + ISTATUS_LOCAL);
+        printf("PCIe x%d: unhandled local IRQ 0x%08x\n",
+                pcie->lanes, other);
+    }
+}
+
+static void axiado_pcie_irq_quiesce(struct axiado_pcie *pcie)
+{
+    /* Mask everything and drop anything already pending */
+    writel(0, pcie->bridge + IMASK_LOCAL);
+    writel(0xffffffff, pcie->bridge + ISTATUS_LOCAL);
+    writel(0xffffffff, pcie->bridge + ISTATUS_MSI);
 }
 
 static void axiado_pcie_pf_irq_handle(void *arg)
@@ -1381,14 +1405,16 @@ static void axiado_pcie_pf_irq_handle(void *arg)
 
 static int ax_pcie_irq_init(struct axiado_pcie *pcie)
 {
-    /* No allocation needed */
+    axiado_pcie_irq_quiesce(pcie);
+
+    /* Fresh MSI vector table: every vector free again */
     memset(pcie->msi, 0, sizeof(pcie->msi));
 
     irq_install_handler(IRQ_VEC(pcie->irq, IRQ_TRIGGER_LEVEL), axiado_pcie_intr_handler, pcie);
 
-    /* Enable Interrupt */
-    writel(PCIE_INT_VAL_MASK, pcie->bridge + IMASK_LOCAL);
-    writel(PCIE_INT_VAL_MASK, pcie->bridge + ISTATUS_LOCAL);
+    /* Enable only the sources the handler services */
+    writel(AXIADO_PCIE_RP_IRQ_EN, pcie->bridge + IMASK_LOCAL);
+    pcie->irq_installed = true;
     return 0;
 }
 
@@ -1504,7 +1530,6 @@ static int axiado_pcie_init(u8 port, u8 controller_mode, u8 speed)
 {
     struct axiado_pcie *pcie;
     int ret;
-    u32 offset;
     u32 val;
 
     pcie = axiado_pcie_get_port(port);
@@ -1522,6 +1547,20 @@ static int axiado_pcie_init(u8 port, u8 controller_mode, u8 speed)
     printf("%s - ", __func__);
     printf("%s - ", pcie->is_root_port == PCIE_RP ? "Rootport": "Endpoint");
     printf("gen%d - x%d\n", pcie->speed, pcie->lanes);
+
+    /*
+     * Re-init of a port that already took interrupts: the link goes down
+     * during re-training, so mask and unhook the handler first instead of
+     * letting it run on a controller that is being reconfigured.
+     */
+    if (pcie->irq_installed) {
+        axiado_pcie_irq_quiesce(pcie);
+        irq_free_handler(IRQ_VEC(pcie->irq, IRQ_TRIGGER_LEVEL));
+        pcie->irq_installed = false;
+    }
+
+    /* BARs are lost with PERST#: hand out the window from the start again */
+    ax_pcie_reset_bar_pool(port);
 
     ret = axiado_pcie_release_reset(pcie);
     if (ret < 0) {
@@ -1745,13 +1784,14 @@ struct ax_pcie_msi *axiado_pcie_request_msi_handle(u8 port,
     struct axiado_pcie *pcie;
     struct ax_pcie_msi *msi;
     u64 msi_addr;
-    u32 start_vec;
-    u32 aligned_vec;
-    u32 end_vec;
-    u32 i;
+    u32 base, i;
     u8 mme;
 
-    if (!handler || !nr_vectors)
+    if (!handler || !nr_vectors || nr_vectors > INT_PCI_MSI_NR)
+        return NULL;
+
+    /* Multi-message MSI needs a power-of-two, naturally aligned group */
+    if (nr_vectors & (nr_vectors - 1))
         return NULL;
 
     pcie = axiado_pcie_get_port(port);
@@ -1759,36 +1799,28 @@ struct ax_pcie_msi *axiado_pcie_request_msi_handle(u8 port,
         return NULL;
 
     /*
-     * Calculate MME encoding:
-     *   1 vector  -> MME = 0
-     *   2 vectors -> MME = 1
-     *   4 vectors -> MME = 2
-     *   8 vectors -> MME = 3
-     *  16 vectors -> MME = 4
-     *  32 vectors -> MME = 5
+     * MME encoding: 1 -> 0, 2 -> 1, 4 -> 2, 8 -> 3, 16 -> 4, 32 -> 5
      */
-    mme = 0;
-    for (i = nr_vectors; i > 1; i >>= 1)
-        mme++;
+    mme = ilog2(nr_vectors);
 
     /*
-     * Reserve a contiguous, naturally aligned vector group.
-     *
-     * Example:
-     *   cur_vec = 3, nr_vectors = 4
-     *   aligned_vec = 4
-     *
-     * The skipped slots are not reused because cur_vec
-     * advances past the entire allocated group.
+     * First free, naturally aligned group.  An entry is in use while it
+     * has a handler; ax_pcie_release_msi_handle() gives a group back, so
+     * repeated enable/disable cycles do not run out of vectors.
      */
-    start_vec = pcie->cur_vec;
-    aligned_vec = (start_vec + nr_vectors - 1) &
-        ~((u32)nr_vectors - 1);
+    for (base = 0; base < INT_PCI_MSI_NR; base += nr_vectors) {
+        for (i = 0; i < nr_vectors; i++)
+            if (pcie->msi[base + i].handler)
+                break;
+        if (i == nr_vectors)
+            break;
+    }
 
-    end_vec = aligned_vec + nr_vectors;
-
-    if (end_vec > INT_PCI_MSI_NR)
+    if (base >= INT_PCI_MSI_NR) {
+        printf("PCIe x%d: no free group of %u MSI vectors\n",
+                pcie->lanes, nr_vectors);
         return NULL;
+    }
 
     /*
      * Read the MSI target address configured by the
@@ -1796,13 +1828,8 @@ struct ax_pcie_msi *axiado_pcie_request_msi_handle(u8 port,
      */
     msi_addr = readl(pcie->bridge + IMSI_ADDR);
 
-    /*
-     * Preserve the existing AX3005 MSI data encoding.
-     * Alignment ensures the group's base vector is
-     * aligned to nr_vectors.
-     */
     for (i = 0; i < nr_vectors; i++) {
-        u32 vec = aligned_vec + i;
+        u32 vec = base + i;
 
         msi = &pcie->msi[vec];
 
@@ -1811,7 +1838,6 @@ struct ax_pcie_msi *axiado_pcie_request_msi_handle(u8 port,
         msi->vector = vec;
         msi->mme = mme;
         msi->nr_vectors = nr_vectors;
-        msi->handler = handler;
         msi->arg = arg;
 
         /*
@@ -1819,19 +1845,16 @@ struct ax_pcie_msi *axiado_pcie_request_msi_handle(u8 port,
          * endpoint MSI capability has been enabled.
          */
         msi->enabled = false;
+
+        /* Handler last: it is what the IRQ handler keys on */
+        msi->handler = handler;
     }
 
-    /*
-     * Advance past the complete group, including
-     * any alignment gap.
-     */
-    pcie->cur_vec = end_vec;
-
-    msi = &pcie->msi[aligned_vec];
+    msi = &pcie->msi[base];
 
     printf("PCIe MSI vectors allocated:\n");
     printf("  port       = %u\n", port);
-    printf("  base vector= %u\n", aligned_vec);
+    printf("  base vector= %u\n", base);
     printf("  count      = %u\n", nr_vectors);
     printf("  MME        = %u\n", mme);
     printf("  address    = 0x%016llx\n",
@@ -1839,6 +1862,43 @@ struct ax_pcie_msi *axiado_pcie_request_msi_handle(u8 port,
     printf("  base data  = 0x%04x\n", msi->data);
 
     return msi;
+}
+
+/*
+ * Give back the vector group whose base entry was programmed into an
+ * endpoint as @address / @data.  The endpoint's MSI must already be
+ * disabled.  Returns -ENOENT if no allocated group matches.
+ */
+int axiado_pcie_release_msi_handle(u8 port, u64 address, u16 data)
+{
+    struct axiado_pcie *pcie;
+    struct ax_pcie_msi *msi;
+    u32 vec, i, n;
+
+    pcie = axiado_pcie_get_port(port);
+    if (!pcie)
+        return -EINVAL;
+
+    for (vec = 0; vec < INT_PCI_MSI_NR; vec++) {
+        msi = &pcie->msi[vec];
+
+        if (!msi->handler || msi->address != address ||
+                msi->data != data || msi->vector != vec)
+            continue;
+
+        /* Must be the base of its group */
+        n = msi->nr_vectors ? msi->nr_vectors : 1;
+        if (vec & (n - 1) || vec + n > INT_PCI_MSI_NR)
+            continue;
+
+        for (i = 0; i < n; i++)
+            memset(&pcie->msi[vec + i], 0, sizeof(*msi));
+
+        printf("PCIe MSI vectors %u..%u released\n", vec, vec + n - 1);
+        return 0;
+    }
+
+    return -ENOENT;
 }
 
 struct ax_pcie_ops pcie = {
@@ -1850,6 +1910,7 @@ struct ax_pcie_ops pcie = {
     .mem_write = axiado_pcie_mem_write,
     .debug_print = axiado_pcie_debug_print,
     .request_msi_handle = axiado_pcie_request_msi_handle,
+    .release_msi_handle = axiado_pcie_release_msi_handle,
     /* .request_msix_handle = axiado_pcie_request_msix_handle, */
 
     .set_msi = axiado_pcie_trigger_msi,

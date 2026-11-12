@@ -1,3 +1,31 @@
+config CMD_AX_DIAG_RECORD_ADDR
+	hex "ax_diag persistent result record address"
+	default 0xF0000000
+	help
+	  DRAM address where ax_diag keeps the status of every testcase
+	  (~13 KiB). U-Boot does not clear this area on boot, and the record
+	  is flushed to DRAM before each test command runs, so after a crash,
+	  hang + reset, or watchdog reset (with DRAM contents retained)
+	  'ax_diag status' reports which test and sub-command was running.
+	  Must not overlap U-Boot's relocation area or memory used by tests.
+
+config CMD_AX_DIAG_ABORT
+	bool "ax_diag: abort a running test on Ctrl+C or timeout"
+	depends on HAVE_SETJMP
+	select CYCLIC
+	default y
+	help
+	  While 'ax_diag run' executes a test command, a cyclic hook (called
+	  from udelay/mdelay -> schedule()) checks for Ctrl+C and for the
+	  testcase timeout. When either fires, the command is abandoned with
+	  longjmp() back to the runner, so no change is needed in the IP
+	  drivers. Ctrl+C marks the test ABORTED, the timeout marks it
+	  TIMEOUT, and the run continues with the next testcase.
+
+	  Only wait loops that call udelay/mdelay/schedule() can be broken.
+	  The aborted IP is left in whatever state it was in, so the next
+	  test using it should re-initialise it.
+
 config CMD_AX_ADC
 	bool "ax_adc - Axiado ADC diagnostics"
 	depends on CMD_AX_DIAG

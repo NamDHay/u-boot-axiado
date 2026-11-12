@@ -129,10 +129,10 @@ static int do_ax_ina(struct cmd_tbl *cmdtp, int flag,
     }
 
     if (mV < 0) {
-        printf("INA232(0x%02X) Voltage : -%d.%03d C\n", ina.addr,
+        printf("INA232(0x%02X) Voltage : -%d.%03d V\n", ina.addr,
                             (-mV) / 1000, (-mV) % 1000);
     } else {
-        printf("INA232(0x%02X) Voltage : %d.%03d C\n", ina.addr, 
+        printf("INA232(0x%02X) Voltage : %d.%03d V\n", ina.addr, 
                             mV / 1000, mV % 1000);
     }
     

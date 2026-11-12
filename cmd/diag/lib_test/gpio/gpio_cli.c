@@ -18,7 +18,7 @@ int do_ax_gpio(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
 
     gpio = simple_strtol(argv[2], &endp, 10);
 
-    ret = ax_gpio_request(gpio, "bypass");
+    ret = ax_gpio_request(gpio, "gpio");
     if (ret) {
         printf("GPIO: '%s' request failed\n", argv[2]);
         return -EINVAL;

@@ -49,9 +49,9 @@
 #define PCIE_STORAGE_CLASS_CODE         0x01800000 /* PCIe Class Code for Storage Mode */
 #define PCIE_TRUSTEDS_CLASS_CODE        0x0B800000 /* PCIe Class Code for Trusted Services Mode */
 
-#define PCI_BUS(bus)    (bus << 20)
-#define PCI_DEV(dev)    (dev << 15)
-#define PCI_FUNC(func)  (func << 12)
+#define AX_PCIE_ECAM_BUS(bus)    ((u32)(bus) << 20)
+#define AX_PCIE_ECAM_DEV(dev)    ((u32)(dev) << 15)
+#define AX_PCIE_ECAM_FUNC(func)  ((u32)(func) << 12)
 
 /* REG_PCIE_X1_PCIE_PCI_IDS_63_32_ADRS_OFFSET / REG_PCIE_X2_PCIE_PCI_IDS_63_32_ADRS_OFFSET*/
 #define PCIE_PCI_IDS_63_32_CLASS_CODE_SET(dst, val) BIT_SET_VAL(31, 8, dst, val)
@@ -842,7 +842,8 @@ struct axiado_pcie {
     int mailbox_irq;
     int msgbox_irq;
 
-    int cur_vec;
+    bool irq_installed;
+    /* MSI vector table, an entry with a handler is in use */
     struct ax_pcie_msi msi[INT_PCI_MSI_NR];
 
     unsigned lanes;

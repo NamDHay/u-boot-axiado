@@ -18,7 +18,8 @@ obj-$(CONFIG_CMD_AX_EEPROM) += eeprom/eeprom_cli.o
 obj-$(CONFIG_CMD_AX_TSENS) 	+= temp_sensor/tmp_cli.o
 obj-$(CONFIG_CMD_AX_VSENS) 	+= ina_sensor/ina_cli.o
 
-obj-$(CONFIG_CMD_AX_JTAG) 	+= jtag/jtag_cli.o
+obj-$(CONFIG_CMD_AX_JTAG) 	+= jtag/jtag_cli.o jtag/jtag_dap.o jtag/m0.o \
+				   jtag/armv8_dbg.o jtag/r52.o jtag/a53.o
 
 obj-$(CONFIG_CMD_AX_LTPI) 	+= ltpi/ltpi_cli.o
 

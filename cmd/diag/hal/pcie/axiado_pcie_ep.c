@@ -75,9 +75,7 @@ int axiado_pcie_bar_init(struct axiado_pcie *pcie,
         enum axiado_pcie_bars bar_num)
 {
     u32 bar_lo, bar_hi;
-    u64 vf_bar_size_mask;
     u8 cur_vf = 0, num_vfs = 0;
-    u64 bar_addr;
     u32 bar_flag;
     size_t bar_size;
 

@@ -376,6 +376,10 @@ void ax_xhci_pci_disable(struct ax_xhci_pci *x)
 		ax_pcie_cfg_read16(x->port, x->bus, x->dev, x->func, x->msi_cap + 2, &ctrl);
 		ax_pcie_cfg_write16(x->port, x->bus, x->dev, x->func, x->msi_cap + 2,
 				    ctrl & ~BIT(0));
+		/* MSI is off: give the RP vector back for the next enable */
+		if (x->msi)
+			ax_pcie_release_msi_handle(x->port, x->msi->address,
+						   x->msi->data);
 		x->msi_cap = 0;
 		x->msi = NULL;
 	}

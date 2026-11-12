@@ -45,23 +45,42 @@
 
 __weak struct ax_pcie_ops pcie;
 
-static u64 ax_pcie_bar_next;
-static u64 ax_pcie_bar_end;
-static int ax_pcie_bar_port = -1;
-static bool ax_pcie_bar_ready;
+/* Ports are numbered 1 (x1) and 2 (x2); keep one pool per port */
+#define AX_PCIE_MAX_PORTS		4
+
+struct ax_pcie_bar_pool {
+	u64 start;	/* first address handed out */
+	u64 next;	/* next free address */
+	u64 end;	/* one past the window */
+	bool ready;
+};
+
+static struct ax_pcie_bar_pool ax_pcie_pools[AX_PCIE_MAX_PORTS];
+
+static struct ax_pcie_bar_pool *ax_pcie_get_pool(int port)
+{
+	if (port < 0 || port >= AX_PCIE_MAX_PORTS)
+		return NULL;
+
+	return &ax_pcie_pools[port];
+}
 
 static u64 ax_pcie_align(u64 value, u64 align)
 {
 	return (value + align - 1) & ~(align - 1);
 }
 
-/* Forget the current pool; the next BAR init reloads it from the port */
-void ax_pcie_reset_bar_pool(void)
+/*
+ * Forget the port's pool; the next BAR init reloads it from the start of
+ * the window.  Call it whenever the endpoints lose their BARs (PERST#),
+ * i.e. on every controller init, or the window leaks a little each time.
+ */
+void ax_pcie_reset_bar_pool(int port)
 {
-	ax_pcie_bar_ready = false;
-	ax_pcie_bar_port = -1;
-	ax_pcie_bar_next = 0;
-	ax_pcie_bar_end = 0;
+	struct ax_pcie_bar_pool *pool = ax_pcie_get_pool(port);
+
+	if (pool)
+		memset(pool, 0, sizeof(*pool));
 }
 
 /*
@@ -86,12 +105,16 @@ static bool ax_pcie_region_usable(const struct ax_pci_region *region)
  */
 static int ax_pcie_load_bar_pool(int port)
 {
+	struct ax_pcie_bar_pool *pool = ax_pcie_get_pool(port);
 	struct ax_pci_region *regions;
 	int cnt;
 	int ret;
 	int i;
 
-	if (ax_pcie_bar_ready && ax_pcie_bar_port == port)
+	if (!pool)
+		return -EINVAL;
+
+	if (pool->ready)
 		return 0;
 
 	ret = ax_pcie_get_regions(port, &regions, &cnt);
@@ -110,10 +133,10 @@ static int ax_pcie_load_bar_pool(int port)
 		if (!ax_pcie_region_usable(&regions[i]) || end < base)
 			continue;
 
-		ax_pcie_bar_next = base ? base : AX_PCIE_BAR_MIN_ADDR;
-		ax_pcie_bar_end = end;
-		ax_pcie_bar_port = port;
-		ax_pcie_bar_ready = true;
+		pool->start = base ? base : AX_PCIE_BAR_MIN_ADDR;
+		pool->next = pool->start;
+		pool->end = end;
+		pool->ready = true;
 
 		printf("PCIe port %d: BAR pool bus 0x%llx-0x%llx\n",
 		       port,
@@ -129,34 +152,55 @@ static int ax_pcie_load_bar_pool(int port)
 }
 
 /*
- * Carve @size bytes (naturally aligned) out of the BAR pool.
+ * Was [@addr, @addr + @size) handed out by this pool since its last reset?
+ * Such a BAR can be kept as is: re-running BAR init on a function then
+ * neither moves its BARs nor leaks pool space.
+ */
+static bool ax_pcie_bar_in_pool(int port, u64 addr, u64 size)
+{
+	struct ax_pcie_bar_pool *pool = ax_pcie_get_pool(port);
+
+	if (!pool || !pool->ready || !addr || !size)
+		return false;
+
+	if (addr & (size - 1))
+		return false;
+
+	return addr >= pool->start && addr + size <= pool->next &&
+	       addr + size > addr;
+}
+
+/*
+ * Carve @size bytes (naturally aligned) out of the port's BAR pool.
  *
  * @addr_32bit: the BAR is a 32-bit BAR, so the block must also end below
  *              4 GiB.  Returns -ENOMEM when the pool cannot satisfy that,
  *              which is not an error for the pool itself.
  */
-static int ax_pcie_alloc_bar(u64 size, bool addr_32bit, u64 *addr)
+static int ax_pcie_alloc_bar(int port, u64 size, bool addr_32bit, u64 *addr)
 {
-	u64 end = ax_pcie_bar_end;
+	struct ax_pcie_bar_pool *pool = ax_pcie_get_pool(port);
+	u64 end;
 	u64 base;
 
 	/* BAR sizes are always a power of two */
 	if (!size || !addr || (size & (size - 1)))
 		return -EINVAL;
 
-	if (!ax_pcie_bar_ready)
+	if (!pool || !pool->ready)
 		return -ENODEV;
 
+	end = pool->end;
 	if (addr_32bit && end > AX_PCIE_4G)
 		end = AX_PCIE_4G;
 
-	base = ax_pcie_align(ax_pcie_bar_next, size);
+	base = ax_pcie_align(pool->next, size);
 
 	if (base + size > end)
 		return -ENOMEM;
 
 	*addr = base;
-	ax_pcie_bar_next = base + size;
+	pool->next = base + size;
 
 	return 0;
 }
@@ -646,6 +690,8 @@ static int ax_pcie_program_bar(int port,
 int ax_pcie_init_ep_bars(int port, u8 bus, u8 dev, u8 func)
 {
 	struct ax_pcie_bar bar;
+	u32 cur_lo, cur_hi;
+	u64 cur;
 	u16 command;
 	u8 header_type;
 	int nbars;
@@ -718,7 +764,31 @@ int ax_pcie_init_ep_bars(int port, u8 bus, u8 dev, u8 func)
 			continue;
 		}
 
-		ret = ax_pcie_alloc_bar(bar.size, !bar.is_64bit, &bar.addr);
+		/*
+		 * Keep a BAR this pool already handed out (BAR init run again
+		 * on the same function, e.g. 'ax_pcie link'): moving it would
+		 * leak pool space every run and leave drivers that cached the
+		 * old address talking to nothing.
+		 */
+		if (!ax_pcie_cfg_read32(port, bus, dev, func,
+					PCI_CFG_BAR0 + i * 4, &cur_lo)) {
+			cur_hi = 0;
+			if (bar.is_64bit)
+				ax_pcie_cfg_read32(port, bus, dev, func,
+						   PCI_CFG_BAR0 + (i + 1) * 4,
+						   &cur_hi);
+			cur = ((u64)cur_hi << 32) | (cur_lo & PCI_BAR_ADDR_MASK);
+
+			if (ax_pcie_bar_in_pool(port, cur, bar.size)) {
+				printf("BAR%d: keeps addr=0x%llx\n", i,
+				       (unsigned long long)cur);
+				if (bar.is_64bit)
+					i++;
+				continue;
+			}
+		}
+
+		ret = ax_pcie_alloc_bar(port, bar.size, !bar.is_64bit, &bar.addr);
 		if (ret == -ENOMEM && !bar.is_64bit) {
 			/*
 			 * The pool lives above 4 GiB, so a 32-bit BAR cannot
@@ -751,7 +821,12 @@ int ax_pcie_init_ep_bars(int port, u8 bus, u8 dev, u8 func)
 	 */
 	command |= PCI_COMMAND_MEMORY;
 	command |= PCI_COMMAND_MASTER;
-    command &= ~(PCI_COMMAND_INTX_DISABLE);
+
+	/*
+	 * The diag drivers poll; nothing would ever make the device drop
+	 * INTA#, so keep legacy INTx off (MSI is unaffected by this bit).
+	 */
+	command |= PCI_COMMAND_INTX_DISABLE;
 
 	ret = ax_pcie_cfg_write(port, bus, dev, func,
 				PCI_CFG_COMMAND, command);
@@ -761,6 +836,87 @@ int ax_pcie_init_ep_bars(int port, u8 bus, u8 dev, u8 func)
 	printf("Endpoint BAR initialization completed\n");
 
 	return 0;
+}
+
+/*
+ * Read back an already-assigned BAR: its bus address, size and type.
+ *
+ * Memory/IO decode is disabled while the BAR is sized (writing all ones to
+ * a live BAR would otherwise make it claim a bogus window) and the original
+ * Command register is restored afterwards.
+ *
+ * Returns the number of BAR registers consumed (1, or 2 for a 64-bit BAR)
+ * on success, or a negative errno.
+ */
+int ax_pcie_get_ep_bar(int port, u8 bus, u8 dev, u8 func, int index,
+		       struct ax_pcie_bar *bar)
+{
+	u16 command;
+	u8 header_type;
+	u32 lo, hi = 0;
+	int nbars;
+	int ret;
+
+	if (!bar)
+		return -EINVAL;
+
+	ret = ax_pcie_cfg_read8(port, bus, dev, func,
+				PCI_CFG_HEADER_TYPE, &header_type);
+	if (ret)
+		return ret;
+
+	switch (header_type & PCI_HEADER_TYPE_MASK) {
+	case PCI_HEADER_TYPE_NORMAL:
+		nbars = 6;
+		break;
+	case PCI_HEADER_TYPE_BRIDGE:
+		nbars = 2;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	if (index < 0 || index >= nbars)
+		return -EINVAL;
+
+	ret = ax_pcie_cfg_read16(port, bus, dev, func,
+				 PCI_CFG_COMMAND, &command);
+	if (ret)
+		return ret;
+
+	ret = ax_pcie_cfg_write16(port, bus, dev, func, PCI_CFG_COMMAND,
+				  command & ~(PCI_COMMAND_MEMORY |
+					      PCI_COMMAND_IO));
+	if (ret)
+		return ret;
+
+	ret = ax_pcie_probe_bar(port, bus, dev, func, index, nbars, bar);
+
+	ax_pcie_cfg_write16(port, bus, dev, func, PCI_CFG_COMMAND, command);
+
+	if (ret)
+		return ret;
+
+	ret = ax_pcie_cfg_read32(port, bus, dev, func,
+				 PCI_CFG_BAR0 + index * 4, &lo);
+	if (ret)
+		return ret;
+
+	if (bar->is_io) {
+		bar->addr = lo & PCI_BAR_IO_ADDR_MASK;
+		return 1;
+	}
+
+	if (bar->is_64bit) {
+		ret = ax_pcie_cfg_read32(port, bus, dev, func,
+					 PCI_CFG_BAR0 + (index + 1) * 4, &hi);
+		if (ret)
+			return ret;
+	}
+
+	bar->addr = ((u64)hi << 32) | (lo & PCI_BAR_ADDR_MASK);
+
+	return bar->is_64bit ? 2 : 1;
 }
 
 static void ax_pcie_print_header_bdf(int port,
@@ -1616,9 +1772,6 @@ int ax_pcie_ep_enable_aer(int port, u8 bus, u8 dev, u8 func)
 
 	/* Root Error Command lives in the AER extended capability */
 	cap = ax_pcie_find_cap(port, bus, dev, func, 1, PCI_EXT_CAP_ID_AER);
-    if (!cap)
-        return -ENODEV;
-
 	if (cap > 0 &&
 	    !ax_pcie_cfg_read32(port, bus, dev, func,
 			      cap + PCI_AER_ROOT_ERR_CMD, &val)) {
@@ -1642,6 +1795,8 @@ int ax_pcie_ep_enable_aer(int port, u8 bus, u8 dev, u8 func)
 		ax_pcie_cfg_write(port, bus, dev, func,
 				  cap + PCI_EXP_DEVCTL, val);
 	}
+
+    return 0;
 }
 
 static int ax_pcie_msi_calc_mme(u8 nr_vectors, u8 mmc,
@@ -1668,6 +1823,58 @@ static int ax_pcie_msi_calc_mme(u8 nr_vectors, u8 mmc,
 
     *mme = log2;
     return 0;
+}
+
+/*
+ * Release the RP vector group currently programmed into this function's
+ * MSI capability (its Message Address/Data identify the group).  MSI must
+ * be disabled first so the endpoint cannot fire into a freed vector.
+ * Returns 0 when a group was released, -ENOENT if the function holds none.
+ */
+int ax_pcie_ep_release_msi(int port, u8 bus, u8 dev, u8 func)
+{
+    u32 addr_lo, addr_hi = 0;
+    u16 ctrl, data;
+    u16 msi_cap;
+    int ret;
+
+    ret = ax_pcie_find_cap(port, bus, dev, func, 0, PCI_CAP_ID_MSI);
+    if (ret < 0)
+        return ret;
+
+    msi_cap = (u16)ret;
+
+    ret = ax_pcie_cfg_read16(port, bus, dev, func,
+            msi_cap + PCI_MSI_FLAGS, &ctrl);
+    if (ret)
+        return ret;
+
+    if (ctrl & PCI_MSI_FLAGS_ENABLE)
+        return -EBUSY;
+
+    ret = ax_pcie_cfg_read32(port, bus, dev, func,
+            msi_cap + PCI_MSI_ADDRESS_LO, &addr_lo);
+    if (ret)
+        return ret;
+
+    if (ctrl & PCI_MSI_FLAGS_64BIT) {
+        ret = ax_pcie_cfg_read32(port, bus, dev, func,
+                msi_cap + PCI_MSI_ADDRESS_HI, &addr_hi);
+        if (!ret)
+            ret = ax_pcie_cfg_read16(port, bus, dev, func,
+                    msi_cap + PCI_MSI_DATA_64, &data);
+    } else {
+        ret = ax_pcie_cfg_read16(port, bus, dev, func,
+                msi_cap + PCI_MSI_DATA_32, &data);
+    }
+    if (ret)
+        return ret;
+
+    if (!addr_lo && !addr_hi)
+        return -ENOENT;
+
+    return ax_pcie_release_msi_handle(port,
+            ((u64)addr_hi << 32) | addr_lo, data);
 }
 
 int ax_pcie_ep_program_msi(int port, u8 bus, u8 dev, u8 func, 
@@ -1735,6 +1942,13 @@ int ax_pcie_ep_program_msi(int port, u8 bus, u8 dev, u8 func,
                 nr_vectors, 1U << mmc);
         return ret;
     }
+
+    /*
+     * Programming the same function again (e.g. a second 'msi enable'):
+     * give its previous vector group back first, or every cycle would
+     * eat new vectors until none are left.
+     */
+    ax_pcie_ep_release_msi(port, bus, dev, func);
 
     ep_msi = ax_pcie_request_msi_handle(port,
             msi->handler,

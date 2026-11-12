@@ -64,6 +64,7 @@ struct ax_pcie_ops {
                                                    interrupt_handler_t *handler, 
                                                    void *arg, 
                                                    u8 nr_vectors);
+	int (*release_msi_handle)(u8 port, u64 address, u16 data);
 
 	/* EP function */
 	int (*set_msi)(u8 port, uint func_num, uint interrupt);
@@ -315,6 +316,18 @@ static inline struct ax_pcie_msi *ax_pcie_request_msi_handle(u8 port,
 		return NULL;
 
 	return pcie.request_msi_handle(port, handler, arg, nr_vectors);
+}
+
+/*
+ * Give back the vector group that was programmed into an endpoint as
+ * @address / @data (the base entry returned by the request above).
+ */
+static inline int ax_pcie_release_msi_handle(u8 port, u64 address, u16 data)
+{
+	if (pcie.release_msi_handle == NULL)
+		return -ENOSYS;
+
+	return pcie.release_msi_handle(port, address, data);
 }
 
 /*

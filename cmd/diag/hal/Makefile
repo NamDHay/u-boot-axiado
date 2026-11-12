@@ -27,6 +27,7 @@ obj-$(CONFIG_CDNS_I3C) 		+= i3c/cdns_i3c.o
 
 obj-$(CONFIG_AXIADO_JTAG) 	+= jtag/axiado_jtag.o
 
+obj-y 						+= jtag/axiado_jtag.o
 obj-$(CONFIG_AXIADO_LTPI) 	+= ltpi/axiado_ltpi.o
 
 obj-$(CONFIG_AXIADO_MBOX) 	+= mailbox/axiado_mailbox.o

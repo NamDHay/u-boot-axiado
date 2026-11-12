@@ -5,7 +5,7 @@
  */
 
 #ifndef __PCIE_CONF_H
-#define __PCIE_C_H
+#define __PCIE_CONF_H
 
 #include <linux/types.h>
 #include <linux/bitops.h>
@@ -68,39 +68,18 @@ enum pci_ep_irq_type {
  * Header Type
  */
 #define PCI_HEADER_TYPE_MASK           0x7f
-#define PCI_HEADER_TYPE_NORMAL         0x00
-#define PCI_HEADER_TYPE_BRIDGE         0x01
-#define PCI_HEADER_TYPE_CARDBUS        0x02
 #define PCI_HEADER_TYPE_MULTI_FUNC     BIT(7)
 
 /*
  * Command Register
  */
-#define PCI_COMMAND_IO                 BIT(0)
-#define PCI_COMMAND_MEMORY             BIT(1)
-#define PCI_COMMAND_MASTER             BIT(2)
-#define PCI_COMMAND_SPECIAL            BIT(3)
-#define PCI_COMMAND_INVALIDATE         BIT(4)
-#define PCI_COMMAND_VGA_PALETTE        BIT(5)
-#define PCI_COMMAND_PARITY             BIT(6)
-#define PCI_COMMAND_WAIT               BIT(7)
-#define PCI_COMMAND_SERR               BIT(8)
-#define PCI_COMMAND_FAST_BACK          BIT(9)
 #define PCI_COMMAND_INTX_DISABLE       BIT(10)
 
 /*
- * Status Register
+ * PCI_COMMAND_*, PCI_STATUS_*, PCI_HEADER_TYPE_{NORMAL,BRIDGE,CARDBUS},
+ * PCI_PM_*, PCI_EXP_*, PCI_EXT_CAP_ID_* ... that are not defined here come
+ * from <pci.h>.
  */
-#define PCI_STATUS_CAP_LIST            BIT(4)
-#define PCI_STATUS_66MHZ               BIT(5)
-#define PCI_STATUS_FAST_BACK            BIT(7)
-#define PCI_STATUS_PARITY              BIT(8)
-#define PCI_STATUS_DEVSEL_MASK         (BIT(9) | BIT(10))
-#define PCI_STATUS_SIG_TARGET_ABORT    BIT(11)
-#define PCI_STATUS_REC_TARGET_ABORT    BIT(12)
-#define PCI_STATUS_REC_MASTER_ABORT    BIT(13)
-#define PCI_STATUS_SIG_SYSTEM_ERROR    BIT(14)
-#define PCI_STATUS_DETECTED_PARITY     BIT(15)
 
 /*
  * BAR
@@ -131,22 +110,13 @@ enum pci_ep_irq_type {
  * PCI Power Management Capability
  */
 #define PCI_PM_CAP                     0x02
-#define PCI_PM_CTRL                    0x04
 #define PCI_PM_STATUS                  0x06
 
 #define PCI_PM_CAP_VERSION_MASK        0x0007
-#define PCI_PM_CAP_PME_CLOCK           BIT(3)
-#define PCI_PM_CAP_DSI                 BIT(5)
-#define PCI_PM_CAP_D1                 BIT(9)
-#define PCI_PM_CAP_D2                 BIT(10)
 #define PCI_PM_CAP_PME_SUPPORT_MASK    0xf800
 
 #define PCI_PM_CTRL_STATE_MASK         0x0003
 #define PCI_PM_CTRL_NO_SOFT_RESET      BIT(3)
-#define PCI_PM_CTRL_PME_ENABLE        BIT(8)
-#define PCI_PM_CTRL_DATA_SEL_MASK      0x0f00
-#define PCI_PM_CTRL_DATA_SCALE_MASK    0x1800
-#define PCI_PM_CTRL_PME_STATUS         BIT(15)
 
 /*
  * MSI Capability
@@ -154,8 +124,6 @@ enum pci_ep_irq_type {
 #define PCI_MSI_CTRL                   0x02
 #define PCI_MSI_ADDR_LO                0x04
 #define PCI_MSI_ADDR_HI                0x08
-#define PCI_MSI_DATA_32                0x08
-#define PCI_MSI_DATA_64                0x0c
 
 #define PCI_MSI_CTRL_ENABLE            BIT(0)
 #define PCI_MSI_CTRL_MMC_MASK          0x000e
@@ -185,21 +153,11 @@ enum pci_ep_irq_type {
  * Capability base + offset
  */
 #define PCI_EXP_CAP                    0x02
-#define PCI_EXP_DEVCAP                 0x04
-#define PCI_EXP_DEVCTL                 0x08
 #define PCI_EXP_DEVSTA                 0x0a
-#define PCI_EXP_LNKCAP                 0x0c
-#define PCI_EXP_LNKCTL                 0x10
-#define PCI_EXP_LNKSTA                 0x12
 #define PCI_EXP_SLT_CAP                0x14
 #define PCI_EXP_SLT_CTL                0x18
 #define PCI_EXP_SLT_STA                0x1a
-#define PCI_EXP_RTCTL                  0x1c
 #define PCI_EXP_RTSTA                  0x20
-#define PCI_EXP_DEVCAP2                0x24
-#define PCI_EXP_DEVCTL2                0x28
-#define PCI_EXP_LNKCAP2                0x2c
-#define PCI_EXP_LNKCTL2                0x30
 #define PCI_EXP_LNKSTA2                0x32
 
 /*
@@ -214,7 +172,6 @@ enum pci_ep_irq_type {
 #define PCI_EXP_TYPE_ROOT_PORT         0x4
 #define PCI_EXP_TYPE_UPSTREAM_PORT      0x5
 #define PCI_EXP_TYPE_DOWNSTREAM_PORT    0x6
-#define PCI_EXP_TYPE_PCIE_BRIDGE        0x7
 #define PCI_EXP_TYPE_RC_ENDPOINT        0x9
 #define PCI_EXP_TYPE_RC_EVENT_COLLECTOR 0xa
 
@@ -260,8 +217,6 @@ enum pci_ep_irq_type {
 
 #define PCI_EXP_DEVCTL_READRQ_MASK     0x7000
 #define PCI_EXP_DEVCTL_READRQ_SHIFT    12
-
-#define PCI_EXP_DEVCTL_BCR_FLR         BIT(15)
 
 /*
  * Device Status
@@ -411,27 +366,8 @@ enum pci_ep_irq_type {
 #define PCI_EXT_CAP_NEXT_SHIFT         20
 
 #define PCI_EXT_CAP_ID_AER             0x0001
-#define PCI_EXT_CAP_ID_VC              0x0002
-#define PCI_EXT_CAP_ID_DSN             0x0003
-#define PCI_EXT_CAP_ID_RCLD            0x0005
 #define PCI_EXT_CAP_ID_RBER            0x0007
 #define PCI_EXT_CAP_ID_VC2             0x0009
-#define PCI_EXT_CAP_ID_RCRB            0x000a
-#define PCI_EXT_CAP_ID_VNDR            0x000b
-#define PCI_EXT_CAP_ID_ACS             0x000d
-#define PCI_EXT_CAP_ID_ARI             0x000e
-#define PCI_EXT_CAP_ID_ATS             0x000f
-#define PCI_EXT_CAP_ID_SRIOV           0x0010
-#define PCI_EXT_CAP_ID_PRI             0x0013
-#define PCI_EXT_CAP_ID_REBAR           0x0015
-#define PCI_EXT_CAP_ID_DPA             0x0016
-#define PCI_EXT_CAP_ID_TPH             0x0017
-#define PCI_EXT_CAP_ID_LTR             0x0018
-#define PCI_EXT_CAP_ID_SECPCI          0x0019
-#define PCI_EXT_CAP_ID_PMUX            0x001a
-#define PCI_EXT_CAP_ID_DPC             0x001d
-#define PCI_EXT_CAP_ID_L1SS            0x001e
-#define PCI_EXT_CAP_ID_PTM             0x001f
 #define PCI_EXT_CAP_ID_DVSEC           0x0023
 #define PCI_EXT_CAP_ID_DLF             0x0025
 #define PCI_EXT_CAP_ID_IDE             0x0030
@@ -478,8 +414,6 @@ enum pci_ep_irq_type {
 #define PCI_SRIOV_NUM_VF               0x10
 #define PCI_SRIOV_FUNC_DEP_LINK        0x12
 #define PCI_SRIOV_FIRST_VF             0x14
-#define PCI_SRIOV_VF_OFFSET            0x16
-#define PCI_SRIOV_VF_STRIDE            0x18
 #define PCI_SRIOV_VF_DID               0x1a
 #define PCI_SRIOV_SUP_PAGE_SIZE        0x1c
 #define PCI_SRIOV_SYS_PAGE_SIZE        0x20
@@ -511,7 +445,11 @@ int ax_pcie_find_cap(u8 port, u8 bus, u8 dev, u8 func,
                           int cap_type, u16 cap_id);
 
 int ax_pcie_init_ep_bars(int port, u8 bus, u8 dev, u8 func);
-void ax_pcie_reset_bar_pool(void);
+void ax_pcie_reset_bar_pool(int port);
+
+struct ax_pcie_bar;
+int ax_pcie_get_ep_bar(int port, u8 bus, u8 dev, u8 func, int index,
+		       struct ax_pcie_bar *bar);
 
 void ax_pcie_print_header(int port, u8 bus, u8 dev, u8 func);
 void ax_pcie_print_capabilities(int port, u8 bus, u8 dev, u8 func);
@@ -544,6 +482,8 @@ int ax_pcie_ep_program_msi(int port,
 
 int ax_pcie_ep_enable_msi(int port,
 			  u8 bus, u8 dev, u8 func);
+
+int ax_pcie_ep_release_msi(int port, u8 bus, u8 dev, u8 func);
 
 int ax_pcie_ep_disable_msi(int port,
 			   u8 bus, u8 dev, u8 func);

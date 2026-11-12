@@ -13,6 +13,8 @@
 #include <stdbool.h>
 #include <malloc.h>
 #include <display_options.h>
+#include <console.h>
+#include <linux/sizes.h>
 
 #include "ax_pcie.h"
 #include "ax_pcie_conf.h"
@@ -485,10 +487,460 @@ static int ax_pcie_cmd_msi(struct cmd_tbl *cmdtp, int flag,
 
         printf("MSI disabled\n");
 
+        /* Hand this function's RP vectors back for the next enable */
+        ax_pcie_ep_release_msi(port, bus, dev, func);
+
         return CMD_RET_SUCCESS;
     }
 
     return CMD_RET_USAGE;
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * EP BAR read/write test
+ * ---------------------------------------------------------------------------
+ *
+ * Every memory BAR of every endpoint function is accessed from the root
+ * port through the outbound window.  On the EP side each BAR is translated
+ * (inbound ATU) to its own DDR buffer, so:
+ *
+ *  1. Data bus test   - walking 1/0 and 0x55/0xAA patterns on word 0,
+ *                       catches stuck / shorted data bits.
+ *  2. Byte lane test  - byte writes, 32-bit read back,
+ *                       catches broken byte enables.
+ *  3. Address test    - fill ALL BARs of ALL functions with an address
+ *                       unique pattern, then verify all of them (and again
+ *                       with the inverted pattern).  Because every BAR is
+ *                       written before any is checked, two BARs/functions
+ *                       translated to the same DDR, or a wrong/short
+ *                       inbound window, show up as mismatches.
+ *
+ * The test is destructive for the EP DDR behind the BARs.
+ */
+
+#define AX_PCIE_BT_MAX_BARS	64
+#define AX_PCIE_BT_CHUNK	SZ_4K
+#define AX_PCIE_BT_MAX_ERRS	8
+#define AX_PCIE_BT_NBARS	6
+
+struct ax_pcie_bt_bar {
+    u8 bus;
+    u8 dev;
+    u8 func;
+    u8 index;
+    bool is_64bit;
+    bool prefetch;
+    u64 addr;	/* PCI bus address programmed in the BAR */
+    u64 size;	/* BAR size */
+    u64 len;	/* bytes under test */
+    u64 off;	/* offset for ax_pcie_mem_read/write */
+    u32 tag;	/* per-BAR pattern salt */
+    u32 errors;
+};
+
+static struct ax_pcie_bt_bar ax_pcie_bt_bars[AX_PCIE_BT_MAX_BARS];
+
+/*
+ * Convert a PCI bus address into the offset ax_pcie_mem_read/write expect
+ * (relative to the first outbound region's CPU address).
+ */
+static int ax_pcie_bt_bus_to_off(u8 port, u64 bus_addr, u64 len, u64 *off)
+{
+    struct ax_pci_region *regions;
+    int cnt, i, ret;
+    u64 phys0;
+
+    ret = ax_pcie_get_regions(port, &regions, &cnt);
+    if (ret)
+        return ret;
+
+    if (!cnt)
+        return -ENODEV;
+
+    phys0 = (u64)regions[0].phys_start;
+
+    for (i = 0; i < cnt; i++) {
+        u64 base = (u64)regions[i].bus_start;
+        u64 size = regions[i].size;
+
+        if (!size || bus_addr < base || bus_addr - base + len > size)
+            continue;
+
+        *off = (bus_addr - base) + ((u64)regions[i].phys_start - phys0);
+        return 0;
+    }
+
+    return -ERANGE;
+}
+
+static inline u32 ax_pcie_bt_pattern(const struct ax_pcie_bt_bar *b,
+        u64 off, u32 seed)
+{
+    u64 a = b->addr + off;
+
+    return ((u32)a ^ (u32)(a >> 32) ^ b->tag) ^ seed;
+}
+
+static void ax_pcie_bt_report(struct ax_pcie_bt_bar *b, const char *test,
+        u64 off, u32 exp, u32 got)
+{
+    if (b->errors++ < AX_PCIE_BT_MAX_ERRS)
+        printf("    [%02x:%02x.%x BAR%d] %s: bus 0x%llx exp 0x%08x got 0x%08x (xor 0x%08x)\n",
+                b->bus, b->dev, b->func, b->index, test,
+                b->addr + off, exp, got, exp ^ got);
+}
+
+static int ax_pcie_bt_wr32(u8 port, struct ax_pcie_bt_bar *b, u64 off, u32 v)
+{
+    return ax_pcie_mem_write(port, b->off + off, &v, sizeof(v));
+}
+
+static int ax_pcie_bt_rd32(u8 port, struct ax_pcie_bt_bar *b, u64 off, u32 *v)
+{
+    return ax_pcie_mem_read(port, b->off + off, v, sizeof(*v));
+}
+
+/* Walking 1/0 + fixed patterns on the first word of the BAR */
+static int ax_pcie_bt_data_bus(u8 port, struct ax_pcie_bt_bar *b)
+{
+    static const u32 fixed[] = {
+        0x00000000, 0xffffffff, 0x55555555, 0xaaaaaaaa,
+        0x5a5aa5a5, 0xa5a55a5a, 0x01234567, 0xfedcba98,
+    };
+    u32 exp, got;
+    int i, ret;
+
+    for (i = 0; i < 64 + (int)ARRAY_SIZE(fixed); i++) {
+        if (i < 32)
+            exp = BIT(i);
+        else if (i < 64)
+            exp = ~BIT(i - 32);
+        else
+            exp = fixed[i - 64];
+
+        ret = ax_pcie_bt_wr32(port, b, 0, exp);
+        if (!ret)
+            ret = ax_pcie_bt_rd32(port, b, 0, &got);
+        if (ret)
+            return ret;
+
+        if (got != exp)
+            ax_pcie_bt_report(b, "data-bus", 0, exp, got);
+    }
+
+    return 0;
+}
+
+/* Byte writes on the last word under test, 32-bit read back */
+static int ax_pcie_bt_byte_lane(u8 port, struct ax_pcie_bt_bar *b)
+{
+    u64 off = b->len - sizeof(u32);
+    u32 exp = 0, got;
+    u8 v;
+    int i, ret;
+
+    ret = ax_pcie_bt_wr32(port, b, off, 0);
+    if (ret)
+        return ret;
+
+    for (i = 0; i < 4; i++) {
+        v = 0x11 * (i + 1) ^ b->tag;
+        ret = ax_pcie_mem_write(port, b->off + off + i, &v, 1);
+        if (ret)
+            return ret;
+
+        exp |= (u32)v << (i * 8);
+
+        ret = ax_pcie_bt_rd32(port, b, off, &got);
+        if (ret)
+            return ret;
+
+        if (got != exp)
+            ax_pcie_bt_report(b, "byte-lane", off, exp, got);
+    }
+
+    return 0;
+}
+
+static int ax_pcie_bt_fill(u8 port, struct ax_pcie_bt_bar *b, u32 seed,
+        u32 *buf)
+{
+    u64 pos, n, i;
+    int ret;
+
+    for (pos = 0; pos < b->len; pos += n) {
+        n = min_t(u64, AX_PCIE_BT_CHUNK, b->len - pos);
+
+        for (i = 0; i < n / 4; i++)
+            buf[i] = ax_pcie_bt_pattern(b, pos + i * 4, seed);
+
+        ret = ax_pcie_mem_write(port, b->off + pos, buf, n);
+        if (ret)
+            return ret;
+
+        if (ctrlc())
+            return -EINTR;
+    }
+
+    return 0;
+}
+
+static int ax_pcie_bt_verify(u8 port, struct ax_pcie_bt_bar *b, u32 seed,
+        u32 *buf)
+{
+    u64 pos, n, i;
+    u32 exp;
+    int ret;
+
+    for (pos = 0; pos < b->len; pos += n) {
+        n = min_t(u64, AX_PCIE_BT_CHUNK, b->len - pos);
+
+        ret = ax_pcie_mem_read(port, b->off + pos, buf, n);
+        if (ret)
+            return ret;
+
+        for (i = 0; i < n / 4; i++) {
+            exp = ax_pcie_bt_pattern(b, pos + i * 4, seed);
+            if (buf[i] != exp)
+                ax_pcie_bt_report(b, seed ? "address~" : "address",
+                        pos + i * 4, exp, buf[i]);
+        }
+
+        if (ctrlc())
+            return -EINTR;
+    }
+
+    return 0;
+}
+
+/*
+ * Collect the memory BARs of one function.  Returns the number of entries
+ * added, or a negative errno.
+ */
+static int ax_pcie_bt_collect(u8 port, u8 bus, u8 dev, u8 func,
+        u64 max_len, struct ax_pcie_bt_bar *tbl, int used)
+{
+    struct ax_pcie_bar bar;
+    struct ax_pcie_bt_bar *b;
+    u16 command;
+    int added = 0;
+    int i, j, ret;
+
+    ret = ax_pcie_cfg_read16(port, bus, dev, func, PCI_CFG_COMMAND, &command);
+    if (ret)
+        return ret;
+
+    if (!(command & PCI_COMMAND_MEMORY))
+        printf("  %02x:%02x.%x: Memory Space disabled, run 'ax_pcie init' first\n",
+                bus, dev, func);
+
+    for (i = 0; i < AX_PCIE_BT_NBARS; i += ret) {
+        ret = ax_pcie_get_ep_bar(port, bus, dev, func, i, &bar);
+        if (ret < 0) {
+            if (ret == -EINVAL && i > 0)	/* bridge: only 2 BARs */
+                break;
+            printf("  %02x:%02x.%x BAR%d: read failed: %d\n",
+                    bus, dev, func, i, ret);
+            return ret;
+        }
+
+        if (!bar.size || bar.is_io)
+            continue;
+
+        if (!bar.addr) {
+            printf("  %02x:%02x.%x BAR%d: size 0x%llx not assigned, skipped\n",
+                    bus, dev, func, i, bar.size);
+            continue;
+        }
+
+        /* Same window already listed (e.g. ECAM aliasing of dev numbers) */
+        for (j = 0; j < used + added; j++)
+            if (tbl[j].addr == bar.addr && tbl[j].size == bar.size)
+                break;
+        if (j < used + added) {
+            printf("  %02x:%02x.%x BAR%d: same window as %02x:%02x.%x BAR%d, skipped\n",
+                    bus, dev, func, i, tbl[j].bus, tbl[j].dev,
+                    tbl[j].func, tbl[j].index);
+            continue;
+        }
+
+        if (used + added >= AX_PCIE_BT_MAX_BARS) {
+            printf("  too many BARs, max %d\n", AX_PCIE_BT_MAX_BARS);
+            return -ENOSPC;
+        }
+
+        b = &tbl[used + added];
+        memset(b, 0, sizeof(*b));
+        b->bus = bus;
+        b->dev = dev;
+        b->func = func;
+        b->index = i;
+        b->is_64bit = bar.is_64bit;
+        b->prefetch = bar.prefetch;
+        b->addr = bar.addr;
+        b->size = bar.size;
+        b->len = (max_len && max_len < bar.size) ? max_len : bar.size;
+        b->len &= ~(u64)3;
+        b->tag = ((bus << 16) | (dev << 11) | (func << 8) | i) * 0x9e3779b9;
+
+        if (b->len < sizeof(u32)) {
+            printf("  %02x:%02x.%x BAR%d: too small, skipped\n",
+                    bus, dev, func, i);
+            continue;
+        }
+
+        if (ax_pcie_bt_bus_to_off(port, b->addr, b->len, &b->off)) {
+            printf("  %02x:%02x.%x BAR%d: bus 0x%llx+0x%llx outside outbound window, skipped\n",
+                    bus, dev, func, i, b->addr, b->len);
+            continue;
+        }
+
+        printf("  %02x:%02x.%x BAR%d: bus 0x%010llx size 0x%llx %s%s, testing 0x%llx bytes\n",
+                bus, dev, func, i, b->addr, b->size,
+                b->is_64bit ? "64-bit" : "32-bit",
+                b->prefetch ? " pref" : "", b->len);
+        added++;
+    }
+
+    return added;
+}
+
+/*
+ * ax_pcie bar_test <port> [<bus>.<dev>.<func>] [len]
+ */
+static int ax_pcie_cmd_bar_test(struct cmd_tbl *cmdtp, int flag,
+        int argc, char *const argv[])
+{
+    struct ax_pcie_bt_bar *tbl = ax_pcie_bt_bars;
+    u8 port, bus = 1, dev, func;
+    u8 dev_lo = 0, dev_hi = PCI_MAX_PCI_DEVICES - 1;
+    u8 func_lo = 0, func_hi = PCI_MAX_PCI_FUNCTIONS - 1;
+    u64 max_len = 0;
+    u32 id, total_err = 0;
+    u32 *buf;
+    int nfunc = 0, n = 0;
+    int i, ret;
+
+    if (argc < 2 || argc > 4)
+        return CMD_RET_USAGE;
+
+    port = simple_strtoul(argv[1], NULL, 0);
+
+    if (argc >= 3 && strcmp(argv[2], "all")) {
+        ret = ax_pcie_parse_bdf(argv[2], &bus, &dev, &func);
+        if (ret) {
+            printf("Invalid BDF: %s\n", argv[2]);
+            return CMD_RET_USAGE;
+        }
+        dev_lo = dev_hi = dev;
+        func_lo = func_hi = func;
+    }
+
+    if (argc == 4)
+        max_len = simple_strtoull(argv[3], NULL, 0);
+
+    printf("PCIe%d BAR test, scanning bus %02x\n", port, bus);
+
+    for (dev = dev_lo; dev <= dev_hi; dev++) {
+        for (func = func_lo; func <= func_hi; func++) {
+            ret = ax_pcie_cfg_read32(port, bus, dev, func,
+                    PCI_CFG_VENDOR_ID, &id);
+            if (ret || (id & 0xffff) == 0xffff || (id & 0xffff) == 0)
+                continue;
+
+            printf("  %02x:%02x.%x [%04x:%04x]\n",
+                    bus, dev, func, id & 0xffff, id >> 16);
+            nfunc++;
+
+            ret = ax_pcie_bt_collect(port, bus, dev, func, max_len, tbl, n);
+            if (ret < 0)
+                return CMD_RET_FAILURE;
+            n += ret;
+        }
+    }
+
+    if (!nfunc) {
+        printf("No function found on bus %02x\n", bus);
+        return CMD_RET_FAILURE;
+    }
+
+    if (!n) {
+        printf("No memory BAR to test\n");
+        return CMD_RET_FAILURE;
+    }
+
+    buf = malloc(AX_PCIE_BT_CHUNK);
+    if (!buf)
+        return CMD_RET_FAILURE;
+
+    /* 1/2: per-BAR data bus and byte lane */
+    printf("\n[1/3] Data bus test\n");
+    for (i = 0; i < n; i++) {
+        ret = ax_pcie_bt_data_bus(port, &tbl[i]);
+        if (ret)
+            goto out;
+    }
+
+    printf("[2/3] Byte lane test\n");
+    for (i = 0; i < n; i++) {
+        ret = ax_pcie_bt_byte_lane(port, &tbl[i]);
+        if (ret)
+            goto out;
+    }
+
+    /* 3: fill everything, then verify everything; true then inverted */
+    printf("[3/3] Address test (%d BARs, %d functions)\n", n, nfunc);
+    for (u32 seed = 0; ; seed = ~0U) {
+        for (i = 0; i < n; i++) {
+            ret = ax_pcie_bt_fill(port, &tbl[i], seed, buf);
+            if (ret)
+                goto out;
+        }
+
+        for (i = 0; i < n; i++) {
+            ret = ax_pcie_bt_verify(port, &tbl[i], seed, buf);
+            if (ret)
+                goto out;
+        }
+
+        if (seed)
+            break;
+    }
+
+    ret = 0;
+
+out:
+    free(buf);
+
+    if (ret == -EINTR) {
+        printf("\nInterrupted\n");
+        return CMD_RET_FAILURE;
+    }
+
+    if (ret)
+        printf("\nPCIe access failed: %d\n", ret);
+
+    printf("\n  BDF      BAR  Bus address         Size        Result\n");
+    for (i = 0; i < n; i++) {
+        printf("  %02x:%02x.%x  %d    0x%016llx  0x%08llx  ",
+                tbl[i].bus, tbl[i].dev, tbl[i].func, tbl[i].index,
+                tbl[i].addr, tbl[i].size);
+        if (tbl[i].errors)
+            printf("FAIL (%u errors)\n", tbl[i].errors);
+        else
+            printf("PASS\n");
+        total_err += tbl[i].errors;
+    }
+
+    if (ret || total_err) {
+        printf("PCIe%d BAR test FAILED\n", port);
+        return CMD_RET_FAILURE;
+    }
+
+    printf("PCIe%d BAR test PASSED\n", port);
+
+    return CMD_RET_SUCCESS;
 }
 
 U_BOOT_LONGHELP(ax_pcie,
@@ -512,15 +964,19 @@ U_BOOT_LONGHELP(ax_pcie,
         "\n"
         "mem_read <port> <addr> <len>\n"
         " - Read PCIe memory\n"
-"\n"
-"mem_write <port> <addr> <value> <len>\n"
-" - Write PCIe memory"
-"\n"
-"msi <enable|disable|status> <port> <bus>.<dev>.<func>\n"
-" - Config EP MSI"
-"\n"
-"debug [-v|-vv] <port> <bus>.<dev>.<num>\n"
-" - Print PCIe config"
+        "\n"
+        "mem_write <port> <addr> <value> <len>\n"
+        " - Write PCIe memory"
+        "\n"
+        "bar_test <port> [<bus>.<dev>.<func>|all] [len]\n"
+        " - R/W test all memory BARs of all EP functions (default bus 1, all\n"
+        "   dev/func). len: bytes per BAR (default whole BAR). Destructive.\n"
+        "\n"
+        "msi <enable|disable|status> <port> <bus>.<dev>.<func>\n"
+        " - Config EP MSI"
+        "\n"
+        "debug [-v|-vv] <port> <bus>.<dev>.<num>\n"
+        " - Print PCIe config"
 );
 
 U_BOOT_CMD_WITH_SUBCMDS(ax_pcie, "Axiado bare-metal PCIe diagnostics test", ax_pcie_help_text,
@@ -532,6 +988,6 @@ U_BOOT_CMD_WITH_SUBCMDS(ax_pcie, "Axiado bare-metal PCIe diagnostics test", ax_p
         U_BOOT_SUBCMD_MKENT(cfg_write, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_cfg_write),
         U_BOOT_SUBCMD_MKENT(mem_read, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_mem_read),
         U_BOOT_SUBCMD_MKENT(mem_write, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_mem_write),
-        U_BOOT_SUBCMD_MKENT(mem_write, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_mem_write),
+        U_BOOT_SUBCMD_MKENT(bar_test, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_bar_test),
         U_BOOT_SUBCMD_MKENT(msi, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_msi),
         U_BOOT_SUBCMD_MKENT(debug, CONFIG_SYS_MAXARGS, 1, ax_pcie_cmd_debug));

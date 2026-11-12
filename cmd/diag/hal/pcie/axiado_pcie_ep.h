@@ -22,7 +22,6 @@
 
 #define REG_PCIE_X1_USB_MSI_INTR_MASK_ADRS_OFFSET 0x384
 #define REG_PCIE_WINROM_ADRS_OFFSET (0x0000 + 0x00FC)
-#define PCIE_WINROM_EXP_ROM_SIZE_MASK_SET(dst, val) ((uint32_t)dst & ~0xFFFFF800) | (((uint32_t)val & 0xFFFFF800))
 
 /* PCIE port number */
 enum axiado_pcie_port_num { PCIE_X1, PCIE_X2 };
@@ -97,10 +96,6 @@ int axiado_pcie_bar_init(struct axiado_pcie *pcie,
         enum axiado_pcie_pf pf,
         enum axiado_pcie_bars bar_num);
 int axiado_pcie_alloc_pf_vf_bar(struct axiado_pcie *pcie);
-
-u64 axiado_pcie_get_bar(struct axiado_pcie *pcie,
-			struct axiado_pcie_func_info func_info,
-			enum axiado_pcie_bars bar_num, u32 *bar_size);
 
 int axiado_pcie_is_dma_busy(struct axiado_pcie *pcie,
 			    enum axiado_pcie_port_num port,
