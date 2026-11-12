@@ -12,6 +12,7 @@
 #include "hcp_main.h"
 #include "eth_net.h"
 
+/* Set to 1 to build the EIP-197 path / SGMII port-to-port ping */
 #define ETH_CLI_EIP		0
 #define ETH_CLI_P2P		0
 
@@ -19,15 +20,26 @@
 #include "eip197.h"
 #endif
 
+/* Port counts per interface; CLI port N is mac_idx N + 1 (XGMII: mac_idx 0) */
 #define ETH_CLI_SGMII_PORTS	4
 #define ETH_CLI_RMII_PORTS	2
 #define ETH_CLI_XGMII_PORTS	1
 #define ETH_XGMII_MAC_IDX	0
+/* SGMII link retries for one dropped frame before it counts as dropped */
 #define ETH_TEST_LINK_RETRY	5
 #if ETH_CLI_EIP
+/* EIP-197 inline tdest for the XGMII port (1G ports use mac_idx) */
 #define ETH_EIP_TDEST_XGMII	5
 #endif
 
+/* ===================== Part 1: helper functions ===================== */
+
+/*
+ * Send one frame and read it back into rxbuff. With link_retry, a drop
+ * (RX timeout or wrong length) runs sgmii_link_try() and sends the same
+ * frame again, up to ETH_TEST_LINK_RETRY times. Returns the RX length of
+ * the last try, or < 0 on TX failure / RX timeout.
+ */
 static int eth_test_xfer(u8 mac_idx, u16 pkt, unsigned char *txbuff,
 			 int frame_len, unsigned char *rxbuff, bool link_retry)
 {
@@ -53,6 +65,10 @@ static int eth_test_xfer(u8 mac_idx, u16 pkt, unsigned char *txbuff,
 	}
 }
 
+/*
+ * Send txbuff pkt_cnt times and compare every frame read back.
+ * Returns 1 when all frames come back unchanged, 0 otherwise.
+ */
 static int eth_test_traffic_frame(u8 mac_idx, u16 pkt_cnt,
 				  unsigned char *txbuff, int frame_len,
 				  bool link_retry)
@@ -90,6 +106,7 @@ static int eth_test_traffic_frame(u8 mac_idx, u16 pkt_cnt,
 	return 1;
 }
 
+/* Loopback traffic with a test frame (src 02:bb:bb:bb:bb:bb) to dest_mac */
 static int eth_test_traffic(u8 mac_idx, u16 pkt_cnt, unsigned char *dest_mac,
 			    bool link_retry)
 {
@@ -104,6 +121,7 @@ static int eth_test_traffic(u8 mac_idx, u16 pkt_cnt, unsigned char *dest_mac,
 				      link_retry);
 }
 
+/* Build a MAC control (PAUSE) frame of frame_size bytes, returns its length */
 static int generate_ethernet_ctrlframe_packet(unsigned char *tx_buffer,
 					      unsigned char *dest_mac,
 					      unsigned char *src_mac,
@@ -127,6 +145,7 @@ static int generate_ethernet_ctrlframe_packet(unsigned char *tx_buffer,
 	return payload_len + ETH_PF_HEADER_SIZE;
 }
 
+/* Same traffic loop as eth_test_traffic(), but with a MAC control frame */
 static int eth_test_traffic_ctrl_frame(u8 mac_idx, u16 pkt_cnt)
 {
 	int frame_len;
@@ -143,6 +162,7 @@ static int eth_test_traffic_ctrl_frame(u8 mac_idx, u16 pkt_cnt)
 				      false);
 }
 
+/* Send only, nothing is read back: the MAC drop counters are checked after */
 static int eth_test_traffic_drop_events(u8 mac_idx, u16 pkt_cnt,
 					unsigned char *dest_mac)
 {
@@ -163,6 +183,7 @@ static int eth_test_traffic_drop_events(u8 mac_idx, u16 pkt_cnt,
 	return status;
 }
 
+/* Loopback traffic for RMII, src and dest MAC are all zero */
 static int eth_test_traffic_rmii(u8 mac_idx, u16 pkt_cnt,
 				 unsigned char *dest_mac)
 {
@@ -177,6 +198,7 @@ static int eth_test_traffic_rmii(u8 mac_idx, u16 pkt_cnt,
 				      false);
 }
 
+/* MAC init for the loopback tests; selects the EIP-197 path when enabled */
 static int eth_lb_mac_init(u8 mac_idx, enum ax_eth_speed speed)
 {
 #if ETH_CLI_EIP
@@ -186,6 +208,7 @@ static int eth_lb_mac_init(u8 mac_idx, enum ax_eth_speed speed)
 }
 
 #if ETH_CLI_EIP
+/* EIP-197 traffic test: PASS when TX, RX and both EIP contexts count up */
 static int eth_eip_traffic(u8 mac_idx)
 {
 	u8 tdest = mac_idx ? mac_idx : ETH_EIP_TDEST_XGMII;
@@ -194,6 +217,7 @@ static int eth_eip_traffic(u8 mac_idx)
 }
 #endif
 
+/* Loopback traffic: EIP-197 test when enabled, plain frames otherwise */
 static int eth_lb_traffic(u8 mac_idx, unsigned char *dest_mac,
 			  bool link_retry)
 {
@@ -205,12 +229,16 @@ static int eth_lb_traffic(u8 mac_idx, unsigned char *dest_mac,
 				link_retry);
 }
 
+/* Common failure exit of every test: tear the link down, report failure */
 static int eth_test_fail(u8 mac_idx)
 {
 	ax_hcp_stop_link_up(mac_idx);
 	return CMD_RET_FAILURE;
 }
 
+/* ======================== Part 2: test cases ======================== */
+
+/* ax_eth sgmii internal: SGMII SerDes near-end loopback, no PHY involved */
 static int eth_mac_internal_lb(u8 mac_idx)
 {
 	int ret;
@@ -240,6 +268,11 @@ static int eth_mac_internal_lb(u8 mac_idx)
 	return CMD_RET_FAILURE;
 }
 
+/*
+ * Shared part of the external PHY and RJ45 tests, after the PHY is set up:
+ * SGMII AN, MAC init, wait for the SGMII link and run the traffic.
+ * Marvell PHY loopback runs with SGMII AN off and without link retry.
+ */
 static int eth_mac_external_lb(u8 mac_idx, u8 phyaddr,
 			       eth_test_options opt, u8 reg)
 {
@@ -290,6 +323,7 @@ try_again:
 	return ret;
 }
 
+/* ax_eth sgmii external: frames loop back in the external PHY (PCS loopback) */
 static int eth_sgmii_external_phy_lb(u8 mac_idx)
 {
 	int ret;
@@ -313,6 +347,7 @@ static int eth_sgmii_external_phy_lb(u8 mac_idx)
 	return CMD_RET_FAILURE;
 }
 
+/* ax_eth sgmii rj45: frames loop back through an RJ45 loopback plug */
 static int eth_sgmii_rj45_lb(u8 mac_idx)
 {
 	int ret;
@@ -341,6 +376,7 @@ static int eth_sgmii_rj45_lb(u8 mac_idx)
 	return CMD_RET_FAILURE;
 }
 
+/* ax_eth rmii external: DP83822 MII loopback, RMII0 = MAC-1, RMII1 = MAC-2 */
 static int eth_rmii_external_lb(u8 mac_idx)
 {
 	int ret;
@@ -375,6 +411,7 @@ static int eth_rmii_external_lb(u8 mac_idx)
 	return CMD_RET_FAILURE;
 }
 
+/* ax_eth xgmii internal: RXAUI SerDes near-end loopback, no PHY involved */
 static int eth_xgmii_internal_lb(u8 port)
 {
 	int ret;
@@ -400,6 +437,7 @@ static int eth_xgmii_internal_lb(u8 port)
 	return CMD_RET_FAILURE;
 }
 
+/* ax_eth xgmii external: 10G PHY PCS loopback over MDIO Clause 45 */
 static int eth_xgmii_external_lb(u8 port)
 {
 	int ret;
@@ -428,6 +466,7 @@ static int eth_xgmii_external_lb(u8 port)
 	return CMD_RET_FAILURE;
 }
 
+/* Resolve ip_str (or the gateway) with ARP, then send count ICMP echo requests */
 static int eth_sgmii_ping(u8 mac_idx, const char *ip_str, int count)
 {
 	struct eth_net n;
@@ -464,6 +503,7 @@ static int eth_sgmii_ping(u8 mac_idx, const char *ip_str, int count)
 	return ret;
 }
 
+/* Answer ARP requests and ICMP echo requests until Ctrl+C */
 static int eth_sgmii_recv(u8 mac_idx)
 {
 	struct eth_net n;
@@ -491,6 +531,7 @@ static int eth_sgmii_recv(u8 mac_idx)
 	return CMD_RET_SUCCESS;
 }
 
+/* Send frames for seconds and print the TX rate (EIP-197 packets when enabled) */
 static int eth_sgmii_speed(u8 mac_idx, int seconds, u32 pkt_len)
 {
 	struct eth_net n;
@@ -522,6 +563,7 @@ static int eth_sgmii_speed(u8 mac_idx, int seconds, u32 pkt_len)
 }
 
 #if ETH_CLI_P2P
+/* Ping from src_mac to dst_mac of this board, needs a cable between them */
 static int eth_sgmii_p2p(u8 src_mac, u8 dst_mac, int count)
 {
 	struct eth_net src, dst;
@@ -554,6 +596,9 @@ static int eth_sgmii_p2p(u8 src_mac, u8 dst_mac, int count)
 }
 #endif
 
+/* ========================= Part 3: monitors ========================= */
+
+/* SGMII AUTO_NEG_MON: cleared before the test, set after the link comes up */
 static int eth_mac_auto_neg_mon(u8 mac_idx)
 {
 	u32 test_result = 1;
@@ -575,6 +620,7 @@ static int eth_mac_auto_neg_mon(u8 mac_idx)
 	return test_result ? CMD_RET_SUCCESS : CMD_RET_FAILURE;
 }
 
+/* SGMII_MON and GE_MON: cleared before the test, both set after link up */
 static int eth_mac_ge_mon(u8 mac_idx)
 {
 	u32 test_result = 1;
@@ -595,6 +641,7 @@ static int eth_mac_ge_mon(u8 mac_idx)
 	return test_result ? CMD_RET_SUCCESS : CMD_RET_FAILURE;
 }
 
+/* Broadcast frames over near-end loopback, TX and RX broadcast counters */
 static int eth_broadcast_frame(u8 mac_idx)
 {
 	u32 test_result = 1;
@@ -615,6 +662,7 @@ static int eth_broadcast_frame(u8 mac_idx)
 	return test_result ? CMD_RET_SUCCESS : CMD_RET_FAILURE;
 }
 
+/* CRC forwarding: frames over near-end loopback must come back unchanged */
 static int eth_crc_fwd(u8 mac_idx)
 {
 	u32 test_result = 1;
@@ -635,6 +683,10 @@ static int eth_crc_fwd(u8 mac_idx)
 	return test_result ? CMD_RET_SUCCESS : CMD_RET_FAILURE;
 }
 
+/*
+ * MAC control frames over external PHY loopback, with PAUSE_FWD so they
+ * reach the host; checks the TX and RX control frame counters
+ */
 static int eth_ctrl_frame_enable(u8 mac_idx)
 {
 	int ret, status;
@@ -671,6 +723,7 @@ static int eth_ctrl_frame_enable(u8 mac_idx)
 	return test_result ? CMD_RET_SUCCESS : CMD_RET_FAILURE;
 }
 
+/* Frames to a reserved multicast address must raise the RX drop counter */
 static int eth_drop_events(u8 mac_idx)
 {
 	u32 test_result = 1;
@@ -690,6 +743,10 @@ static int eth_drop_events(u8 mac_idx)
 	return test_result ? CMD_RET_SUCCESS : CMD_RET_FAILURE;
 }
 
+/*
+ * The 88E1512 on MAC-4 generates frames with a bad CRC towards the DUT
+ * port; the DUT RX fragments counter must count up
+ */
 static int eth_mac_fragments_packet(u8 mac_idx)
 {
 	int ret, retry = 20;
@@ -747,6 +804,7 @@ static int eth_mac_fragments_packet(u8 mac_idx)
 	return test_result ? CMD_RET_SUCCESS : CMD_RET_FAILURE;
 }
 
+/* One frame over external PHY loopback must raise GE_MON and HPI_MON */
 static int eth_mac_hpi_mon(u8 mac_idx)
 {
 	int phy, ret, frame_len, tx_len;
@@ -799,11 +857,15 @@ static int eth_mac_hpi_mon(u8 mac_idx)
 	return test_result ? CMD_RET_SUCCESS : CMD_RET_FAILURE;
 }
 
+/* ================= Part 4: commands, log and results ================= */
+
+/* Result of one port for the summary */
 struct udiag_log {
 	int result;
 	char test_name[64];
 };
 
+/* One "ax_eth <if> <cmd> <port|all>" entry; run() takes port + 1 */
 struct eth_cli_test {
 	const char *cmd;
 	const char *name;
@@ -836,6 +898,7 @@ static const struct eth_cli_test eth_sgmii_monitors[] = {
 	{ "hpi",	"HPI MON",		eth_mac_hpi_mon },
 };
 
+/* Find cmd in a test table, NULL if not there */
 static const struct eth_cli_test *eth_find_test(const struct eth_cli_test *tbl,
 						int n, const char *cmd)
 {
@@ -847,6 +910,7 @@ static const struct eth_cli_test *eth_find_test(const struct eth_cli_test *tbl,
 	return NULL;
 }
 
+/* Decimal number in [min, max]; returns 0 or -EINVAL */
 static int eth_parse_ulong(const char *str, ulong min, ulong max, ulong *val)
 {
 	char *endp;
@@ -857,6 +921,7 @@ static int eth_parse_ulong(const char *str, ulong min, ulong max, ulong *val)
 	return 0;
 }
 
+/* Print PASS/FAIL per entry and the overall result */
 static int eth_print_summary(const char *title, struct udiag_log *log,
 			     int total)
 {
@@ -880,6 +945,10 @@ static int eth_print_summary(const char *title, struct udiag_log *log,
 	return overall;
 }
 
+/*
+ * Run t on port_str, or on ports 0..nports-1 in turn for "all", then print
+ * the summary. log_fmt takes (port, t->name), title_fmt takes t->name.
+ */
 static int eth_run_ports(const struct eth_cli_test *t, const char *port_str,
 			 int nports, const char *log_fmt,
 			 const char *title_fmt)
@@ -906,6 +975,7 @@ static int eth_run_ports(const struct eth_cli_test *t, const char *port_str,
 	return eth_print_summary(title, log, total);
 }
 
+/* ax_eth rmii <test> <0|1|all> */
 static int eth_cmd_rmii(struct cmd_tbl *cmdtp, int flag,
 			int argc, char *const argv[])
 {
@@ -919,6 +989,7 @@ static int eth_cmd_rmii(struct cmd_tbl *cmdtp, int flag,
 			     "RMII_%d %s Loopback test", "ETH RMII %s Loopback");
 }
 
+/* ax_eth xgmii <internal|external> 0 */
 static int eth_cmd_xgmii(struct cmd_tbl *cmdtp, int flag,
 			 int argc, char *const argv[])
 {
@@ -934,6 +1005,7 @@ static int eth_cmd_xgmii(struct cmd_tbl *cmdtp, int flag,
 			     "ETH XGMII %s Loopback");
 }
 
+/* ax_eth sgmii ping <port|all> <ip> [count] */
 static int eth_cmd_ping(struct cmd_tbl *cmdtp, int flag,
 			int argc, char *const argv[])
 {
@@ -970,6 +1042,7 @@ static int eth_cmd_ping(struct cmd_tbl *cmdtp, int flag,
 	return eth_print_summary("ETH SGMII Ping", log, total);
 }
 
+/* ax_eth sgmii recv <port> */
 static int eth_cmd_recv(struct cmd_tbl *cmdtp, int flag,
 			int argc, char *const argv[])
 {
@@ -983,6 +1056,7 @@ static int eth_cmd_recv(struct cmd_tbl *cmdtp, int flag,
 	return eth_sgmii_recv(port + 1);
 }
 
+/* ax_eth sgmii speed <port> <seconds> [len], len only with EIP-197 */
 static int eth_cmd_speed(struct cmd_tbl *cmdtp, int flag,
 			 int argc, char *const argv[])
 {
@@ -1020,6 +1094,7 @@ static int eth_cmd_speed(struct cmd_tbl *cmdtp, int flag,
 }
 
 #if ETH_CLI_P2P
+/* ax_eth sgmii p2p <src port> <dst port|all> [count] */
 static int eth_cmd_p2p(struct cmd_tbl *cmdtp, int flag,
 		       int argc, char *const argv[])
 {
@@ -1055,6 +1130,10 @@ static int eth_cmd_p2p(struct cmd_tbl *cmdtp, int flag,
 }
 #endif
 
+/*
+ * ax_eth sgmii <test|monitor> <port|all>
+ * ax_eth sgmii ping|recv|speed ...
+ */
 static int eth_cmd_sgmii(struct cmd_tbl *cmdtp, int flag,
 			 int argc, char *const argv[])
 {
@@ -1092,6 +1171,7 @@ static int eth_cmd_sgmii(struct cmd_tbl *cmdtp, int flag,
 }
 
 #if ETH_CLI_EIP
+/* ax_eth eip [on|off] */
 static int eth_cmd_eip(int argc, char *const argv[])
 {
 	if (argc == 3) {
@@ -1109,6 +1189,7 @@ static int eth_cmd_eip(int argc, char *const argv[])
 }
 #endif
 
+/* ax_eth <sgmii|rmii|xgmii> ..., ax_eth eip [on|off] */
 static int do_ax_eth(struct cmd_tbl *cmdtp, int flag,
 		     int argc, char *const argv[])
 {
