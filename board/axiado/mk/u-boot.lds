@@ -181,3 +181,15 @@ SECTIONS
 }
 
 ASSERT(_end % 8 == 0, "_end must be 8-byte aligned for device tree");
+
+/*
+ * mk runs in place from OCM (CONFIG_SKIP_RELOCATE). Below ram_top,
+ * board_init_f() reserves the MMU tables (PGTABLE_SIZE <= 64 KiB with
+ * this mem_map), the heap, and about 16 KiB for the fdt copy, gd and bd. The
+ * image plus the appended DTB FIT (<= 20 KiB, ~15 KiB today) and at least
+ * 32 KiB of stack must fit below that. See include/configs/mk.h.
+ */
+ASSERT(_end + 0x5000 + 0x8000 <=
+       CFG_SYS_SDRAM_BASE + CFG_SYS_SDRAM_SIZE - 0x10000 -
+       CONFIG_SYS_MALLOC_LEN - CONFIG_ENV_SIZE - 0x4000,
+       "mk: U-Boot image too big for the 1 MiB OCM, reduce features or SYS_MALLOC_LEN");

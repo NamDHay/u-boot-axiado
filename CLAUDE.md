@@ -8,6 +8,7 @@ Upstream U-Boot plus an Axiado port. Axiado-specific work lives in:
 
 - `arch/arm/mach-axiado/` (SoC Kconfig: `AXIADO_AX3005`, `AXIADO_AX3000`, `AXIADO_MK`) and `board/axiado/{scm3005,scm3000,mk}/`. Each board has its own `u-boot.lds` (`CONFIG_SYS_CUSTOM_LDSCRIPT`).
 - `configs/ax3005_scm3005_defconfig` (primary target), `ax3000_scm3000_defconfig`, `mk_defconfig`, plus `include/configs/<board>.h`.
+- `mk` is **not** the mK SoC any more. It is an SCM3000 (AX3000) clone that runs from the 1 MiB A53 OCM without relocation, and `CONFIG_AXIADO_MK` takes the AX3000 code paths in `cmd/diag`. See `board/axiado/mk/CLAUDE.md`.
 - `cmd/diag/`: the bare-metal **diagnostics framework**. Most active development happens here.
 
 The rest of the tree is upstream U-Boot. Upstream does not accept GitHub PRs (`.github/pull_request_template.md` points to the mailing-list patch flow), but this fork's own work goes through GitHub PRs on `master`.
@@ -53,4 +54,4 @@ To add an IP test:
 
 ## Subdirectory docs
 
-Some subdirectories have their own `CLAUDE.md` with hardware details (for example `cmd/diag/lib_test/jtag/CLAUDE.md`, which covers the host JTAG/DAP client, its TAP-chain quirks, and the AP map). Read the matching one before working in a directory. When you change code, update the `CLAUDE.md` of the directory you changed in the same turn.
+Some subdirectories have their own `CLAUDE.md` with hardware details (for example `board/axiado/mk/CLAUDE.md` for the OCM memory layout and size budget, and `cmd/diag/lib_test/jtag/CLAUDE.md`, which covers the host JTAG/DAP client, its TAP-chain quirks, and the AP map). Read the matching one before working in a directory. When you change code, update the `CLAUDE.md` of the directory you changed in the same turn.

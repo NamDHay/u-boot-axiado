@@ -85,7 +85,7 @@ static struct cdns_uart uart_dev[CONFIG_MAX_UART] = {
     { .base = (void __iomem *)AX3000_CSR_BASE_ADRS_UART_7, .irq = 243 },
     { .base = (void __iomem *)AX3000_CSR_BASE_ADRS_UART_8, .irq = 244 },
 };
-#elif CONFIG_TARGET_SCM3000
+#elif defined(CONFIG_TARGET_SCM3000) || defined(CONFIG_TARGET_MK)
 #define CONFIG_MAX_UART 4
 static struct cdns_uart uart_dev[CONFIG_MAX_UART] = {
     { .base = (void __iomem *)AX3000_CSR_BASE_ADRS_UART_0, .irq = 144 },

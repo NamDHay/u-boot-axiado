@@ -11,14 +11,11 @@
 #include "hal/base/Ultra/ax3000_base_adrs.h"
 #include "hal/base/Ultra/ax3000_slo_base_adrs.h"
 #define CONFIG_NR_CPUS  4
-#elif CONFIG_AXIADO_AX3000
+#elif defined(CONFIG_AXIADO_AX3000) || defined(CONFIG_AXIADO_MK)
+/* mk = AX3000 silicon with U-Boot in OCM: same (A0) register map */
 #include "hal/base/A0/ax3000_base_adrs.h"
 #include "hal/base/A0/ax3000_slo_base_adrs.h"
 #define CONFIG_NR_CPUS  4
-#elif CONFIG_AXIADO_MK
-#include "hal/base/mK/ax3000_base_adrs.h"
-#include "hal/base/mK/ax3000_slo_base_adrs.h"
-#define CONFIG_NR_CPUS  1
 #endif
 
 #define DIAG_MAX_TEST   32

@@ -26,9 +26,9 @@
 
 #define CONFIG_MAX_PIN_PER_BANK 32
 #define GET_BANK(pin) \
-	(pin / CONFIG_MAX_PIN_PER_BANK) /**< get bank number with pin number */
+	((pin) / CONFIG_MAX_PIN_PER_BANK) /**< get bank number with pin number */
 #define GPIO_BIT(pin) \
-	BIT((pin % CONFIG_MAX_PIN_PER_BANK)) /**< pin number in a bank range 0 - 31 */
+	BIT(((pin) % CONFIG_MAX_PIN_PER_BANK)) /**< pin number in a bank range 0 - 31 */
 
 #define CONFIG_MAX_GPIO_BANK 8
 #define CONFIG_MAX_GPIO_PIN 256
@@ -40,8 +40,13 @@ static const ulong gpio_chip[CONFIG_MAX_GPIO_BANK] = {
 	AX3000_CSR_BASE_ADRS_GPIO_6, AX3000_CSR_BASE_ADRS_GPIO_7
 };
 
+/* Reject pins past the last bank before indexing gpio_chip[] */
+#define CDNS_GPIO_CHECK_PIN(pin) \
+	do { if ((pin) >= CONFIG_MAX_GPIO_PIN) return -EINVAL; } while (0)
+
 static int cdns_gpio_request(unsigned pin, const char *label) 
 {	
+    CDNS_GPIO_CHECK_PIN(pin);
     unsigned int bank = GET_BANK(pin);
     void __iomem *regs = (void __iomem *)gpio_chip[bank];
     u32 bypass = readl(regs + CDNS_GPR_BYPASS_MODE_REG);
@@ -59,6 +64,7 @@ static int cdns_gpio_request(unsigned pin, const char *label)
 
 static int cdns_gpio_free(unsigned pin) 
 {
+    CDNS_GPIO_CHECK_PIN(pin);
     unsigned int bank = GET_BANK(pin);
     void __iomem *regs = (void __iomem *)gpio_chip[bank];
     u32 bypass = readl(regs + CDNS_GPR_BYPASS_MODE_REG);
@@ -72,6 +78,7 @@ static int cdns_gpio_free(unsigned pin)
 
 static int cdns_gpio_set_direction(unsigned pin, unsigned dir) 
 {
+    CDNS_GPIO_CHECK_PIN(pin);
     unsigned int bank = GET_BANK(pin);
     void __iomem *regs = (void __iomem *)gpio_chip[bank];
     u32 val;
@@ -100,6 +107,7 @@ static int cdns_gpio_set_direction(unsigned pin, unsigned dir)
 
 static int cdns_gpio_set_value(unsigned pin, unsigned value) 
 {
+    CDNS_GPIO_CHECK_PIN(pin);
     unsigned int bank = GET_BANK(pin);
     void __iomem *regs = (void __iomem *)gpio_chip[bank];
     u32 data = readl(regs + CDNS_GPR_OUTPUT_VALUE_REG);
@@ -115,6 +123,7 @@ static int cdns_gpio_set_value(unsigned pin, unsigned value)
 
 static int cdns_gpio_get_value(unsigned pin) 
 {
+    CDNS_GPIO_CHECK_PIN(pin);
     unsigned int bank = GET_BANK(pin);
     void __iomem *regs = (void __iomem *)gpio_chip[bank];
 	return !!(readl(regs + CDNS_GPR_INPUT_VALUE_REG) & GPIO_BIT(pin));

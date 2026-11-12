@@ -208,7 +208,8 @@ struct diag_test diag_list[] = {
         "rtc",
         "rtc diagnostic test",
         .test = {
-            /* { "ax_rtc get", 1000, 0 }, */
+            /* set 2026-12-31 23:59:50, wait 15 s (crosses new year), check */
+            { "ax_rtc test 15 1", 20000, 0 },
         }
     },
 #endif

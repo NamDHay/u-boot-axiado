@@ -616,7 +616,7 @@ static int axiado_pcie_release_reset(struct axiado_pcie *pcie)
 
     printf("%s - x%d\n", __func__, pcie->lanes);
 
-#ifdef CONFIG_AXIADO_AX3000
+#if defined(CONFIG_AXIADO_AX3000) || defined(CONFIG_AXIADO_MK)
     u32 offset;
     /*
      * TBD: Reset the PCIe controller, only in x1 case. Both x1 and x2
@@ -767,7 +767,7 @@ static int axiado_pcie_config_eq_tunning(struct axiado_pcie *pcie)
         return -EINVAL;
     }
 
-#ifdef CONFIG_AXIADO_AX3000
+#if defined(CONFIG_AXIADO_AX3000) || defined(CONFIG_AXIADO_MK)
     if (IS_PCIE_DEV_BAD) {
         writel(0x80360000, pcie->bridge + REG_PCIE_PIPE_31_0_ADRS_OFFSET);
         writel(0x27000301, pcie->bridge + REG_PCIE_PIPE_63_32_ADRS_OFFSET);
@@ -793,7 +793,7 @@ static int axiado_pcie_config_eq_tunning(struct axiado_pcie *pcie)
 #ifdef CONFIG_AXIADO_AX3005
         val = PCIE_PEX_SPC_SLOT_REG_IMPL_SET(val, 0x1);    // Slot clock configuration                    
         val = PCIE_PEX_SPC_SLOT_CLK_CONFIG_SET(val, 0x1);  // (0:independent, 1:refclk)
-#elif CONFIG_AXIADO_AX3000
+#elif defined(CONFIG_AXIADO_AX3000) || defined(CONFIG_AXIADO_MK)
         val = (val & ~0x2000) | ((0x0 << 13) & 0x2000);  // Slot clock configuration (0:independent, 1:refclk)
         val = (val & ~0x1000) | ((0x0 << 12) & 0x1000);  // Slot register implemented
 #endif

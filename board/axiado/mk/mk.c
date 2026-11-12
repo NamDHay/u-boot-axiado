@@ -20,49 +20,59 @@
 
 DECLARE_GLOBAL_DATA_PTR;
 
+#define MK_DEVICE_ATTRS	(PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) | \
+			 PTE_BLOCK_NON_SHARE | PTE_BLOCK_PXN | PTE_BLOCK_UXN)
+#define MK_NORMAL_ATTRS	(PTE_BLOCK_MEMTYPE(MT_NORMAL) | PTE_BLOCK_INNER_SHARE)
+
+/*
+ * Same layout as SCM3000, but the ranges don't overlap, and the A53 OCM,
+ * where this U-Boot runs, is Normal memory inside the peripheral window.
+ * DDR is mapped as on SCM3000 so it can be used once it's initialised.
+ * U-Boot itself never accesses it.
+ */
 static struct mm_region axiado_mk_mem_map[] = {
-	{ .virt = 0x80200000UL,
-	  .phys = 0x80200000UL,
-	  .size = SZ_1M,
-	  .attrs = PTE_BLOCK_MEMTYPE(MT_NORMAL) | PTE_BLOCK_INNER_SHARE },
-	{ 
-	  .virt = 0x80300000UL,
-	  .phys = 0x80300000UL,
-	  .size = SZ_2M + SZ_1M, 	
-      .attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) | PTE_BLOCK_NON_SHARE |
-		   PTE_BLOCK_PXN | PTE_BLOCK_UXN },
-	{ 
-	  .virt = 0x80400000UL,
-	  .phys = 0x80400000UL,
-	  .size = SZ_512M, 	
-      .attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) | PTE_BLOCK_NON_SHARE |
-		   PTE_BLOCK_PXN | PTE_BLOCK_UXN },
+	{ /* DDR low: 0x3C000000 - 0x7FFFFFFF */
+	  .virt = MK_DDR0_BASE,
+	  .phys = MK_DDR0_BASE,
+	  .size = MK_DDR0_SIZE,
+	  .attrs = MK_NORMAL_ATTRS },
+	{ /* Peripherals below the OCM */
+	  .virt = 0x80000000UL,
+	  .phys = 0x80000000UL,
+	  .size = MK_OCM_BASE - 0x80000000UL,
+	  .attrs = MK_DEVICE_ATTRS },
+	{ /* A53 OCM: U-Boot text/data/bss/heap/stack + diag record */
+	  .virt = MK_OCM_BASE,
+	  .phys = MK_OCM_BASE,
+	  .size = MK_OCM_SIZE,
+	  .attrs = MK_NORMAL_ATTRS },
+	{ /* Peripherals above the OCM, up to 4 GiB */
+	  .virt = MK_OCM_BASE + MK_OCM_SIZE,
+	  .phys = MK_OCM_BASE + MK_OCM_SIZE,
+	  .size = 0x100000000UL - (MK_OCM_BASE + MK_OCM_SIZE),
+	  .attrs = MK_DEVICE_ATTRS },
+	{ /* 0x2_0000_0000 to 0x2_7FFF_FFFF: peripherals */
+	  .virt = 0x200000000UL,
+	  .phys = 0x200000000UL,
+	  .size = SZ_2G,
+	  .attrs = MK_DEVICE_ATTRS },
+	{ /* 0x2_8000_0000 to 0x2_FFFF_FFFF: PCIe ECAM + mem window */
+	  .virt = 0x280000000UL,
+	  .phys = 0x280000000UL,
+	  .size = SZ_2G,
+	  .attrs = MK_DEVICE_ATTRS },
+	{ /* 0x3_0000_0000 to 0x3_7FFF_FFFF: peripherals */
+	  .virt = 0x300000000UL,
+	  .phys = 0x300000000UL,
+	  .size = SZ_2G,
+	  .attrs = MK_DEVICE_ATTRS },
+	{ /* 0x3_8000_0000 to 0x3_FFFF_FFFF: PCIe ECAM + mem window */
+	  .virt = 0x380000000UL,
+	  .phys = 0x380000000UL,
+	  .size = SZ_2G,
+	  .attrs = MK_DEVICE_ATTRS },
 	{
-	  .virt = 0x800000000UL,
-	  .phys = 0x800000000UL,
-	  .size = SZ_4G, 
-	  .attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) | PTE_BLOCK_NON_SHARE |
-		   PTE_BLOCK_PXN | PTE_BLOCK_UXN },
-	{
-	  .virt = 0x1000000000UL,
-	  .phys = 0x1000000000UL,
-	  .size = SZ_4G, 
-	  .attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) | PTE_BLOCK_NON_SHARE |
-		   PTE_BLOCK_PXN | PTE_BLOCK_UXN },
-	{
-	  .virt = 0x1800000000UL,
-	  .phys = 0x1800000000UL,
-	  .size = SZ_4G, 
-	  .attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) | PTE_BLOCK_NON_SHARE |
-		   PTE_BLOCK_PXN | PTE_BLOCK_UXN },
-	{
-	  .virt = 0x2000000000UL,
-	  .phys = 0x2000000000UL,
-	  .size = SZ_4G, 
-	  .attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) | PTE_BLOCK_NON_SHARE |
-		   PTE_BLOCK_PXN | PTE_BLOCK_UXN },
-    {
-        0,
+		0,
 	}
 };
 
@@ -80,6 +90,7 @@ struct mm_region *mem_map = axiado_mk_mem_map;
 int misc_init_r(void)
 {
 	int ret = 0;
+	/* ret = run_command("setmac", 0); */
 	return ret;
 }
 #endif
@@ -93,45 +104,106 @@ int board_fit_config_name_match(const char *name)
 	return 0;
 }
 
-/*
- * ft_board_setup - restore cpu-release-addr after relocation
+/**
+ * @brief Board-specific FDT fixup to restore correct cpu-release-addr
  *
- * arch_fixup_fdt() / spin_table_update_dt() overwrites cpu-release-addr
- * with U-Boot's relocated address.  Restore the pre-relocation physical
- * address so secondary cores spin on the correct location.
+ * arch_fixup_fdt() calls spin_table_update_dt() which overwrites
+ * cpu-release-addr. Put back the address of spin_table_cpu_release_addr
+ * that the secondary cores actually poll. mk runs without relocation
+ * (reloc_off = 0), so that is its OCM link address.
+ *
+ * @param blob: FDT blob
+ * @param bd: Board data pointer
+ * @return 0 on success
  */
 int ft_board_setup(void *blob, struct bd_info *bd)
 {
-	return 0;
-}
+	int cpus_offset, offset;
+	const char *prop;
+	int ret;
+	u64 cpu_release_addr = (u64)&spin_table_cpu_release_addr - gd->reloc_off;
 
-int dram_init(void)
-{
-	gd->ram_size = get_ram_size((void *)CFG_SYS_SDRAM_BASE,
-				    CFG_SYS_SDRAM_SIZE);
-	return 0;
-}
+	cpus_offset = fdt_path_offset(blob, "/cpus");
+	if (cpus_offset < 0)
+		return 0;
 
-int dram_init_banksize(void)
-{
-	gd->bd->bi_dram[0].start = CFG_SYS_SDRAM_BASE;
-	gd->bd->bi_dram[0].size = CFG_SYS_SDRAM_SIZE;
+	for (offset = fdt_first_subnode(blob, cpus_offset); offset >= 0;
+	     offset = fdt_next_subnode(blob, offset)) {
+		prop = fdt_getprop(blob, offset, "device_type", NULL);
+		if (!prop || strcmp(prop, "cpu"))
+			continue;
+
+		prop = fdt_getprop(blob, offset, "enable-method", NULL);
+		if (!prop || strcmp(prop, "spin-table"))
+			continue;
+
+		ret = fdt_setprop_u64(blob, offset, "cpu-release-addr",
+				      cpu_release_addr);
+		if (ret) {
+			printf("WARNING: Failed to restore cpu-release-addr\n");
+			return ret;
+		}
+	}
+
 	return 0;
 }
 
 /*
- * timer_init - enable the AX3005 platform system timer
- *
- * CNTFRQ_EL0 is already set by arch/arm/cpu/armv8/start.S using
- * CONFIG_COUNTER_FREQUENCY from the defconfig.
- *
- * SYS_TIMER_CTRL (0x48016000) is the AX3005 system timer control
- * register — writing SYS_TIMER_ENABLE starts the counter that feeds
- * the ARM generic timer.  A proper DM timer driver should replace
- * this once the SoC timer binding is defined.
+ * U-Boot's RAM is the OCM (minus the reserved top). Its size is fixed, so
+ * don't probe it with get_ram_size(): that writes to the memory that
+ * U-Boot is running from.
  */
+int dram_init(void)
+{
+	gd->ram_size = CFG_SYS_SDRAM_SIZE;
+	return 0;
+}
+
+/**
+ * @brief Set up DRAM bank sizes for device tree fixup / LMB
+ *
+ * These are the DDR banks (as on SCM3000), not the OCM U-Boot runs in.
+ * - Bank 0: 0x3C000000, size 0x44000000 (1GB + 64MB)
+ * - Bank 1: 0x400000000, size 0x80000000 (2GB)
+ *
+ * @return 0 on success
+ */
+int dram_init_banksize(void)
+{
+	gd->bd->bi_dram[0].start = MK_DDR0_BASE;
+	gd->bd->bi_dram[0].size = MK_DDR0_SIZE;
+
+	gd->bd->bi_dram[1].start = MK_DDR1_BASE;
+	gd->bd->bi_dram[1].size = MK_DDR1_SIZE;
+	return 0;
+}
+
+void raw_write_cntfrq_el0(u32 cntfrq_el0)
+{
+	__asm__ __volatile__("msr CNTFRQ_EL0, %0\n\t" : : "r" (cntfrq_el0) : "memory");
+}
+
 int timer_init(void)
 {
+	u32 div0_val = 0, div1_val = 0;
+	u64 counter_frq = 0;
+	/* Check if PLL is locked and calculate the timer counter */
+	if((readl(CLKRST_CPU_PLL_STS_ADRS_OFFSET)) & CPU_PLL_STS_LOCK){
+		u32 reg_val = readl(CLKRST_CPU_PLL_POSTDIV_REG); /* Read the CPU frq regiter */
+		div0_val = ((reg_val >> REG_CPU_PLL_POSTDIV_FLD_POSTDIV0_0_LSB) & (POST_DIV_BITS_MASK));
+		div1_val = ((reg_val >> REG_CPU_PLL_POSTDIV_FLD_POSTDIV1_0_LSB) & (POST_DIV_BITS_MASK));
+		counter_frq = (AX_PLL_CLK_4000MHZ / ((div0_val + 1) * (div1_val + 1))); /* Calculate the counter frq value */
+		if (current_el() == 3)
+			raw_write_cntfrq_el0(counter_frq);
+
+	} else {
+		/**
+		* Control should not reach here...
+		* If PLL is bypassed then recalculate the timer counter based on default frequency
+		* TODO: KWS-5412-Notify system manager that system failed to boot.
+		*/
+		return -1;
+	}
 	writel(SYS_TIMER_ENABLE, SYS_TIMER_CTRL);
 	return 0;
 }
@@ -163,9 +235,7 @@ int ls_gic_rd_tables_init(void)
 
 int board_init(void)
 {
-#ifdef CONFIG_GIC_V3_ITS
     ls_gic_rd_tables_init();
-#endif
     enable_interrupts();
     return 0;
 }
@@ -176,6 +246,7 @@ void reset_cpu(void)
 
 void enable_caches(void)
 {
+    printf("Cache: Enable\n");
     icache_enable();
     dcache_enable();
 }
