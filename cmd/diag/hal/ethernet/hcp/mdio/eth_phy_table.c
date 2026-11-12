@@ -36,38 +36,6 @@ const struct ax_speed_desc *ax_speed_get(u8 speed, u8 mac_idx)
 	return sp;
 }
 
-static u32 ax_mdio_mac_base(u8 mac_idx)
-{
-	return XGMII_MAC_BASE + (mac_idx * MAC_CONFIG_BYTE_CNT);
-}
-
-u16 ax_mdio_read(u8 mac_idx, const struct ax_phy_desc *phy, u8 addr,
-		 u8 devad, u16 reg)
-{
-	if (phy->clause == AX_MDIO_C45)
-		return mdio_clause45_read(ax_mdio_mac_base(mac_idx), addr,
-					  devad, reg);
-	return mdio_clause22_read(mac_idx, addr, reg);
-}
-
-void ax_mdio_write(u8 mac_idx, const struct ax_phy_desc *phy, u8 addr,
-		   u8 devad, u16 reg, u16 val)
-{
-	if (phy->clause == AX_MDIO_C45)
-		mdio_clause45_write(ax_mdio_mac_base(mac_idx), addr, devad,
-				    reg, val);
-	else
-		mdio_clause22_write(mac_idx, addr, reg, val);
-}
-
-static void ax_mdio_config(u8 mac_idx, u8 clause)
-{
-	if (clause == AX_MDIO_C45)
-		mdio_clause45_init(ax_mdio_mac_base(mac_idx));
-	else
-		mdio_config_c22(mac_idx);
-}
-
 static const struct ax_phy_desc *ax_phy_match(const struct ax_speed_desc *sp,
 					      u8 clause, u16 id1, u16 id2)
 {
@@ -97,7 +65,6 @@ const struct ax_phy_desc *ax_phy_probe(u8 mac_idx, u8 speed, u8 *addr)
 {
 	const struct ax_speed_desc *sp = ax_speed_get(speed, mac_idx);
 	const struct ax_phy_desc *phy;
-	struct ax_phy_desc probe = { 0 };
 	u16 id1, id2;
 	u8 clause, phy_addr;
 
@@ -108,11 +75,10 @@ const struct ax_phy_desc *ax_phy_probe(u8 mac_idx, u8 speed, u8 *addr)
 	for (clause = AX_MDIO_C22; clause <= AX_MDIO_C45; clause++) {
 		if (!ax_phy_list_has(sp, clause))
 			continue;
-		ax_mdio_config(mac_idx, clause);
-		probe.clause = clause;
+		ax_mdio_init(mac_idx, clause);
 		for (phy_addr = 0; phy_addr < 32; phy_addr++) {
-			id1 = ax_mdio_read(mac_idx, &probe, phy_addr, 1, 2);
-			id2 = ax_mdio_read(mac_idx, &probe, phy_addr, 1, 3);
+			id1 = ax_mdio_read(mac_idx, clause, phy_addr, 1, 2);
+			id2 = ax_mdio_read(mac_idx, clause, phy_addr, 1, 3);
 			phy = ax_phy_match(sp, clause, id1, id2);
 			if (phy) {
 				printf("MDIO Found PHY at addr: 0x%x\n",

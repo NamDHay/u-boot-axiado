@@ -11,14 +11,22 @@
 #include <net.h>
 #include "hcp_main.h"
 #include "eth_net.h"
+
+#define ETH_CLI_EIP		0
+#define ETH_CLI_P2P		0
+
+#if ETH_CLI_EIP
 #include "eip197.h"
+#endif
 
 #define ETH_CLI_SGMII_PORTS	4
 #define ETH_CLI_RMII_PORTS	2
 #define ETH_CLI_XGMII_PORTS	1
 #define ETH_XGMII_MAC_IDX	0
 #define ETH_TEST_LINK_RETRY	5
+#if ETH_CLI_EIP
 #define ETH_EIP_TDEST_XGMII	5
+#endif
 
 static int eth_test_xfer(u8 mac_idx, u16 pkt, unsigned char *txbuff,
 			 int frame_len, unsigned char *rxbuff, bool link_retry)
@@ -171,22 +179,28 @@ static int eth_test_traffic_rmii(u8 mac_idx, u16 pkt_cnt,
 
 static int eth_lb_mac_init(u8 mac_idx, enum ax_eth_speed speed)
 {
+#if ETH_CLI_EIP
 	ax_hcp_eip_path(mac_idx, ax_hcp_get_eip());
+#endif
 	return ax_hcp_mac_init(mac_idx, speed);
 }
 
+#if ETH_CLI_EIP
 static int eth_eip_traffic(u8 mac_idx)
 {
 	u8 tdest = mac_idx ? mac_idx : ETH_EIP_TDEST_XGMII;
 
 	return eth_eip_197_test(mac_idx, tdest) == 1;
 }
+#endif
 
 static int eth_lb_traffic(u8 mac_idx, unsigned char *dest_mac,
 			  bool link_retry)
 {
+#if ETH_CLI_EIP
 	if (ax_hcp_get_eip())
 		return eth_eip_traffic(mac_idx);
+#endif
 	return eth_test_traffic(mac_idx, ETH_TEST_DFLT_FRAMES, dest_mac,
 				link_retry);
 }
@@ -209,9 +223,11 @@ static int eth_mac_internal_lb(u8 mac_idx)
 		printf("MAC init failed\n");
 		return eth_test_fail(mac_idx);
 	}
+#if ETH_CLI_EIP
 	if (ax_hcp_get_eip())
 		eth_eip_enable_near_end_lb(mac_idx);
 	else
+#endif
 		enable_internal_near_end_lb(mac_idx);
 	ret = eth_lb_traffic(mac_idx, dest_mac, true);
 	ax_hcp_stop_link_up(mac_idx);
@@ -340,9 +356,11 @@ static int eth_rmii_external_lb(u8 mac_idx)
 	eth_lb_mac_init(mac_idx, AX_ETH_100M);
 	ax_hcp_start_link_up(mac_idx);
 	mdelay(100);
+#if ETH_CLI_EIP
 	if (ax_hcp_get_eip())
 		ret = eth_eip_traffic(mac_idx);
 	else
+#endif
 		ret = eth_test_traffic_rmii(mac_idx, ETH_TEST_DFLT_FRAMES,
 					    dest_mac);
 	eth_print_mac_counters(mac_idx);
@@ -480,24 +498,30 @@ static int eth_sgmii_speed(u8 mac_idx, int seconds, u32 pkt_len)
 
 	eth_net_init(&n, mac_idx);
 
+#if ETH_CLI_EIP
 	ax_hcp_eip_path(mac_idx, ax_hcp_get_eip());
+#endif
 	if (eth_net_link_up(mac_idx)) {
+#if ETH_CLI_EIP
 		ax_hcp_eip_path(mac_idx, false);
+#endif
 		ax_hcp_stop_link_up(mac_idx);
 		return CMD_RET_FAILURE;
 	}
 
+#if ETH_CLI_EIP
 	if (ax_hcp_get_eip())
 		ret = eth_eip197_speed(mac_idx, mac_idx, seconds, pkt_len) ?
 		      CMD_RET_FAILURE : CMD_RET_SUCCESS;
 	else
+#endif
 		ret = eth_net_run_speed(&n, seconds);
 	ax_hcp_stop_link_up(mac_idx);
 
 	return ret;
 }
 
-#if 0
+#if ETH_CLI_P2P
 static int eth_sgmii_p2p(u8 src_mac, u8 dst_mac, int count)
 {
 	struct eth_net src, dst;
@@ -962,14 +986,22 @@ static int eth_cmd_recv(struct cmd_tbl *cmdtp, int flag,
 static int eth_cmd_speed(struct cmd_tbl *cmdtp, int flag,
 			 int argc, char *const argv[])
 {
+#if ETH_CLI_EIP
 	ulong port, seconds, len = EIP197_SPEED_PKT_LEN;
 
 	if (argc != 3 && argc != 4)
 		return CMD_RET_USAGE;
+#else
+	ulong port, seconds, len = 0;
+
+	if (argc != 3)
+		return CMD_RET_USAGE;
+#endif
 	if (eth_parse_ulong(argv[1], 0, ETH_CLI_SGMII_PORTS - 1, &port))
 		return CMD_RET_USAGE;
 	if (eth_parse_ulong(argv[2], 1, 3600, &seconds))
 		return CMD_RET_USAGE;
+#if ETH_CLI_EIP
 	if (argc == 4) {
 		if (!ax_hcp_get_eip()) {
 			printf("[len] is only used with 'ax_eth eip on'\n");
@@ -982,11 +1014,12 @@ static int eth_cmd_speed(struct cmd_tbl *cmdtp, int flag,
 			return CMD_RET_FAILURE;
 		}
 	}
+#endif
 
 	return eth_sgmii_speed(port + 1, seconds, len);
 }
 
-#if 0
+#if ETH_CLI_P2P
 static int eth_cmd_p2p(struct cmd_tbl *cmdtp, int flag,
 		       int argc, char *const argv[])
 {
@@ -1036,7 +1069,7 @@ static int eth_cmd_sgmii(struct cmd_tbl *cmdtp, int flag,
 	if (!strcmp(argv[1], "speed"))
 		return eth_cmd_speed(cmdtp, flag, argc - 1, &argv[1]);
 
-#if 0
+#if ETH_CLI_P2P
 	if (!strcmp(argv[1], "p2p"))
 		return eth_cmd_p2p(cmdtp, flag, argc - 1, &argv[1]);
 #endif
@@ -1058,6 +1091,7 @@ static int eth_cmd_sgmii(struct cmd_tbl *cmdtp, int flag,
 	return CMD_RET_USAGE;
 }
 
+#if ETH_CLI_EIP
 static int eth_cmd_eip(int argc, char *const argv[])
 {
 	if (argc == 3) {
@@ -1073,12 +1107,15 @@ static int eth_cmd_eip(int argc, char *const argv[])
 	printf("EIP197 path: %s\n", ax_hcp_get_eip() ? "on" : "off");
 	return CMD_RET_SUCCESS;
 }
+#endif
 
 static int do_ax_eth(struct cmd_tbl *cmdtp, int flag,
 		     int argc, char *const argv[])
 {
+#if ETH_CLI_EIP
 	if (argc >= 2 && !strcmp(argv[1], "eip"))
 		return eth_cmd_eip(argc, argv);
+#endif
 
 	if (argc < 4)
 		return CMD_RET_USAGE;
@@ -1114,20 +1151,28 @@ U_BOOT_CMD(
 	"    - XGMII (10G) RXAUI SerDes near-end loopback test\n"
 	"ax_eth xgmii external 0\n"
 	"    - XGMII (10G) external PHY PCS loopback test (Clause 45)\n"
+#if ETH_CLI_EIP
 	"ax_eth eip [on|off]\n"
 	"    - Show or set the EIP-197 path for the loopback tests above:\n"
 	"      on = traffic is encrypted/decrypted by EIP-197 (3-DES CBC),\n"
 	"      off = bypass EIP, host FIFO (default)\n"
+#endif
 	"ax_eth sgmii ping <port|all> <ip> [count]\n"
 	"    - ARP + ICMP echo to <ip> (default 4 times), no U-Boot net stack;\n"
 	"      <ip> outside the subnet goes through the gateway\n"
 	"ax_eth sgmii recv <port>\n"
 	"    - Answer ARP/ping from the network until Ctrl+C\n"
+#if ETH_CLI_EIP
 	"ax_eth sgmii speed <port> <seconds> [len]\n"
+#else
+	"ax_eth sgmii speed <port> <seconds>\n"
+#endif
 	"    - Send raw broadcast frames for <seconds> and print the TX\n"
 	"      speed (bytes * 8 / time), needs a link partner on the port;\n"
+#if ETH_CLI_EIP
 	"      with 'ax_eth eip on': <len>-byte IPv6/UDP packets (62..9572,\n"
 	"      default 1200) encrypted by EIP-197, rate in pkts/s\n"
+#endif
 	"    (ping/recv: MAC/IP/gateway are per port, set in eth_net.h\n"
 	"     as eth_net_port0_cfg..eth_net_port3_cfg)\n"
 	"Monitors:\n"

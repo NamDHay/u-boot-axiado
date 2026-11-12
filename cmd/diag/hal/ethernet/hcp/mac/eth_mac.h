@@ -14,7 +14,6 @@
 	(readl((AXILS_SHIM_MAC_BASE + (mac * MAC_BASE_OFFSET)) + x))
 
 /* --- SGMII PHY / SerDes dump + fast-sim / tuning --- */
-void sgmii_phy_dump(u8 mac_idx);
 void sgmii_fast_sim(u8 mac_idx);
 void sgmii_fast_sim_other(u8 mac_idx);
 void sgmii_innosilicon_adjust(u8 mac_idx);
@@ -63,8 +62,6 @@ int eth_print_ctrl_frame_counters(int mac_idx);
 int eth_print_drop_event_counters(int mac_idx);
 u32 eth_read_fragments_counter(int mac_idx);
 u32 eth_print_fragments_counters(int mac_idx);
-u32 eth_print_crc_err_counters(int mac_idx);
-u32 eth_print_lengtherrors_counters(int mac_idx);
 int eth_print_irq_hpi(int mac_idx);
 int irq_hpi_clear_bit(int mac_idx);
 

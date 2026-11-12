@@ -22,18 +22,16 @@
 #define DP83822_PHY_ID2		0xa240
 #define DP83822_PHY_ID2_MASK	0xfff0
 
-/* --- Basic MDIO Clause 22 Read/Write --- */
-void mdio_wait(u8 mac_idx);
-void mdio_clause22_write(u8 mac_idx, u8 phy_addr, u8 reg_addr,
-			 u16 data);
-u16 mdio_clause22_read(u8 mac_idx, u8 phy_addr, u8 reg_addr);
+enum ax_mdio_clause {
+	AX_MDIO_C22,
+	AX_MDIO_C45,
+};
 
-/* --- MDIO Clause 45 --- */
-void mdio_clause45_init(u32 mac_base);
-void mdio_clause45_write(u32 mac_base, u32 phyaddr, u32 dev_addr,
-			 u32 reg_addr, u16 data);
-u32 mdio_clause45_read(u32 mac_base, u32 phyaddr,
-			    u32 dev_addr, u32 reg_addr);
+void ax_mdio_init(u8 mac_idx, enum ax_mdio_clause clause);
+u32 ax_mdio_read(u8 mac_idx, enum ax_mdio_clause clause, u8 phy_addr,
+		 u8 devad, u16 reg);
+void ax_mdio_write(u8 mac_idx, enum ax_mdio_clause clause, u8 phy_addr,
+		   u8 devad, u16 reg, u16 val);
 
 /* --- MDIO Phy Power Cycle --- */
 void mdio_phy_power_cycle(u8 mac_idx, u8 phy_addr, u8 reg);
@@ -41,11 +39,10 @@ void mdio_set_phy_powerup(u8 mac_idx, u8 phy_addr, u8 reg);
 void mdio_set_phy_powerdown(u8 mac_idx, u8 phy_addr, u8 reg);
 
 /* --- Common PHY discovery and config --- */
-void mdio_config_c22(u8 mac_idx);
 u8 mdio_find_phy_id(u8 mac_idx, u16 *id1, u16 *id2);
 u8 mdio_find_phy_by_id(u8 mac_idx, u16 match_id1, u16 match_id2,
 		       u16 id2_mask, u16 *id1, u16 *id2);
-u8 xgmii_mdio_scan_phy_address(u32 mac_base);
+u8 xgmii_mdio_scan_phy_address(u8 mac_idx);
 void mdio_setup_phy_mode(u8 mac_idx, u8 phy_addr, u8 reg);
 void mdio_select_page(u8 mac_idx, u8 phy_addr, u8 reg,
 		      u8 page);
@@ -89,6 +86,6 @@ int eth_init_exPhy(u8 mac_idx, u8 phyaddr, eth_test_options opt,
 /* --- XGMII (10G) Clause-45 PHY bring-up (SW reset / FW revision / loopback) --- */
 int eth_xgmii_TUNIT_sw_reset(u32 phyaddr);
 int eth_xgmii_copper_sw_reset(u32 phyaddr);
-void xgmii_enable_phy_loopback(u32 mac_base, u32 phyaddr);
-void xgmii_disable_phy_loopback(u32 mac_base, u32 phyaddr);
+void xgmii_enable_phy_loopback(u8 mac_idx, u32 phyaddr);
+void xgmii_disable_phy_loopback(u8 mac_idx, u32 phyaddr);
 #endif

@@ -19,13 +19,6 @@ struct ax_phy_info {
     eth_test_options opt;
 };
 
-static int hcp_mac_init(unsigned mac_idx, enum ax_eth_speed speed);
-static int hcp_phy_init(unsigned mac_idx, int test_ops, struct ax_phy_info *info,
-			enum ax_eth_speed speed);
-static int hcp_start_link_up(unsigned mac_idx);
-static int hcp_stop_link_up(unsigned mac_idx);
-static int hcp_recv(unsigned mac_idx, unsigned char *packet, int length);
-static int hcp_send(unsigned char *packet, int length);
 struct ax_hcp_ops {
     int (*mac_init)(unsigned mac_idx, enum ax_eth_speed speed);
     int (*phy_init)(unsigned mac_idx, int test_ops, struct ax_phy_info *info,

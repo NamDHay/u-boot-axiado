@@ -4,26 +4,11 @@
  * Nguyen Nam Huy namhuyngn03@gmail.com
  */
 
-#include <clk.h>
 #include <net.h>
-#include <env.h>
-#include <dm.h>
-#include <log.h>
-#include <config.h>
 #include <console.h>
-#include <malloc.h>
-#include <asm/global_data.h>
-#include <malloc.h>
-#include <net.h>
-#include <phy.h>
 #include <time.h>
-#include <miiphy.h>
-#include <eth_phy.h>
-#include <wait_bit.h>
 #include <asm/io.h>
-#include <linux/printk.h>
-#include <linux/err.h>
-#include <hexdump.h>
+#include <asm/global_data.h>
 
 #include "hcp_main.h"
 
@@ -39,6 +24,14 @@ DECLARE_GLOBAL_DATA_PTR;
 #define HCP_RX_TIMEOUT_MS       10
 #define hcp_get_mac_cfg(hcp) \
 	(((struct shim_mem_admin *)((hcp)->shim_priv))->mac_cfg)
+static int hcp_mac_init(unsigned mac_idx, enum ax_eth_speed speed);
+static int hcp_phy_init(unsigned mac_idx, int test_ops, struct ax_phy_info *info,
+			enum ax_eth_speed speed);
+static int hcp_start_link_up(unsigned mac_idx);
+static int hcp_stop_link_up(unsigned mac_idx);
+static int hcp_recv(unsigned mac_idx, unsigned char *packet, int length);
+static int hcp_send(unsigned char *packet, int length);
+
 struct ax_hcp_ops hcp = {
     .mac_init = hcp_mac_init,
     .phy_init = hcp_phy_init,
@@ -166,7 +159,7 @@ static int hcp_phy_init(unsigned mac_idx, int test_ops, struct ax_phy_info *info
 			printf("XGMII PHY reset failed\n");
 			return -ETIMEDOUT;
 		}
-		xgmii_enable_phy_loopback(XGMII_MAC_BASE, phyaddr);
+		xgmii_enable_phy_loopback(mac_idx, phyaddr);
 		hcp_phy_state[mac_idx].phyaddr = phyaddr;
 		hcp_phy_configured[mac_idx] = true;
 		break;
@@ -250,7 +243,7 @@ static int hcp_stop_link_up(unsigned mac_idx)
 	switch (hcp_eth_speed[mac_idx]) {
 	case AX_ETH_10G:
 		if (hcp_phy_configured[mac_idx])
-			xgmii_disable_phy_loopback(XGMII_MAC_BASE, phy->phyaddr);
+			xgmii_disable_phy_loopback(mac_idx, phy->phyaddr);
 		hcp_phy_configured[mac_idx] = false;
 		xgmii_disable_near_loopback();
 		mac_stop_10g();
@@ -266,8 +259,12 @@ static int hcp_stop_link_up(unsigned mac_idx)
 		    phy->phyaddr != INVALID_MAC_IDX) {
 			if (phy->opt.eth_run_test_ops == EXTERNAL_PHY_RJ45_LOOPBACK)
 				mdio_disable_stub_lb(mac_idx, phy->phyaddr, phy->phy_type);
-			else if (phy->opt.eth_run_test_ops == EXTERNAL_PHY_LOOPBACK)
+			else if (phy->opt.eth_run_test_ops == EXTERNAL_PHY_LOOPBACK) {
 				mdio_disable_exphy_lb(mac_idx, phy->phyaddr, phy->phy_type);
+				if (phy->phy_type == MARVELL_PHY)
+					mdio_setup_copper_an(mac_idx, phy->phyaddr,
+							     phy->phy_type);
+			}
 		}
 		break;
 	}

@@ -1,101 +1,28 @@
 // SPDX-License-Identifier: GPL-2.0+
 #include "eth_mac.h"
 #include "../eth_common_api/eth_common_api.h"
-#include <dm.h>
-#include <asm/io.h>
-#include <stdio.h>
-#include <linux/types.h>
 #include <linux/delay.h>
+
+static inline u32 eth_mac_base(u8 mac_idx)
+{
+	return XGMII_MAC_BASE + (mac_idx * MAC_CONFIG_BYTE_CNT);
+}
+
+static inline u32 eth_shim_base(int mac_idx)
+{
+	return AXILS_SHIM_MAC_BASE + (mac_idx * MAC_BASE_OFFSET);
+}
+
 static inline void REG_WRITE32_DUMP_x3(u32 base_addr, u32 reg_offset,
 			       u32 value)
 {
-	// REG_WRITE32(value, base_addr + reg_offset);
-	// REG_WRITE32(value, base_addr + reg_offset);
 	writel(value, base_addr + reg_offset);
-}
-
-void sgmii_phy_dump(u8 mac_idx) {
-	printf("\n\n\n");
-	printf("SGMII PHY DUMP\n");
-    u32 SGMII_BASE = sgmii_phy_base(mac_idx);
-
-    REG_READ32_DUMP(SGMII_BASE, 0x2c);  
-    REG_READ32_DUMP(SGMII_BASE, 0x42c);
-    // program_phy0_no_bandgap_rcomp_calib_sim
-    REG_READ32_DUMP(SGMII_BASE, ((0x05 << 10) + (0x22 << 2))); //offset:1488
-    REG_READ32_DUMP(SGMII_BASE, ((0x05 << 10) + (0x0a << 2))); //offset:1428
-    REG_READ32_DUMP(SGMII_BASE, ((0x05 << 10) + (0x0b << 2))); //offset:142c
-                                                                   
-    // program_rc_phy_fast_detect
-    REG_READ32_DUMP(SGMII_BASE, ((0x01 << 10) + (0xc3 << 2))); //offset:070c
-    REG_READ32_DUMP(SGMII_BASE, ((0x01 << 10) + (0xc4 << 2))); //offset:0710
-                                                                   
-    // program_phy0_pll_fast_lock
-    REG_READ32_DUMP(SGMII_BASE, ((0x05 << 10) + (0x6f << 2))); //offset:15bc
-                                                                   
-    // program_phy_0_no_offset_calib
-    REG_READ32_DUMP(SGMII_BASE, ((0x02 << 10) + (0xc9 << 2))); //offset:0b24
-    REG_READ32_DUMP(SGMII_BASE, ((0x02 << 10) + (0xca << 2))); //offset:0b28
-    REG_READ32_DUMP(SGMII_BASE, ((0x02 << 10) + (0xa2 << 2))); //offset:0a88
-    REG_READ32_DUMP(SGMII_BASE, ((0x02 << 10) + (0xa4 << 2))); //offset:0a90
-    REG_READ32_DUMP(SGMII_BASE, ((0x01 << 10) + (0x0a << 2))); //offset:0428
-                                                               
-    // program_phy_0_fast_RxEq
-    REG_READ32_DUMP(SGMII_BASE, ((0x05 << 10) + (0x6f << 2))); //offset:15bc
-   
-    REG_READ32_DUMP(SGMII_BASE, ((0x02 << 10) + (0xe3 << 2))); //offset:0b8c
-    REG_READ32_DUMP(SGMII_BASE, ((0x02 << 10) + (0xdb << 2))); //offset:0b6c
-    REG_READ32_DUMP(SGMII_BASE, ((0x02 << 10) + (0xdc << 2))); //offset:0b70
-    REG_READ32_DUMP(SGMII_BASE, ((0x02 << 10) + (0xdd << 2))); //offset:0b74
-    REG_READ32_DUMP(SGMII_BASE, ((0x01 << 10) + (0x99 << 2))); //offset:0664
-    REG_READ32_DUMP(SGMII_BASE, ((0x05 << 10) + (0x50 << 2))); //offset:1540
-    REG_READ32_DUMP(SGMII_BASE, ((0x05 << 10) + (0x51 << 2))); //offset:1544
-    REG_READ32_DUMP(SGMII_BASE, ((0x05 << 10) + (0x52 << 2))); //offset:1548
-    REG_READ32_DUMP(SGMII_BASE, ((0x05 << 10) + (0x53 << 2))); //offset:154c
-    REG_READ32_DUMP(SGMII_BASE, ((0x05 << 10) + (0x54 << 2))); //offset:1550
-    REG_READ32_DUMP(SGMII_BASE, ((0x05 << 10) + (0x55 << 2))); //offset:1554
-    REG_READ32_DUMP(SGMII_BASE, ((0x05 << 10) + (0x56 << 2))); //offset:1558
-    REG_READ32_DUMP(SGMII_BASE, ((0x05 << 10) + (0x57 << 2))); //offset:155c
-    REG_READ32_DUMP(SGMII_BASE, ((0x05 << 10) + (0x58 << 2))); //offset:1560
-    REG_READ32_DUMP(SGMII_BASE, ((0x05 << 10) + (0x59 << 2))); //offset:1564
-    REG_READ32_DUMP(SGMII_BASE, ((0x05 << 10) + (0x5a << 2))); //offset:1568
-    REG_READ32_DUMP(SGMII_BASE, ((0x05 << 10) + (0x5b << 2))); //offset:156c
-    REG_READ32_DUMP(SGMII_BASE, ((0x05 << 10) + (0x5c << 2))); //offset:1570
-    REG_READ32_DUMP(SGMII_BASE, ((0x05 << 10) + (0x5d << 2))); //offset:1574
-    REG_READ32_DUMP(SGMII_BASE, ((0x02 << 10) + (0xcb << 2))); //offset:0b2c
-    REG_READ32_DUMP(SGMII_BASE, ((0x02 << 10) + (0xce << 2))); //offset:0b38
-    REG_READ32_DUMP(SGMII_BASE, ((0x02 << 10) + (0xcf << 2))); //offset:0b3c
- 
-    REG_READ32_DUMP(SGMII_BASE,((0x04 << 10) + (0x24 << 2))); //configure pll0 postdiv offset:1090
-    REG_READ32_DUMP(SGMII_BASE,((0x03 << 10) + (0x75 << 2)));          //offset:0dd4
-    REG_READ32_DUMP(SGMII_BASE,((0x05 << 10) + (0x24 << 2)));          //offset:1490
-                                                                                       
-    REG_READ32_DUMP(SGMII_BASE,((0x6 << 10) + (0x55 << 2)));           //offset:1954
-    REG_READ32_DUMP(SGMII_BASE,((0x6 << 10) + (0x56 << 2)));           //offset:1958
-    REG_READ32_DUMP(SGMII_BASE,((0x6 << 10) + (0x57 << 2)));           //offset:195c
-                                                                                       
-    // enable GTX_CLK and RX_CLK clock stop capability, on GMII interface
-    REG_READ32_DUMP(SGMII_BASE,((0x6 << 10) + (0x00 << 2)));           //offset:1800
- 
-    REG_READ32_DUMP(SGMII_BASE, 0x0ddc);
-    REG_READ32_DUMP(SGMII_BASE, 0x0800);
-    REG_READ32_DUMP(SGMII_BASE, 0x0400);
-    REG_READ32_DUMP(SGMII_BASE, 0x0404);
-    REG_READ32_DUMP(SGMII_BASE, 0x0408);
-    REG_READ32_DUMP(SGMII_BASE, 0x0bd0);
-    REG_READ32_DUMP(SGMII_BASE, 0x0de0);
-    REG_READ32_DUMP(SGMII_BASE, 0x0de4);
-    REG_READ32_DUMP(SGMII_BASE, 0x0de8);
 }
 
 void sgmii_fast_sim(u8 mac_idx)
 {
     u32 SGMII_BASE = sgmii_phy_base(mac_idx);
  
-    // REG_WRITE32_DUMP_x3(SGMII_BASE,((0x04 << 10) + (0x24 << 2)), 0xc8810321); // fracpll fbdiv
-    // REG_WRITE32_DUMP_x3(SGMII_BASE,((0x04 << 10) + (0x25 << 2)), 0x10322040); // fracpll fbdiv
-    // REG_WRITE32_DUMP_x3(SGMII_BASE,((0x04 << 10) + (0x06 << 2)), 0x000001b0); // fracpll dacpd=dsmpd=1
-    // REG_WRITE32_DUMP_x3(SGMII_BASE,((0x04 << 10) + (0x07 << 2)), 0x1c000000); // fracpll frac
    
     // program_phy0_no_bandgap_rcomp_calib_sim
     REG_WRITE32_DUMP_x3(SGMII_BASE, ((0x05 << 10) + (0x22 << 2)), 0x04083789); //offset:1488
@@ -141,8 +68,6 @@ void sgmii_fast_sim(u8 mac_idx)
     REG_WRITE32_DUMP_x3(SGMII_BASE, ((0x02 << 10) + (0xcb << 2)), 0xffffffff); //offset:0b2c
     REG_WRITE32_DUMP_x3(SGMII_BASE, ((0x02 << 10) + (0xce << 2)), 0xffffffff); //offset:0b38
     REG_WRITE32_DUMP_x3(SGMII_BASE, ((0x02 << 10) + (0xcf << 2)), 0xffffffff); //offset:0b3c
-    //REG_WRITE32_DUMP_x3(SGMII_BASE, ((0x02 << 10) + (0xd2 << 2)), 0xffffffff); //offset:0b48
-    //REG_WRITE32_DUMP_x3(SGMII_BASE, ((0x02 << 10) + (0xda << 2)), 0x01ff0000); //offset:0b68
 }
 void sgmii_fast_sim_other(u8 mac_idx) {
     u32 SGMII_BASE = sgmii_phy_base(mac_idx);
@@ -177,16 +102,13 @@ void sgmii_innosilicon_pi_config(u8 mac_idx) {
     u32 SGMII_BASE = sgmii_phy_base(mac_idx);
     REG_WRITE32_DUMP_x3(SGMII_BASE, 0x2c, 0x00C10C92);  
     REG_WRITE32_DUMP_x3(SGMII_BASE, 0x42c, 0x00000011);
-
-    // REG_WRITE32_DUMP_x3(SGMII_BASE, 0x2c, 0x00810C92);  
-    // REG_WRITE32_DUMP_x3(SGMII_BASE, 0x42c, 0x00000013);
 }
  
 int sgmii_link_try(u8 mac_idx) 
 {
 	int status = 1;
 	u32 rval;
-    u32 mac_base = XGMII_MAC_BASE + (mac_idx * MAC_CONFIG_BYTE_CNT);
+    u32 mac_base = eth_mac_base(mac_idx);
     printf("Retry \n");
     printf("SGMII Reset \n");
     writel(0x10, AXILS_HCP_BASE + gmii_port_ctrl_offset(mac_idx));
@@ -351,8 +273,6 @@ void xgmii_fast_sim(void)
 void mac_reset_sgmii(u8 mac_idx)
 {
 	u32 gmii_port_ctrl;
-	int reg_val, auto_neg_mon,sgmii_reset_val,sgmii_reset;
-	volatile u32 read_data,read_data_3;
 	gmii_port_ctrl =
 		readl(AXILS_HCP_BASE + gmii_port_ctrl_offset(mac_idx));
 	gmii_port_ctrl |= (1 << 4); //Set bit 4 (SGMII Reset)
@@ -367,7 +287,7 @@ void mac_reset_sgmii(u8 mac_idx)
 /* MAC 1G operation */
 int mac_reset_1g(u8 mac_idx)
 {
-	u32 mac_base = XGMII_MAC_BASE + (mac_idx * MAC_CONFIG_BYTE_CNT);
+	u32 mac_base = eth_mac_base(mac_idx);
 	u32 regval;
 
 	writel(MAC_CC_NULL, mac_base + R_COMMAND_CONFIG);
@@ -393,7 +313,7 @@ int mac_reset_1g(u8 mac_idx)
 
 void mac_init_1g(u8 mac_idx)
 {
-	u32 mac_base = XGMII_MAC_BASE + (mac_idx * MAC_CONFIG_BYTE_CNT);
+	u32 mac_base = eth_mac_base(mac_idx);
 
 	/* MAC address 00:11:22:33:44:55 (XG_R_MAC_0/1_VAL) */
 	writel(XG_R_MAC_0_VAL, mac_base + R_MAC_0);
@@ -431,10 +351,6 @@ void mac_init_1g(u8 mac_idx)
 	/*Set interface mode to GMII mode*/
 	writel(MAC_1G_R_IF_MODE_VAL, mac_base + R_IF_MODE);
 
-	/* HW specific config, now done in hcp_mac_init() */
-	// sgmii_fast_sim(mac_idx);
-	// sgmii_fast_sim_other(mac_idx);
-	// sgmii_innosilicon_adjust(mac_idx);
 		
 	u32 cmd_cfg = readl(mac_base + R_COMMAND_CONFIG);
 	printf("1G MAC-%d Configured (Cmd: 0x%08x)\n", mac_idx, cmd_cfg);
@@ -446,7 +362,7 @@ void mac_init_1g(u8 mac_idx)
  */
 void mac_cfg_jabber_packet(u8 mac_idx)
 {
-	u32 mac_base = XGMII_MAC_BASE + (mac_idx * MAC_CONFIG_BYTE_CNT);
+	u32 mac_base = eth_mac_base(mac_idx);
 
 	writel(MAC_CC_NULL | MAC_CC_TX_ENA | MAC_CC_RX_ENA |
 		    MAC_CC_PROMIS_EN | MAC_CC_TX_PAD_EN, mac_base + R_COMMAND_CONFIG);
@@ -661,8 +577,6 @@ void mac_init_10g(void)
 	/* Configure RX / TX FIFO Sections*/
 	writel(XG_MAC_R_RX_FIFO_VAL, mac_base + R_RX_FIFO_SECTIONS);
 	writel(XG_MAC_R_TX_FIFO_VAL, mac_base + R_TX_FIFO_SECTIONS);
-	//writel(MAC_1G_R_RX_FIFO_VAL, mac_base + (R_RX_FIFO_SECTIONS));
-	//writel(MAC_1G_R_TX_FIFO_VAL, mac_base + (R_TX_FIFO_SECTIONS));
 
 	/* Configure the MAC-COMMAND with specific bits */
 	writel((MAC_CC_NULL |
@@ -674,7 +588,7 @@ void mac_init_10g(void)
 	/* Set frame length value */
 	writel(XG_MAC_R_FRM_LENGTH_VAL, mac_base + R_FRM_LENGTH);
 
-	printf("MAC is configured with command bits: 0x%x",
+	printf("MAC is configured with command bits: 0x%x\n",
 		 readl(mac_base + R_COMMAND_CONFIG));
 
 	/*Set interface mode to GMII mode*/
@@ -819,7 +733,7 @@ void eth_rmii_pinctrl_config(void)
 }
 void mac_init_rmii(u8 mac_idx)
 {
-	u32 mac_base = XGMII_MAC_BASE + (mac_idx * MAC_CONFIG_BYTE_CNT);
+	u32 mac_base = eth_mac_base(mac_idx);
 
 	writel(XG_R_MAC_0_VAL, mac_base + R_MAC_0);
 	writel(XG_R_MAC_1_VAL, mac_base + R_MAC_1);
@@ -857,7 +771,7 @@ void eth_enable_gmii_ncsi(u8 mac_idx, u8 rmii_mode){
 /* Clear AUTO_NEG_MON before the test; returns 1 if it is cleared */
 int auto_neg_mon_clear_bit(int mac_idx)
 {
-	int  reg_val, auto_neg_mon,sgmii_reset_val,sgmii_reset;
+	int  reg_val, auto_neg_mon;
     volatile u32 read_data;
 	reg_val = readl(GE_MON_BASE + sgmii_stride(mac_idx));
 	reg_val |= (1 << AUTO_NEG_MON);
@@ -896,7 +810,7 @@ int eth_auto_neg_mon(int mac_idx)
  */
 int ge_mon_clear_bit(int mac_idx)
 {
-    u32  reg_val, ge_mon, sgmii_mon, sync_status_mon,auto_neg,sgmii_reset;
+    u32  reg_val, ge_mon, sgmii_mon, auto_neg,sgmii_reset;
 	volatile u32 read_data,read_data_2,read_data_3 ;
 	reg_val = readl(AXILS_HCP_BASE + IRQ_GE_CSR_BASE + sgmii_stride(mac_idx));
 	reg_val |= (1 << SGMII_MON) ; 
@@ -1009,8 +923,8 @@ int eth_ge_mon(int mac_idx)
 int eth_print_broadcast_counters(int mac_idx)
 {
     u32 tx_broadcast, rx_broadcast;
-    tx_broadcast = readl((AXILS_SHIM_MAC_BASE + (mac_idx * MAC_BASE_OFFSET)) + SHIM_STATS_TX_BROADCAST);
-	rx_broadcast = readl((AXILS_SHIM_MAC_BASE + (mac_idx * MAC_BASE_OFFSET)) + SHIM_STATS_RX_BROADCAST);
+    tx_broadcast = readl(eth_shim_base(mac_idx) + SHIM_STATS_TX_BROADCAST);
+	rx_broadcast = readl(eth_shim_base(mac_idx) + SHIM_STATS_RX_BROADCAST);
 	printf("Stats for MAC-idx: %d\n", mac_idx);
     printf("EXPECT TX-BROADCAST GOOD FRAME == RX-BROADCAST GOOD FRAME == %x\n", ETH_TEST_DFLT_FRAMES);
     printf("ACTUAL: TX-BROADCAST GOOD FRAME:%x\n", tx_broadcast);
@@ -1025,8 +939,8 @@ int eth_print_broadcast_counters(int mac_idx)
 int eth_print_ctrl_frame_counters(int mac_idx)
 {
     u32 tx_mac_ctrl_frame, rx_mac_ctrl_frame;
-    tx_mac_ctrl_frame = readl((AXILS_SHIM_MAC_BASE + (mac_idx * MAC_BASE_OFFSET)) + SHIM_STATS_MAC_CTRL_FRAME_TX);
-	rx_mac_ctrl_frame = readl((AXILS_SHIM_MAC_BASE + (mac_idx * MAC_BASE_OFFSET)) + SHIM_STATS_MAC_CTRL_FRAME_RX);
+    tx_mac_ctrl_frame = readl(eth_shim_base(mac_idx) + SHIM_STATS_MAC_CTRL_FRAME_TX);
+	rx_mac_ctrl_frame = readl(eth_shim_base(mac_idx) + SHIM_STATS_MAC_CTRL_FRAME_RX);
 	printf("Stats for MAC-idx: %d\n", mac_idx);
     printf("EXPECT TX MAC CTRL FRAME == RX MAC CTRL FRAME == %x\n", ETH_TEST_DFLT_FRAMES);
     printf("ACTUAL: TX MAC CTRL FRAME:%x\n", tx_mac_ctrl_frame);
@@ -1041,7 +955,7 @@ int eth_print_ctrl_frame_counters(int mac_idx)
 int eth_print_drop_event_counters(int mac_idx)
 {
     u32 rx_mac_drop_event;
-	rx_mac_drop_event = readl((AXILS_SHIM_MAC_BASE + (mac_idx * MAC_BASE_OFFSET)) + SHIM_STATS_RX_DROP_EVENTS);
+	rx_mac_drop_event = readl(eth_shim_base(mac_idx) + SHIM_STATS_RX_DROP_EVENTS);
 	printf("Stats for MAC-idx: %d\n", mac_idx);
     printf("EXPECT: RX-DROP EVENTS > 0\n");
 	printf("ACTUAL: RX-DROP EVENTS: %x\n",rx_mac_drop_event);
@@ -1053,7 +967,7 @@ int eth_print_drop_event_counters(int mac_idx)
 }
 u32 eth_read_fragments_counter(int mac_idx)
 {
-	return readl((AXILS_SHIM_MAC_BASE + (mac_idx * MAC_BASE_OFFSET)) + SHIM_STATS_RX_FRAGMENTS_PKTS);
+	return readl(eth_shim_base(mac_idx) + SHIM_STATS_RX_FRAGMENTS_PKTS);
 }
 
 /* Print and return the raw RX fragments counter (non-zero = pass) */
@@ -1067,31 +981,6 @@ u32 eth_print_fragments_counters(int mac_idx)
 	return rx_fragments_pkts;
 }
 
-u32 eth_print_crc_err_counters(int mac_idx)
-{
-	u32 shim_base = AXILS_SHIM_MAC_BASE + (mac_idx * MAC_BASE_OFFSET);
-	u32 rx_total = readl(shim_base + SHIM_STATS_RX_MAC_TOTAL);
-	u32 rx_good = readl(shim_base + SHIM_STATS_RX_MAC_GOOD);
-	u32 crc_error = readl(shim_base + SHIM_STATS_CRCERRORS);
-
-	printf("Stats for MAC-idx: %d\n", mac_idx);
-	printf("RX_MAC(total): %d\n", rx_total);
-	printf("RX_MAC(good): %d\n", rx_good);
-	printf("CRC Error: %d\n", crc_error);
-
-	return crc_error;
-}
-u32 eth_print_lengtherrors_counters(int mac_idx)
-{
-	u32 lgth_error;
-	lgth_error = readl(mac_idx + SHIM_STATS_RX_LNTHERROR);
-
-    printf("Stats for MAC-idx: %d\n", mac_idx);
-    printf("Expect: RX-LNTHERROR >0\n");
-	printf("Actual: RX-LNTHERROR (total):%d\n", lgth_error);
-
-    return lgth_error;
-}
 /*
  * Drain one frame from the host RX FIFO with a long timeout (port of the
  * baremetal ingress_packet_error_check)
@@ -1111,14 +1000,12 @@ int ingress_packet_error_check(int mac_idx, unsigned char buf[], int blen)
 	} else {
 		port = mac_idx - 1;
 	}
-	//eth_printf("Ingress...\n");
 	/* wait for data available in the host receive packet interface */
 	do {
 		read_data = readl(AXILS_HCP_BASE + RX_PACKET_FIFO_0);
         mdelay(150);
 	} while (!(read_data & BIT(RX_FIFO_DAV)) && count--);
 	if (count <= 0) {
-		printf("Timeout on rx \n");
 		printf("Timeout on rx \n");
 		return rlen;
 	}
@@ -1129,12 +1016,9 @@ int ingress_packet_error_check(int mac_idx, unsigned char buf[], int blen)
 	len = read_data >> RX_FIFO_FRMLEN & 0x0000ffff;
 	mod = (read_data >> RX_FIFO_MOD) & RX_FIFO_DAV;
     
-	//eth_print_info("len: ", len);
-	//eth_print_info("mod: ", mod);
 
 	rlen = len * 4 - ((4 - mod) % 4);
 
-	//eth_print_info("rlen: ", rlen);
 
 	/* packet doesn't fit in the buffer: drop it */
 	if (len * 4 > blen) {
